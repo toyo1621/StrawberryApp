@@ -211,8 +211,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
               `}
               aria-label={`選択肢 ${index + 1}: ${item}`}
             >
-        )
-        )
-        }
+              <span>{item}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GameScreen;
   )
 }
