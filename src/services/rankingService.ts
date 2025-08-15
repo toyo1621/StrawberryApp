@@ -1,6 +1,13 @@
 import { supabase } from './supabase';
 
 export interface RankingEntry {
+  id: string;
+  playerName: string;
+  score: number;
+  gameType: string;
+  createdAt: string;
+}
+
 const isDemoMode = import.meta.env.VITE_SUPABASE_URL === undefined || 
                    import.meta.env.VITE_SUPABASE_URL === 'https://demo.supabase.co';
 
@@ -10,13 +17,6 @@ const demoRankings: RankingEntry[] = [
   { name: 'プレイヤー2', score: 120 },
   { name: 'プレイヤー3', score: 100 },
 ];
-
-  id: string;
-  playerName: string;
-  score: number;
-  gameType: string;
-  createdAt: string;
-}
 
 const GAME_TYPE = 'strawberry_rush';
 const RANKING_LIMIT = 10;
@@ -59,6 +59,11 @@ export const fetchRankings = async (): Promise<RankingEntry[]> => {
 
 // 新しいスコアを保存
 export const saveScore = async (playerName: string, score: number): Promise<RankingEntry | null> => {
+  if (isDemoMode) {
+    console.log('Demo mode: Score would be saved:', { playerName, score });
+    return null;
+  }
+
   try {
     const insertData = {
       player_name: playerName.trim(),
