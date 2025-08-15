@@ -11,3 +11,4 @@ export interface RankingEntry {
   score: number;
   gameType: string;
   createdAt: string;
+}
