@@ -39,7 +39,7 @@ const MemoryGameScreen: React.FC<MemoryGameScreenProps> = ({
     setShowResult(true);
 
     setTimeout(() => {
-      const bonusPoints = correct ? 5 : 0;
+      const bonusPoints = correct ? 2 : 0;
       onComplete(currentScore + bonusPoints);
     }, 2000);
   };
@@ -52,7 +52,7 @@ const MemoryGameScreen: React.FC<MemoryGameScreenProps> = ({
           最後に出た、いちごじゃない方の果物は？
         </p>
         <p className="text-sm text-gray-500">
-          正解で+5点ボーナス！
+          正解で+2点ボーナス！
         </p>
       </div>
 
@@ -74,7 +74,7 @@ const MemoryGameScreen: React.FC<MemoryGameScreenProps> = ({
             <div className="text-green-600">
               <div className="text-6xl mb-4">🎉</div>
               <p className="text-2xl font-bold mb-2">正解！</p>
-              <p className="text-lg">+5点ボーナス獲得！</p>
+              <p className="text-lg">+2点ボーナス獲得！</p>
             </div>
           ) : (
             <div className="text-red-600">
