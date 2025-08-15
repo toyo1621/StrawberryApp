@@ -54,30 +54,48 @@ const mapRowToRankingEntry = (row: RankingRow): RankingEntry => ({
 export const fetchRankings = async (): Promise<RankingEntry[]> => {
   // Supabase環境変数がない場合はローカルストレージを使用
   if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-    return loadLocalRankings();
+    const localRankings = loadLocalRankings();
+    return getUniquePlayerRankings(localRankings);
   }
 
   try {
-    const { data, error } = await supabase
-      .from('rankings')
-      .select('*')
-      .eq('game_type', GAME_TYPE)
-      .order('score', { ascending: false })
-      .order('created_at', { ascending: true })
-      .limit(RANKING_LIMIT);
+    // 各プレイヤーの最高スコアのみを取得するクエリ
+    const { data, error } = await supabase.rpc('get_top_rankings', {
+      game_type_param: GAME_TYPE,
+      limit_param: RANKING_LIMIT
+    });
 
     if (error) {
       console.error('Error fetching rankings:', error);
       // エラーの場合はローカルストレージにフォールバック
-      return loadLocalRankings();
+      const localRankings = loadLocalRankings();
+      return getUniquePlayerRankings(localRankings);
     }
 
-    return data?.map(mapRowToRankingEntry) || [];
+    return data?.map((row: any) => mapRowToRankingEntry(row)) || [];
   } catch (error) {
     console.error('Failed to fetch rankings:', error);
     // エラーの場合はローカルストレージにフォールバック
-    return loadLocalRankings();
+    const localRankings = loadLocalRankings();
+    return getUniquePlayerRankings(localRankings);
   }
+};
+
+// 各プレイヤーの最高スコアのみを取得する関数
+const getUniquePlayerRankings = (rankings: RankingEntry[]): RankingEntry[] => {
+  const playerBestScores = new Map<string, RankingEntry>();
+  
+  rankings.forEach(entry => {
+    const existing = playerBestScores.get(entry.playerName);
+    if (!existing || entry.score > existing.score || 
+        (entry.score === existing.score && entry.createdAt < existing.createdAt)) {
+      playerBestScores.set(entry.playerName, entry);
+    }
+  });
+  
+  return Array.from(playerBestScores.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, RANKING_LIMIT);
 };
 
 // 新しいスコアを保存
