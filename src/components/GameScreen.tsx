@@ -122,7 +122,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
         </p>
         {isGoldStrawberry && (
           <p className="text-lg font-bold text-yellow-600 mb-4">
-            🥇 {GOLD_STRAWBERRY_POINTS}点ゲット！
+            🥇 3点ゲット！
           </p>
         )}
         <div className="flex justify-around w-full max-w-sm">
