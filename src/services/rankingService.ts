@@ -13,9 +13,27 @@ const isDemoMode = import.meta.env.VITE_SUPABASE_URL === undefined ||
 
 // デモ用のランキングデータ
 const demoRankings: RankingEntry[] = [
-  { name: 'プレイヤー1', score: 150 },
-  { name: 'プレイヤー2', score: 120 },
-  { name: 'プレイヤー3', score: 100 },
+  { 
+    id: '1',
+    playerName: 'プレイヤー1', 
+    score: 150,
+    gameType: 'strawberry_rush',
+    createdAt: new Date().toISOString()
+  },
+  { 
+    id: '2',
+    playerName: 'プレイヤー2', 
+    score: 120,
+    gameType: 'strawberry_rush',
+    createdAt: new Date().toISOString()
+  },
+  { 
+    id: '3',
+    playerName: 'プレイヤー3', 
+    score: 100,
+    gameType: 'strawberry_rush',
+    createdAt: new Date().toISOString()
+  },
 ];
 
 const GAME_TYPE = 'strawberry_rush';
