@@ -1,6 +1,16 @@
 import { supabase } from './supabase';
 
 export interface RankingEntry {
+const isDemoMode = import.meta.env.VITE_SUPABASE_URL === undefined || 
+                   import.meta.env.VITE_SUPABASE_URL === 'https://demo.supabase.co';
+
+// デモ用のランキングデータ
+const demoRankings: RankingEntry[] = [
+  { name: 'プレイヤー1', score: 150 },
+  { name: 'プレイヤー2', score: 120 },
+  { name: 'プレイヤー3', score: 100 },
+];
+
   id: string;
   playerName: string;
   score: number;
@@ -22,6 +32,10 @@ const mapRowToRankingEntry = (row: any): RankingEntry => ({
 
 // ランキングを取得
 export const fetchRankings = async (): Promise<RankingEntry[]> => {
+  if (isDemoMode) {
+    return demoRankings;
+  }
+
   try {
     const { data, error } = await supabase
       .from('rankings')
