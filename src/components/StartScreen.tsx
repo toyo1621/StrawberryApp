@@ -39,6 +39,7 @@ const StartScreen = ({ onStart, ranking, isLoading, onShowRules }: StartScreenPr
         <span className="text-5xl" role="img" aria-label="strawberry">🍓</span>
       </div>
       <p className="text-gray-600 mb-6">時間内にいちごをたくさんつめよう！</p>
+      <p className="text-sm text-blue-600 mb-4 font-medium">8/15 ランキングリセット</p>
       
       {/* ルールボタン */}
       <div className="mb-4">
