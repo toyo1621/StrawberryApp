@@ -16,6 +16,7 @@ const MemoryGameScreen: React.FC<MemoryGameScreenProps> = ({
   const [options, setOptions] = useState<string[]>([]);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   useEffect(() => {
     // Generate 4 options including the correct answer
@@ -31,12 +32,13 @@ const MemoryGameScreen: React.FC<MemoryGameScreenProps> = ({
   }, [correctAnswer]);
 
   const handleAnswerSelect = (answer: string) => {
-    if (showResult) return;
+    if (showResult || isCompleted) return;
     
     setSelectedAnswer(answer);
     const correct = answer === correctAnswer;
     setIsCorrect(correct);
     setShowResult(true);
+    setIsCompleted(true);
 
     setTimeout(() => {
       const bonusPoints = correct ? 2 : 0;

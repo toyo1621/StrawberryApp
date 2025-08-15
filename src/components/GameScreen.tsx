@@ -16,6 +16,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [lastDistractor, setLastDistractor] = useState<string>('');
   const [allDistractors, setAllDistractors] = useState<string[]>([]);
+  const [isProcessingClick, setIsProcessingClick] = useState(false);
+  const [gameEnded, setGameEnded] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -76,8 +78,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   }, []);
 
   useEffect(() => {
+    // タイマーをクリア
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
     if (timeLeft <= 0) {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (gameEnded) return; // 既にゲーム終了処理中の場合は何もしない
+      setGameEnded(true);
       
       // Check if we should trigger memory game
       if (Math.random() < MEMORY_GAME_CHANCE && allDistractors.length > 0) {
@@ -89,17 +97,22 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       return;
     }
 
+    // 新しいタイマーを設定
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => prev - 1);
     }, 1000);
 
+    // クリーンアップ関数
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timeLeft, onGameOver, onMemoryGame, lastDistractor, allDistractors]);
+  }, [timeLeft, onGameOver, onMemoryGame, lastDistractor, allDistractors, gameEnded]);
 
   const handleChoice = (index: number) => {
-    if (feedback) return;
+    // 重複クリック防止の強化
+    if (feedback || isProcessingClick || gameEnded) return;
+    
+    setIsProcessingClick(true);
 
     const isCorrect = index === strawberryIndex;
 
@@ -110,7 +123,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       } else if (isGoldStrawberry) {
         points = GOLD_STRAWBERRY_POINTS;
       }
-      setScore(s => s + points);
+      // スコア更新を一度だけ確実に実行
+      setScore(prevScore => prevScore + points);
       setFeedback({ index, type: 'correct' });
     } else {
       setTimeLeft(t => Math.max(0, t - PENALTY_SECONDS));
@@ -118,6 +132,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     }
     
     feedbackTimeoutRef.current = setTimeout(() => {
+      setIsProcessingClick(false);
       generateNewItems();
     }, 300);
   };
