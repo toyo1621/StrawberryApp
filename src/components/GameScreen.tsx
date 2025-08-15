@@ -15,8 +15,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   const [isWholeCake, setIsWholeCake] = useState(false);
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [lastDistractor, setLastDistractor] = useState<string>('');
-  const [firstDistractor, setFirstDistractor] = useState<string>('');
-  const [roundCount, setRoundCount] = useState<number>(0);
+  const [allDistractors, setAllDistractors] = useState<string[]>([]);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -25,7 +24,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
 
   const generateNewItems = useCallback(() => {
     setFeedback(null);
-    setRoundCount(prev => prev + 1);
     
     // Check if this should be a whole cake (highest priority)
     const shouldBeWholeCake = Math.random() < WHOLE_CAKE_CHANCE;
@@ -48,23 +46,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
 
     const distractors = [...DISTRACTOR_EMOJIS].sort(() => 0.5 - Math.random());
     let distractorCursor = 0;
-    let currentDistractor = '';
 
     for (let i = 0; i < CHOICE_COUNT; i++) {
       if (i !== newStrawberryIndex) {
         const distractor = distractors[distractorCursor++];
         newItems[i] = distractor;
-        currentDistractor = distractor;
+        
+        // 全てのディストラクターを記録
+        setAllDistractors(prev => [...prev, distractor]);
+        // 最後のディストラクターを更新
+        setLastDistractor(distractor);
       }
     }
-    
-    // Store the first distractor only on the very first round (roundCount === 1)
-    if (roundCount === 1) {
-      setFirstDistractor(currentDistractor);
-    }
-    
-    // Always update the last distractor
-    setLastDistractor(currentDistractor);
     
     setStrawberryIndex(newStrawberryIndex);
     setItems(newItems);
@@ -87,7 +80,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       if (timerRef.current) clearInterval(timerRef.current);
       
       // Check if we should trigger memory game
-      if (Math.random() < MEMORY_GAME_CHANCE && lastDistractor) {
+      if (Math.random() < MEMORY_GAME_CHANCE && allDistractors.length > 0) {
+        const firstDistractor = allDistractors[0]; // 一番最初のディストラクター
         onMemoryGame(scoreRef.current, lastDistractor, firstDistractor);
       } else {
         onGameOver(scoreRef.current);
@@ -102,7 +96,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timeLeft, onGameOver, onMemoryGame, lastDistractor]);
+  }, [timeLeft, onGameOver, onMemoryGame, lastDistractor, allDistractors]);
 
   const handleChoice = (index: number) => {
     if (feedback) return;
