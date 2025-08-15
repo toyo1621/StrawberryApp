@@ -150,28 +150,31 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   }, [generateNewItems, startTimer]);
 
   const handleChoice = (index: number) => {
-    // 重複クリック防止
-    if (feedback || gameEnded || gameEndedRef.current) return;
+    // 重複クリック防止の強化
+    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) return;
     
+    setIsProcessingClick(true);
+
     const isCorrect = index === strawberryIndex;
 
     if (isCorrect) {
       let points = 1;
-      let timeBonus = 0;
-      
       if (isWholeCake) {
         points = WHOLE_CAKE_POINTS;
-        timeBonus = WHOLE_CAKE_TIME_BONUS;
+        // ホールケーキの時間ボーナス（5秒）
+        setTimeLeft(prevTime => prevTime + WHOLE_CAKE_TIME_BONUS);
       } else if (isGoldStrawberry) {
         points = GOLD_STRAWBERRY_POINTS;
-        timeBonus = GOLD_STRAWBERRY_TIME_BONUS;
+        // ショートケーキの時間ボーナス（1秒）
+        setTimeLeft(prevTime => {
+          const newTime = prevTime + GOLD_STRAWBERRY_TIME_BONUS;
+          return newTime;
+        });
       }
-      
-      setScore(prevScore => prevScore + points);
-      
-      if (timeBonus > 0) {
-        setTimeLeft(prevTime => prevTime + timeBonus);
-      }
+      setScore(prevScore => {
+        const newScore = prevScore + points;
+        return newScore;
+      });
       
       // 連続正解カウントを増やす
       setConsecutiveCorrect(prev => {
@@ -194,9 +197,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     
     feedbackTimeoutRef.current = setTimeout(() => {
       if (!gameEndedRef.current) {
+        setIsProcessingClick(false);
         generateNewItems();
       }
-    }, 500);
+    }, 300);
   };
 
   const timeBarWidth = (timeLeft / (INITIAL_TIME * 10)) * 100;
