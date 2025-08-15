@@ -14,17 +14,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   const [isGoldStrawberry, setIsGoldStrawberry] = useState(false);
   const [isWholeCake, setIsWholeCake] = useState(false);
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
-  const [lastDistractor, setLastDistractor] = useState<string>('');
   const [allDistractors, setAllDistractors] = useState<string[]>([]);
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
 
+  // タイマー用のref
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scoreRef = useRef(score);
-  scoreRef.current = score;
+  const gameEndedRef = useRef(false);
 
   const generateNewItems = useCallback(() => {
+    if (gameEndedRef.current) return;
+    
     setFeedback(null);
     
     // Check if this should be a whole cake (highest priority)
@@ -56,8 +57,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
         
         // 全てのディストラクターを記録
         setAllDistractors(prev => [...prev, distractor]);
-        // 最後のディストラクターを更新
-        setLastDistractor(distractor);
       }
     }
     
@@ -65,49 +64,74 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     setItems(newItems);
   }, []);
 
+  // タイマーを開始する関数
+  const startTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prevTime => {
+        const newTime = prevTime - 1;
+        
+        // 時間が0になったらゲーム終了処理
+        if (newTime <= 0) {
+          if (!gameEndedRef.current) {
+            gameEndedRef.current = true;
+            setGameEnded(true);
+            
+            // タイマーを停止
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
+            
+            // ゲーム終了処理を非同期で実行
+            setTimeout(() => {
+              setAllDistractors(currentDistractors => {
+                if (Math.random() < MEMORY_GAME_CHANCE && currentDistractors.length > 0) {
+                  const firstDistractor = currentDistractors[0];
+                  const lastDistractor = currentDistractors[currentDistractors.length - 1];
+                  setScore(currentScore => {
+                    onMemoryGame(currentScore, lastDistractor, firstDistractor);
+                    return currentScore;
+                  });
+                } else {
+                  setScore(currentScore => {
+                    onGameOver(currentScore);
+                    return currentScore;
+                  });
+                }
+                return currentDistractors;
+              });
+            }, 0);
+          }
+          return 0;
+        }
+        
+        return newTime;
+      });
+    }, 1000);
+  }, [onGameOver, onMemoryGame]);
+
+  // ゲーム開始時にタイマーを開始
   useEffect(() => {
     generateNewItems();
-  }, [generateNewItems]);
-  
-  useEffect(() => {
+    startTimer();
+    
     return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
       if (feedbackTimeoutRef.current) {
         clearTimeout(feedbackTimeoutRef.current);
       }
     };
-  }, []);
-
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (gameEnded) return; // 既にゲーム終了処理中の場合は何もしない
-      setGameEnded(true);
-      
-      // Check if we should trigger memory game
-      if (Math.random() < MEMORY_GAME_CHANCE && allDistractors.length > 0) {
-        const firstDistractor = allDistractors[0]; // 一番最初のディストラクター
-        onMemoryGame(scoreRef.current, lastDistractor, firstDistractor);
-      } else {
-        onGameOver(scoreRef.current);
-      }
-      return;
-    }
-
-    if (!timerRef.current) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
-      }, 1000);
-    }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-    };
-  }, [timeLeft, onGameOver, onMemoryGame, lastDistractor, allDistractors, gameEnded]);
+  }, [generateNewItems, startTimer]);
 
   const handleChoice = (index: number) => {
     // 重複クリック防止の強化
-    if (feedback || isProcessingClick || gameEnded) return;
+    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) return;
     
     setIsProcessingClick(true);
 
@@ -120,17 +144,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       } else if (isGoldStrawberry) {
         points = GOLD_STRAWBERRY_POINTS;
       }
-      // スコア更新を一度だけ確実に実行
       setScore(prevScore => prevScore + points);
       setFeedback({ index, type: 'correct' });
     } else {
-      setTimeLeft(t => Math.max(0, t - PENALTY_SECONDS));
+      // 時間を減らす（ペナルティ）
+      setTimeLeft(prevTime => Math.max(0, prevTime - PENALTY_SECONDS));
       setFeedback({ index, type: 'incorrect' });
     }
     
     feedbackTimeoutRef.current = setTimeout(() => {
-      setIsProcessingClick(false);
-      generateNewItems();
+      if (!gameEndedRef.current) {
+        setIsProcessingClick(false);
+        generateNewItems();
+      }
     }, 300);
   };
 
@@ -169,22 +195,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
             </p>
           </>
         ) : (
-          <p className="text-lg font-bold text-yellow-600 mb-4">
-            <p className="text-2xl font-bold text-gray-700 mb-4">
-              いちごはどっち？
-            </p>
-          </p>
+          <p className="text-2xl font-bold text-gray-700 mb-8">いちごはどっち？</p>
         )}
         <div className="flex justify-around w-full max-w-sm">
           {items.map((item, index) => (
             <button
               key={index}
               onClick={() => handleChoice(index)}
-              disabled={!!feedback}
+              disabled={!!feedback || gameEnded}
               className={`w-36 h-36 sm:w-40 sm:h-40 bg-pink-50 rounded-2xl flex items-center justify-center text-7xl sm:text-8xl transform transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-pink-300
                 ${feedback && feedback.index === index && feedback.type === 'correct' ? 'scale-110 ring-4 ring-green-400' : ''}
                 ${feedback && feedback.index === index && feedback.type === 'incorrect' ? 'animate-shake' : ''}
                 ${feedback && feedback.index !== index ? 'opacity-50' : ''}
+                ${gameEnded ? 'opacity-50 cursor-not-allowed' : ''}
               `}
               aria-label={`選択肢 ${index + 1}: ${item}`}
             >
