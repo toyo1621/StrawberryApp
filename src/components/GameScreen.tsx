@@ -17,6 +17,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   const [allDistractors, setAllDistractors] = useState<string[]>([]);
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
+  const [currentDistractor, setCurrentDistractor] = useState<string>('');
 
   // タイマー用のref
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -55,8 +56,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
         const distractor = distractors[distractorCursor++];
         newItems[i] = distractor;
         
-        // 全てのディストラクターを記録
-        setAllDistractors(prev => [...prev, distractor]);
+        // 現在のディストラクターを記録
+        setCurrentDistractor(distractor);
       }
     }
     
@@ -64,6 +65,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     setItems(newItems);
   }, []);
 
+  // ディストラクターを記録するuseEffect
+  useEffect(() => {
+    if (currentDistractor) {
+      setAllDistractors(prev => [...prev, currentDistractor]);
+    }
+  }, [currentDistractor]);
   // タイマーを開始する関数
   const startTimer = useCallback(() => {
     if (timerRef.current) {
@@ -92,15 +99,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
                 if (Math.random() < MEMORY_GAME_CHANCE && currentDistractors.length > 0) {
                   const firstDistractor = currentDistractors[0];
                   const lastDistractor = currentDistractors[currentDistractors.length - 1];
-                  setScore(currentScore => {
-                    onMemoryGame(currentScore, lastDistractor, firstDistractor);
-                    return currentScore;
-                  });
+                  setTimeout(() => {
+                    setScore(currentScore => {
+                      onMemoryGame(currentScore, lastDistractor, firstDistractor);
+                      return currentScore;
+                    });
+                  }, 0);
                 } else {
-                  setScore(currentScore => {
-                    onGameOver(currentScore);
-                    return currentScore;
-                  });
+                  setTimeout(() => {
+                    setScore(currentScore => {
+                      onGameOver(currentScore);
+                      return currentScore;
+                    });
+                  }, 0);
                 }
                 return currentDistractors;
               });
