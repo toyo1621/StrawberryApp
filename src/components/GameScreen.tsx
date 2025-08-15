@@ -3,6 +3,8 @@ import { INITIAL_TIME, PENALTY_SECONDS, DISTRACTOR_EMOJIS, CHOICE_COUNT, GOLD_ST
 
 interface GameScreenProps {
   onGameOver: (score: number) => void;
+  onMemoryGame: (score: number, lastDistractor: string, firstDistractor: string) => void;
+}
 
 const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => {
   const [score, setScore] = useState(0);
