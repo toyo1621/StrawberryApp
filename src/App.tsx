@@ -3,7 +3,7 @@ import { GameState, RankingEntry } from './types';
 import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';
 import GameOverScreen from './components/GameOverScreen';
-import { fetchRankings, saveScore } from '../services/rankingService';
+import { fetchRankings, saveScore } from './services/rankingService';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.START);
