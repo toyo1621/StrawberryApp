@@ -52,11 +52,8 @@ const mapRowToRankingEntry = (row: RankingRow): RankingEntry => ({
 
 // ランキングを取得
 export const fetchRankings = async (): Promise<RankingEntry[]> => {
-  // デモモードの場合はローカルストレージを使用
-  const isDemoMode = !import.meta.env.VITE_SUPABASE_URL || 
-                     import.meta.env.VITE_SUPABASE_URL === 'https://demo.supabase.co';
-  
-  if (isDemoMode) {
+  // Supabase環境変数がない場合はローカルストレージを使用
+  if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
     return loadLocalRankings();
   }
 
@@ -85,11 +82,8 @@ export const fetchRankings = async (): Promise<RankingEntry[]> => {
 
 // 新しいスコアを保存
 export const saveScore = async (playerName: string, score: number): Promise<RankingEntry | null> => {
-  // デモモードの場合はローカルストレージを使用
-  const isDemoMode = !import.meta.env.VITE_SUPABASE_URL || 
-                     import.meta.env.VITE_SUPABASE_URL === 'https://demo.supabase.co';
-  
-  if (isDemoMode) {
+  // Supabase環境変数がない場合はローカルストレージを使用
+  if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
     const newEntry: RankingEntry = {
       id: generateId(),
       playerName: playerName.trim(),
@@ -164,11 +158,8 @@ export const saveScore = async (playerName: string, score: number): Promise<Rank
 
 // プレイヤーの最高スコアを取得
 export const getPlayerBestScore = async (playerName: string): Promise<number> => {
-  // デモモードの場合はローカルストレージを使用
-  const isDemoMode = !import.meta.env.VITE_SUPABASE_URL || 
-                     import.meta.env.VITE_SUPABASE_URL === 'https://demo.supabase.co';
-  
-  if (isDemoMode) {
+  // Supabase環境変数がない場合はローカルストレージを使用
+  if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
     const rankings = loadLocalRankings();
     const playerScores = rankings
       .filter(entry => entry.playerName === playerName.trim())
