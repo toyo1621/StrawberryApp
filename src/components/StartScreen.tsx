@@ -46,7 +46,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart, ranking, isLoading =
           <p className="text-gray-500">読み込み中...</p>
         ) : ranking.length > 0 ? (
           <ul className="space-y-1">
-            {ranking.slice(0, 5).map((entry, index) => (
+            {ranking.slice(0, 10).map((entry, index) => (
               <li key={entry.id} className="flex justify-between items-center p-2 bg-white rounded text-sm">
                 <span className="font-bold text-gray-700">{index + 1}. {entry.playerName}</span>
                 <span className="font-bold text-pink-500">{entry.score} 個</span>

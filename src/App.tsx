@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { GameState, RankingEntry } from './types';
 import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';
+import MemoryGameScreen from './components/MemoryGameScreen';
 import GameOverScreen from './components/GameOverScreen';
 import { fetchRankings, saveScore } from './services/rankingService';
 
@@ -10,6 +11,7 @@ const App: React.FC = () => {
   const [playerName, setPlayerName] = useState<string>('');
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [currentScore, setCurrentScore] = useState<number>(0);
+  const [memoryAnswer, setMemoryAnswer] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // ランキングを読み込み
@@ -32,7 +34,14 @@ const App: React.FC = () => {
   const handleGameStart = useCallback((name: string) => {
     setPlayerName(name);
     setCurrentScore(0);
+    setMemoryAnswer('');
     setGameState(GameState.PLAYING);
+  }, []);
+
+  const handleMemoryGame = useCallback((score: number, lastDistractor: string) => {
+    setCurrentScore(score);
+    setMemoryAnswer(lastDistractor);
+    setGameState(GameState.MEMORY_GAME);
   }, []);
 
   const handleGameOver = useCallback(async (score: number) => {
@@ -59,7 +68,15 @@ const App: React.FC = () => {
   const renderScreen = () => {
     switch (gameState) {
       case GameState.PLAYING:
-        return <GameScreen onGameOver={handleGameOver} />;
+        return <GameScreen onGameOver={handleGameOver} onMemoryGame={handleMemoryGame} />;
+      case GameState.MEMORY_GAME:
+        return (
+          <MemoryGameScreen 
+            currentScore={currentScore}
+            correctAnswer={memoryAnswer}
+            onComplete={handleGameOver}
+          />
+        );
       case GameState.GAME_OVER:
         return (
           <GameOverScreen 

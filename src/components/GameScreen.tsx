@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { INITIAL_TIME, PENALTY_SECONDS, DISTRACTOR_EMOJIS, CHOICE_COUNT } from '../constants';
+import { INITIAL_TIME, PENALTY_SECONDS, DISTRACTOR_EMOJIS, CHOICE_COUNT, GOLD_STRAWBERRY_CHANCE, GOLD_STRAWBERRY_POINTS, MEMORY_GAME_CHANCE } from '../constants';
 
 interface GameScreenProps {
   onGameOver: (score: number) => void;
+  onMemoryGame: (score: number, lastDistractor: string) => void;
 }
 
-const GameScreen: React.FC<GameScreenProps> = ({ onGameOver }) => {
+const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => {
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [items, setItems] = useState<string[]>([]);
   const [strawberryIndex, setStrawberryIndex] = useState(-1);
+  const [isGoldStrawberry, setIsGoldStrawberry] = useState(false);
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
+  const [lastDistractor, setLastDistractor] = useState<string>('');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -19,20 +22,28 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver }) => {
 
   const generateNewItems = useCallback(() => {
     setFeedback(null);
+    
+    // Check if this should be a gold strawberry
+    const shouldBeGold = Math.random() < GOLD_STRAWBERRY_CHANCE;
+    setIsGoldStrawberry(shouldBeGold);
+    
     const newStrawberryIndex = Math.floor(Math.random() * CHOICE_COUNT);
     const newItems: string[] = new Array(CHOICE_COUNT).fill('');
     
-    newItems[newStrawberryIndex] = '🍓';
+    newItems[newStrawberryIndex] = shouldBeGold ? '🥇🍓' : '🍓';
 
     const distractors = [...DISTRACTOR_EMOJIS].sort(() => 0.5 - Math.random());
     let distractorCursor = 0;
+    let currentDistractor = '';
 
     for (let i = 0; i < CHOICE_COUNT; i++) {
       if (i !== newStrawberryIndex) {
-        newItems[i] = distractors[distractorCursor++];
+        currentDistractor = distractors[distractorCursor++];
+        newItems[i] = currentDistractor;
       }
     }
     
+    setLastDistractor(currentDistractor);
     setStrawberryIndex(newStrawberryIndex);
     setItems(newItems);
   }, []);
@@ -52,7 +63,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver }) => {
   useEffect(() => {
     if (timeLeft <= 0) {
       if (timerRef.current) clearInterval(timerRef.current);
-      onGameOver(scoreRef.current);
+      
+      // Check if we should trigger memory game
+      if (Math.random() < MEMORY_GAME_CHANCE && lastDistractor) {
+        onMemoryGame(scoreRef.current, lastDistractor);
+      } else {
+        onGameOver(scoreRef.current);
+      }
       return;
     }
 
@@ -63,7 +80,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver }) => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timeLeft, onGameOver]);
+  }, [timeLeft, onGameOver, onMemoryGame, lastDistractor]);
 
   const handleChoice = (index: number) => {
     if (feedback) return;
@@ -71,7 +88,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver }) => {
     const isCorrect = index === strawberryIndex;
 
     if (isCorrect) {
-      setScore(s => s + 1);
+      const points = isGoldStrawberry ? GOLD_STRAWBERRY_POINTS : 1;
+      setScore(s => s + points);
       setFeedback({ index, type: 'correct' });
     } else {
       setTimeLeft(t => Math.max(0, t - PENALTY_SECONDS));
@@ -99,7 +117,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver }) => {
       </div>
       
       <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[350px]">
-        <p className="text-2xl font-bold text-gray-700 mb-8">いちごはどっち？</p>
+        <p className="text-2xl font-bold text-gray-700 mb-4">
+          {isGoldStrawberry ? '✨ ゴールドいちごはどっち？ ✨' : 'いちごはどっち？'}
+        </p>
+        {isGoldStrawberry && (
+          <p className="text-lg font-bold text-yellow-600 mb-4">
+            🥇 {GOLD_STRAWBERRY_POINTS}点ゲット！
+          </p>
+        )}
         <div className="flex justify-around w-full max-w-sm">
           {items.map((item, index) => (
             <button

@@ -1,6 +1,7 @@
 export enum GameState {
   START,
   PLAYING,
+  MEMORY_GAME,
   GAME_OVER,
 }
 
@@ -10,4 +11,3 @@ export interface RankingEntry {
   score: number;
   gameType: string;
   createdAt: string;
-}
