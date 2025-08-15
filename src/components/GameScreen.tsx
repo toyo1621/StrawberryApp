@@ -211,50 +211,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
               `}
               aria-label={`選択肢 ${index + 1}: ${item}`}
             >
-              <span>{item}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      
-      {/* 円グラフタイマー */}
-      <div className="flex justify-center mb-6">
-        <div className="relative w-20 h-20">
-          <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
-            {/* 背景の円 */}
-            <path
-              className="text-gray-200"
-              stroke="currentColor"
-              strokeWidth="3"
-              fill="transparent"
-              d="M18 2.0845
-                a 15.9155 15.9155 0 0 1 0 31.831
-                a 15.9155 15.9155 0 0 1 0 -31.831"
-            />
-            {/* プログレス円 */}
-            <path
-              className={`transition-all duration-1000 ease-linear ${timeLeft <= 10 ? 'text-red-500' : 'text-green-400'}`}
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              fill="transparent"
-              strokeDasharray="100, 100"
-              strokeDashoffset={100 - timeBarWidth}
-              d="M18 2.0845
-                a 15.9155 15.9155 0 0 1 0 31.831
-                a 15.9155 15.9155 0 0 1 0 -31.831"
-            />
-          </svg>
-          {/* 中央の時間表示 */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className={`text-lg font-bold ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-gray-700'}`}>
-              {timeLeft}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default GameScreen;
+        )
+        )
+        }
+  )
+}
