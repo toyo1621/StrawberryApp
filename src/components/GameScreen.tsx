@@ -31,6 +31,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     const newItems: string[] = new Array(CHOICE_COUNT).fill('');
     
     newItems[newStrawberryIndex] = shouldBeGold ? '🥇🍓' : '🍓';
+    // Use golden strawberry emoji for gold strawberry
+    newItems[newStrawberryIndex] = shouldBeGold ? '🟡🍓' : '🍓';
 
     const distractors = [...DISTRACTOR_EMOJIS].sort(() => 0.5 - Math.random());
     let distractorCursor = 0;
