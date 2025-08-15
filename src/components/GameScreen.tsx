@@ -78,12 +78,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   }, []);
 
   useEffect(() => {
-    // タイマーをクリア
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
     if (timeLeft <= 0) {
+      if (timerRef.current) clearInterval(timerRef.current);
       if (gameEnded) return; // 既にゲーム終了処理中の場合は何もしない
       setGameEnded(true);
       
@@ -97,14 +93,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       return;
     }
 
-    // 新しいタイマーを設定
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prev => prev - 1);
-    }, 1000);
+    if (!timerRef.current) {
+      timerRef.current = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+    }
 
-    // クリーンアップ関数
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
     };
   }, [timeLeft, onGameOver, onMemoryGame, lastDistractor, allDistractors, gameEnded]);
 
