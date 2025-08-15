@@ -195,6 +195,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
 
   const timeBarWidth = (timeLeft / (INITIAL_TIME * 10)) * 100;
   const displayTime = (timeLeft / 10).toFixed(1); // 0.1秒単位で表示
+  const isFeverMode = timeLeft <= 100; // 残り10秒以下でフィーバーモード
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 w-full animate-pop-in">
@@ -204,10 +205,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       </div>
       <div className="w-full bg-gray-200 rounded-full h-4 mb-6 overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-300 ease-linear ${timeLeft <= 100 ? 'bg-red-500' : 'bg-green-400'}`}
+          className={`h-full rounded-full transition-all duration-300 ease-linear ${
+            isFeverMode 
+              ? 'bg-gradient-to-r from-yellow-400 via-red-500 to-pink-500 animate-pulse' 
+              : timeLeft <= 100 ? 'bg-red-500' : 'bg-green-400'
+          }`}
           style={{ width: `${timeBarWidth}%` }}
         ></div>
       </div>
+      
+      {/* フィーバーモード表示 */}
+      {isFeverMode && (
+        <div className="text-center mb-4">
+          <p className="text-2xl font-bold text-yellow-500 animate-bounce">
+            🎂✨ ケーキ5倍フィーバー！ ✨🍰
+          </p>
+        </div>
+      )}
       
       <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[350px]">
         {isWholeCake ? (
