@@ -126,13 +126,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
             🍰 3点ゲット！
           </p>
         )}
-        <div className="flex justify-around w-full max-w-sm">
+        <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
           {items.map((item, index) => (
             <button
               key={index}
               onClick={() => handleChoice(index)}
               disabled={!!feedback}
-              className={`w-36 h-36 sm:w-40 sm:h-40 bg-pink-50 rounded-2xl flex items-center justify-center text-7xl sm:text-8xl transform transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-pink-300
+              className={`w-32 h-32 sm:w-36 sm:h-36 bg-pink-50 rounded-2xl flex items-center justify-center text-6xl sm:text-7xl transform transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-pink-300
                 ${feedback && feedback.index === index && feedback.type === 'correct' ? 'scale-110 ring-4 ring-green-400' : ''}
                 ${feedback && feedback.index === index && feedback.type === 'incorrect' ? 'animate-shake' : ''}
                 ${feedback && feedback.index !== index ? 'opacity-50' : ''}
