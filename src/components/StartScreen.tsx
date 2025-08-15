@@ -8,6 +8,7 @@ interface StartScreenProps {
   onShowRules: () => void;
 }
 
+const StartScreen: React.FC<StartScreenProps> = ({ onStart, ranking, isLoading, onShowRules }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
 
