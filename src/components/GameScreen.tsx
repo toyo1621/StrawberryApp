@@ -9,6 +9,7 @@ interface GameScreenProps {
 const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => {
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10); // 0.1秒単位で管理
+  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
   const [items, setItems] = useState<string[]>([]);
   const [strawberryIndex, setStrawberryIndex] = useState(-1);
   const [isGoldStrawberry, setIsGoldStrawberry] = useState(false);
@@ -156,10 +157,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
         points = GOLD_STRAWBERRY_POINTS;
       }
       setScore(prevScore => prevScore + points);
+      
+      // 連続正解カウントを増やす
+      setConsecutiveCorrect(prev => {
+        const newCount = prev + 1;
+        // 連続正解で時間ボーナス（0.3秒 = 3）
+        if (newCount >= 2) {
+          setTimeLeft(prevTime => prevTime + 3);
+        }
+        return newCount;
+      });
+      
       setFeedback({ index, type: 'correct' });
     } else {
       // 時間を減らす（ペナルティ）
       setTimeLeft(prevTime => Math.max(0, prevTime - (PENALTY_SECONDS * 10))); // ペナルティも0.1秒単位
+      // 連続正解カウントをリセット
+      setConsecutiveCorrect(0);
       setFeedback({ index, type: 'incorrect' });
     }
     
