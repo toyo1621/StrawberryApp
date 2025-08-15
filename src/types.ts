@@ -17,4 +17,3 @@ export interface MemoryGameData {
   lastNonStrawberryFruit: string;
   allFruits: string[];
 }
-}
