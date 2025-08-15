@@ -31,7 +31,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     const newItems: string[] = new Array(CHOICE_COUNT).fill('');
     
     newItems[newStrawberryIndex] = shouldBeGold ? '🥇🍓' : '🍓';
-    newItems[newStrawberryIndex] = shouldBeGold ? '🍓✨' : '🍓';
+    newItems[newStrawberryIndex] = shouldBeGold ? '🍰' : '🍓';
 
     const distractors = [...DISTRACTOR_EMOJIS].sort(() => 0.5 - Math.random());
     let distractorCursor = 0;
@@ -119,11 +119,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       
       <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[350px]">
         <p className="text-2xl font-bold text-gray-700 mb-4">
-          {isGoldStrawberry ? '✨ ゴールドいちごはどっち？ ✨' : 'いちごはどっち？'}
+          {isGoldStrawberry ? '🍰 ケーキはどっち？ 🍰' : 'いちごはどっち？'}
         </p>
         {isGoldStrawberry && (
           <p className="text-lg font-bold text-yellow-600 mb-4">
-            🥇 3点ゲット！
+            🍰 3点ゲット！
           </p>
         )}
         <div className="flex justify-around w-full max-w-sm">
