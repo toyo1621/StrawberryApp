@@ -25,7 +25,7 @@ const RulesScreen: React.FC<RulesScreenProps> = ({ onBack }) => {
           <h2 className="text-lg font-bold text-gray-800 mb-2">✨ 特別アイテム</h2>
           <ul className="space-y-1 text-gray-700 ml-4">
             <li>• <strong>🍰 ケーキ</strong>: 3点獲得（出現確率2%）</li>
-            <li>• <strong>🎂 ホールケーキ</strong>: 5点獲得（出現確率0.5%）</li>
+            <li>• <strong>🎂 ホールケーキ</strong>: 5点獲得 + 2秒時間回復（出現確率0.5%）</li>
           </ul>
         </section>
 

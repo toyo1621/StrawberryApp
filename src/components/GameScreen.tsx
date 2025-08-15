@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { INITIAL_TIME, PENALTY_SECONDS, DISTRACTOR_EMOJIS, CHOICE_COUNT, GOLD_STRAWBERRY_CHANCE, GOLD_STRAWBERRY_POINTS, WHOLE_CAKE_CHANCE, WHOLE_CAKE_POINTS, MEMORY_GAME_CHANCE } from '../constants';
+import { INITIAL_TIME, PENALTY_SECONDS, DISTRACTOR_EMOJIS, CHOICE_COUNT, GOLD_STRAWBERRY_CHANCE, GOLD_STRAWBERRY_POINTS, WHOLE_CAKE_CHANCE, WHOLE_CAKE_POINTS, WHOLE_CAKE_TIME_BONUS, MEMORY_GAME_CHANCE } from '../constants';
 
 interface GameScreenProps {
   onGameOver: (score: number) => void;
@@ -153,6 +153,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       let points = 1;
       if (isWholeCake) {
         points = WHOLE_CAKE_POINTS;
+        // ホールケーキの時間ボーナス（2秒）
+        setTimeLeft(prevTime => prevTime + WHOLE_CAKE_TIME_BONUS);
       } else if (isGoldStrawberry) {
         points = GOLD_STRAWBERRY_POINTS;
       }
