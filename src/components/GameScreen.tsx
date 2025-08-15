@@ -161,9 +161,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       // 連続正解カウントを増やす
       setConsecutiveCorrect(prev => {
         const newCount = prev + 1;
-        // 連続正解で時間ボーナス（0.3秒 = 3）
+        // 連続正解で時間ボーナス（0.5秒 = 5）
         if (newCount >= 2) {
-          setTimeLeft(prevTime => prevTime + 3);
+          setTimeLeft(prevTime => prevTime + 5);
         }
         return newCount;
       });

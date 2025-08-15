@@ -40,7 +40,7 @@ const RulesScreen: React.FC<RulesScreenProps> = ({ onBack }) => {
         <section>
           <h2 className="text-lg font-bold text-gray-800 mb-2">🎁 ボーナス機能</h2>
           <ul className="space-y-1 text-gray-700 ml-4">
-            <li>• <strong>連続正解ボーナス</strong>: 2回以上連続で正解すると、毎回0.3秒の時間ボーナス</li>
+            <li>• <strong>連続正解ボーナス</strong>: 2回以上連続で正解すると、毎回0.5秒の時間ボーナス</li>
             <li>• <strong>記憶チャレンジ</strong>: ゲーム終了後に記憶ゲームが発生
               <ul className="ml-4 mt-1 space-y-1">
                 <li>- 最後に出たいちご以外の果物を当てる（+2点）</li>
