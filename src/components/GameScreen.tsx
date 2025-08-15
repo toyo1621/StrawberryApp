@@ -16,6 +16,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [lastDistractor, setLastDistractor] = useState<string>('');
   const [firstDistractor, setFirstDistractor] = useState<string>('');
+  const [isFirstRound, setIsFirstRound] = useState<boolean>(true);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,9 +58,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     
     setLastDistractor(currentDistractor);
     
-    // Store the first distractor for the second memory game
-    if (!firstDistractor) {
+    // Store the first distractor only on the very first round
+    if (isFirstRound) {
       setFirstDistractor(currentDistractor);
+      setIsFirstRound(false);
     }
     
     setStrawberryIndex(newStrawberryIndex);
