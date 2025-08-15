@@ -5,9 +5,9 @@ interface StartScreenProps {
   onStart: (name: string) => void;
   ranking: RankingEntry[];
   isLoading?: boolean;
+  onShowRules: () => void;
 }
 
-const StartScreen: React.FC<StartScreenProps> = ({ onStart, ranking, isLoading = false }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
 
@@ -38,6 +38,16 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart, ranking, isLoading =
         <span className="text-5xl" role="img" aria-label="strawberry">🍓</span>
       </div>
       <p className="text-gray-600 mb-6">時間内にいちごをたくさんつめよう！</p>
+      
+      {/* ルールボタン */}
+      <div className="mb-4">
+        <button
+          onClick={onShowRules}
+          className="bg-blue-500 text-white font-bold py-2 px-6 rounded-lg text-sm shadow-md hover:bg-blue-600 active:scale-95 transform transition-all duration-150"
+        >
+          📖 ルールはこちら
+        </button>
+      </div>
       
       {/* ランキング表示 */}
       <div className="bg-pink-50 rounded-lg p-4 mb-6">

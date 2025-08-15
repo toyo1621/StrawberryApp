@@ -4,6 +4,7 @@ export enum GameState {
   MEMORY_GAME,
   MEMORY_GAME_2,
   GAME_OVER,
+  RULES,
 }
 
 export interface RankingEntry {

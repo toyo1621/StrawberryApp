@@ -5,6 +5,7 @@ import GameScreen from './components/GameScreen';
 import MemoryGameScreen from './components/MemoryGameScreen';
 import MemoryGame2Screen from './components/MemoryGame2Screen';
 import GameOverScreen from './components/GameOverScreen';
+import RulesScreen from './components/RulesScreen';
 import { fetchRankings, saveScore } from './services/rankingService';
 
 const App: React.FC = () => {
@@ -74,6 +75,14 @@ const App: React.FC = () => {
     setGameState(GameState.START);
   }, []);
 
+  const handleShowRules = useCallback(() => {
+    setGameState(GameState.RULES);
+  }, []);
+
+  const handleBackFromRules = useCallback(() => {
+    setGameState(GameState.START);
+  }, []);
+
   const renderScreen = () => {
     switch (gameState) {
       case GameState.PLAYING:
@@ -104,7 +113,9 @@ const App: React.FC = () => {
         );
       case GameState.START:
       default:
-        return <StartScreen onStart={handleGameStart} ranking={ranking} isLoading={isLoading} />;
+        return <StartScreen onStart={handleGameStart} ranking={ranking} isLoading={isLoading} onShowRules={handleShowRules} />;
+      case GameState.RULES:
+        return <RulesScreen onBack={handleBackFromRules} />;
     }
   };
 
