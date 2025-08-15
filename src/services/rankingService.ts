@@ -1,4 +1,8 @@
 import { supabase } from './supabase';
+import type { Database } from './supabase';
+
+type RankingRow = Database['public']['Tables']['rankings']['Row'];
+type RankingInsert = Database['public']['Tables']['rankings']['Insert'];
 
 export interface RankingEntry {
   id: string;
@@ -8,44 +12,20 @@ export interface RankingEntry {
   createdAt: string;
 }
 
-// デモモードかどうかを判定
-const isDemoMode = true; // 常にデモモードで動作
-
-// デモ用のランキングデータ
-const demoRankings: RankingEntry[] = [
-  { 
-    id: '1',
-    playerName: 'いちごマスター', 
-    score: 25,
-    gameType: 'strawberry_rush',
-    createdAt: new Date().toISOString()
-  },
-  { 
-    id: '2',
-    playerName: 'フルーツ王', 
-    score: 20,
-    gameType: 'strawberry_rush',
-    createdAt: new Date().toISOString()
-  },
-  { 
-    id: '3',
-    playerName: 'スピードスター', 
-    score: 18,
-    gameType: 'strawberry_rush',
-    createdAt: new Date().toISOString()
-  },
-];
-
 const GAME_TYPE = 'strawberry_rush';
 const RANKING_LIMIT = 10;
 
+// データベースの行をRankingEntryに変換
+const mapRowToRankingEntry = (row: RankingRow): RankingEntry => ({
+  id: row.id,
+  playerName: row.player_name,
+  score: row.score,
+  gameType: row.game_type,
+  createdAt: row.created_at,
+});
+
 // ランキングを取得
 export const fetchRankings = async (): Promise<RankingEntry[]> => {
-  if (isDemoMode) {
-    // デモモードでは固定のランキングを返す
-    return Promise.resolve(demoRankings);
-  }
-
   try {
     const { data, error } = await supabase
       .from('rankings')
@@ -57,45 +37,20 @@ export const fetchRankings = async (): Promise<RankingEntry[]> => {
 
     if (error) {
       console.error('Error fetching rankings:', error);
-      return demoRankings;
+      throw error;
     }
 
-    return data?.map(row => ({
-      id: row.id,
-      playerName: row.player_name,
-      score: row.score,
-      gameType: row.game_type,
-      createdAt: row.created_at,
-    })) || demoRankings;
+    return data?.map(mapRowToRankingEntry) || [];
   } catch (error) {
     console.error('Failed to fetch rankings:', error);
-    return demoRankings;
+    return [];
   }
 };
 
 // 新しいスコアを保存
 export const saveScore = async (playerName: string, score: number): Promise<RankingEntry | null> => {
-  if (isDemoMode) {
-    console.log('Demo mode: Score would be saved:', { playerName, score });
-    // デモモードでは保存をシミュレート
-    const newEntry: RankingEntry = {
-      id: Date.now().toString(),
-      playerName: playerName.trim(),
-      score,
-      gameType: GAME_TYPE,
-      createdAt: new Date().toISOString()
-    };
-    
-    // デモランキングに追加（実際には保存されない）
-    demoRankings.push(newEntry);
-    demoRankings.sort((a, b) => b.score - a.score);
-    demoRankings.splice(RANKING_LIMIT); // 上位10位まで
-    
-    return newEntry;
-  }
-
   try {
-    const insertData = {
+    const insertData: RankingInsert = {
       player_name: playerName.trim(),
       score,
       game_type: GAME_TYPE,
@@ -109,16 +64,10 @@ export const saveScore = async (playerName: string, score: number): Promise<Rank
 
     if (error) {
       console.error('Error saving score:', error);
-      return null;
+      throw error;
     }
 
-    return data ? {
-      id: data.id,
-      playerName: data.player_name,
-      score: data.score,
-      gameType: data.game_type,
-      createdAt: data.created_at,
-    } : null;
+    return data ? mapRowToRankingEntry(data) : null;
   } catch (error) {
     console.error('Failed to save score:', error);
     return null;
@@ -127,11 +76,6 @@ export const saveScore = async (playerName: string, score: number): Promise<Rank
 
 // プレイヤーの最高スコアを取得
 export const getPlayerBestScore = async (playerName: string): Promise<number> => {
-  if (isDemoMode) {
-    const playerEntry = demoRankings.find(entry => entry.playerName === playerName.trim());
-    return playerEntry?.score || 0;
-  }
-
   try {
     const { data, error } = await supabase
       .from('rankings')
@@ -142,7 +86,7 @@ export const getPlayerBestScore = async (playerName: string): Promise<number> =>
       .limit(1)
       .single();
 
-    if (error && error.code !== 'PGRST116') {
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
       console.error('Error fetching player best score:', error);
       return 0;
     }
