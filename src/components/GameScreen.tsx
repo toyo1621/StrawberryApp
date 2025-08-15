@@ -30,10 +30,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     
     setFeedback(null);
     
+    // フィーバーモード判定（残り10秒 = 100 * 0.1秒）
+    const isFeverMode = timeLeft <= 100;
+    const feverMultiplier = isFeverMode ? 5 : 1;
+    
     // Check if this should be a whole cake (highest priority)
-    const shouldBeWholeCake = Math.random() < WHOLE_CAKE_CHANCE;
+    const shouldBeWholeCake = Math.random() < (WHOLE_CAKE_CHANCE * feverMultiplier);
     // Check if this should be a gold strawberry (if not whole cake)
-    const shouldBeGold = !shouldBeWholeCake && Math.random() < GOLD_STRAWBERRY_CHANCE;
+    const shouldBeGold = !shouldBeWholeCake && Math.random() < (GOLD_STRAWBERRY_CHANCE * feverMultiplier);
     
     setIsGoldStrawberry(shouldBeGold);
     setIsWholeCake(shouldBeWholeCake);
