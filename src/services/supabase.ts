@@ -7,6 +7,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase environment variables not found. Using demo mode.');
 }
 
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 export type Database = {
   public: {
