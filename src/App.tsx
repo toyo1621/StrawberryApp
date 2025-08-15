@@ -3,6 +3,7 @@ import { GameState, RankingEntry } from './types';
 import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';
 import MemoryGameScreen from './components/MemoryGameScreen';
+import MemoryGame2Screen from './components/MemoryGame2Screen';
 import GameOverScreen from './components/GameOverScreen';
 import { fetchRankings, saveScore } from './services/rankingService';
 
@@ -12,6 +13,7 @@ const App: React.FC = () => {
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [currentScore, setCurrentScore] = useState<number>(0);
   const [memoryAnswer, setMemoryAnswer] = useState<string>('');
+  const [firstDistractor, setFirstDistractor] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // ランキングを読み込み
@@ -35,13 +37,20 @@ const App: React.FC = () => {
     setPlayerName(name);
     setCurrentScore(0);
     setMemoryAnswer('');
+    setFirstDistractor('');
     setGameState(GameState.PLAYING);
   }, []);
 
-  const handleMemoryGame = useCallback((score: number, lastDistractor: string) => {
+  const handleMemoryGame = useCallback((score: number, lastDistractor: string, firstDistractor: string) => {
     setCurrentScore(score);
     setMemoryAnswer(lastDistractor);
+    setFirstDistractor(firstDistractor);
     setGameState(GameState.MEMORY_GAME);
+  }, []);
+
+  const handleMemoryGame2 = useCallback((score: number) => {
+    setCurrentScore(score);
+    setGameState(GameState.MEMORY_GAME_2);
   }, []);
 
   const handleGameOver = useCallback(async (score: number) => {
@@ -74,6 +83,14 @@ const App: React.FC = () => {
           <MemoryGameScreen 
             currentScore={currentScore}
             correctAnswer={memoryAnswer}
+            onComplete={handleMemoryGame2}
+          />
+        );
+      case GameState.MEMORY_GAME_2:
+        return (
+          <MemoryGame2Screen 
+            currentScore={currentScore}
+            correctAnswer={firstDistractor}
             onComplete={handleGameOver}
           />
         );

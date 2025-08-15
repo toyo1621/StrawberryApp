@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { INITIAL_TIME, PENALTY_SECONDS, DISTRACTOR_EMOJIS, CHOICE_COUNT, GOLD_STRAWBERRY_CHANCE, GOLD_STRAWBERRY_POINTS, MEMORY_GAME_CHANCE } from '../constants';
+import { INITIAL_TIME, PENALTY_SECONDS, DISTRACTOR_EMOJIS, CHOICE_COUNT, GOLD_STRAWBERRY_CHANCE, GOLD_STRAWBERRY_POINTS, WHOLE_CAKE_CHANCE, WHOLE_CAKE_POINTS, MEMORY_GAME_CHANCE } from '../constants';
 
 interface GameScreenProps {
   onGameOver: (score: number) => void;
-  onMemoryGame: (score: number, lastDistractor: string) => void;
+  onMemoryGame: (score: number, lastDistractor: string, firstDistractor: string) => void;
 }
 
 const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => {
@@ -12,8 +12,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   const [items, setItems] = useState<string[]>([]);
   const [strawberryIndex, setStrawberryIndex] = useState(-1);
   const [isGoldStrawberry, setIsGoldStrawberry] = useState(false);
+  const [isWholeCake, setIsWholeCake] = useState(false);
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [lastDistractor, setLastDistractor] = useState<string>('');
+  const [firstDistractor, setFirstDistractor] = useState<string>('');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -23,15 +25,24 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   const generateNewItems = useCallback(() => {
     setFeedback(null);
     
-    // Check if this should be a gold strawberry
-    const shouldBeGold = Math.random() < GOLD_STRAWBERRY_CHANCE;
+    // Check if this should be a whole cake (highest priority)
+    const shouldBeWholeCake = Math.random() < WHOLE_CAKE_CHANCE;
+    // Check if this should be a gold strawberry (if not whole cake)
+    const shouldBeGold = !shouldBeWholeCake && Math.random() < GOLD_STRAWBERRY_CHANCE;
+    
     setIsGoldStrawberry(shouldBeGold);
+    setIsWholeCake(shouldBeWholeCake);
     
     const newStrawberryIndex = Math.floor(Math.random() * CHOICE_COUNT);
     const newItems: string[] = new Array(CHOICE_COUNT).fill('');
     
-    newItems[newStrawberryIndex] = shouldBeGold ? '🥇🍓' : '🍓';
-    newItems[newStrawberryIndex] = shouldBeGold ? '🍰' : '🍓';
+    if (shouldBeWholeCake) {
+      newItems[newStrawberryIndex] = '🎂';
+    } else if (shouldBeGold) {
+      newItems[newStrawberryIndex] = '🍰';
+    } else {
+      newItems[newStrawberryIndex] = '🍓';
+    }
 
     const distractors = [...DISTRACTOR_EMOJIS].sort(() => 0.5 - Math.random());
     let distractorCursor = 0;
@@ -45,6 +56,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     }
     
     setLastDistractor(currentDistractor);
+    
+    // Store the first distractor for the second memory game
+    if (!firstDistractor) {
+      setFirstDistractor(currentDistractor);
+    }
+    
     setStrawberryIndex(newStrawberryIndex);
     setItems(newItems);
   }, []);
@@ -67,7 +84,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       
       // Check if we should trigger memory game
       if (Math.random() < MEMORY_GAME_CHANCE && lastDistractor) {
-        onMemoryGame(scoreRef.current, lastDistractor);
+        onMemoryGame(scoreRef.current, lastDistractor, firstDistractor);
       } else {
         onGameOver(scoreRef.current);
       }
@@ -89,7 +106,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     const isCorrect = index === strawberryIndex;
 
     if (isCorrect) {
-      const points = isGoldStrawberry ? GOLD_STRAWBERRY_POINTS : 1;
+      let points = 1;
+      if (isWholeCake) {
+        points = WHOLE_CAKE_POINTS;
+      } else if (isGoldStrawberry) {
+        points = GOLD_STRAWBERRY_POINTS;
+      }
       setScore(s => s + points);
       setFeedback({ index, type: 'correct' });
     } else {
@@ -118,12 +140,29 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       </div>
       
       <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[350px]">
-        <p className="text-2xl font-bold text-gray-700 mb-4">
-          {isGoldStrawberry ? '🍰 ケーキはどっち？ 🍰' : 'いちごはどっち？'}
-        </p>
-        {isGoldStrawberry && (
+        {isWholeCake ? (
+          <>
+            <p className="text-2xl font-bold text-gray-700 mb-4">
+              🎂 ホールケーキはどっち？ 🎂
+            </p>
+            <p className="text-lg font-bold text-purple-600 mb-4">
+              🎂 5点ゲット！
+            </p>
+          </>
+        ) : isGoldStrawberry ? (
+          <>
+            <p className="text-2xl font-bold text-gray-700 mb-4">
+              🍰 ケーキはどっち？ 🍰
+            </p>
+            <p className="text-lg font-bold text-yellow-600 mb-4">
+              🍰 3点ゲット！
+            </p>
+          </>
+        ) : (
           <p className="text-lg font-bold text-yellow-600 mb-4">
-            🍰 3点ゲット！
+            <p className="text-2xl font-bold text-gray-700 mb-4">
+              いちごはどっち？
+            </p>
           </p>
         )}
         <div className="flex justify-around w-full max-w-sm">

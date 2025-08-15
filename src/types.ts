@@ -2,6 +2,7 @@ export enum GameState {
   START,
   PLAYING,
   MEMORY_GAME,
+  MEMORY_GAME_2,
   GAME_OVER,
 }
 
