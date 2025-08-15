@@ -16,7 +16,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [lastDistractor, setLastDistractor] = useState<string>('');
   const [firstDistractor, setFirstDistractor] = useState<string>('');
-  const [isFirstRound, setIsFirstRound] = useState<boolean>(true);
+  const [roundCount, setRoundCount] = useState<number>(0);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -25,6 +25,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
 
   const generateNewItems = useCallback(() => {
     setFeedback(null);
+    setRoundCount(prev => prev + 1);
     
     // Check if this should be a whole cake (highest priority)
     const shouldBeWholeCake = Math.random() < WHOLE_CAKE_CHANCE;
@@ -47,22 +48,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
 
     const distractors = [...DISTRACTOR_EMOJIS].sort(() => 0.5 - Math.random());
     let distractorCursor = 0;
+    let currentDistractor = '';
 
     for (let i = 0; i < CHOICE_COUNT; i++) {
       if (i !== newStrawberryIndex) {
         const distractor = distractors[distractorCursor++];
         newItems[i] = distractor;
-        
-        // Store the first distractor only on the very first round
-        if (isFirstRound) {
-          setFirstDistractor(distractor);
-          setIsFirstRound(false);
-        }
-        
-        // Always update the last distractor
-        setLastDistractor(distractor);
+        currentDistractor = distractor;
       }
     }
+    
+    // Store the first distractor only on the very first round (roundCount === 1)
+    if (roundCount === 1) {
+      setFirstDistractor(currentDistractor);
+    }
+    
+    // Always update the last distractor
+    setLastDistractor(currentDistractor);
     
     setStrawberryIndex(newStrawberryIndex);
     setItems(newItems);
