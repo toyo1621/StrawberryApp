@@ -12,3 +12,9 @@ export interface RankingEntry {
   gameType: string;
   createdAt: string;
 }
+
+export interface MemoryGameData {
+  lastNonStrawberryFruit: string;
+  allFruits: string[];
+}
+}
