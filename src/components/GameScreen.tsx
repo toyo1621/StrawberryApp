@@ -5,6 +5,8 @@ interface GameScreenProps {
   onGameOver: (score: number) => void;
   onMemoryGame: (score: number, lastDistractor: string, firstDistractor: string) => void;
 }
+  onMemoryGame: (score: number, lastDistractor: string, firstDistractor: string) => void;
+}
 
 const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => {
   const [score, setScore] = useState(0);
