@@ -47,21 +47,21 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
 
     const distractors = [...DISTRACTOR_EMOJIS].sort(() => 0.5 - Math.random());
     let distractorCursor = 0;
-    let currentDistractor = '';
 
     for (let i = 0; i < CHOICE_COUNT; i++) {
       if (i !== newStrawberryIndex) {
-        currentDistractor = distractors[distractorCursor++];
-        newItems[i] = currentDistractor;
+        const distractor = distractors[distractorCursor++];
+        newItems[i] = distractor;
+        
+        // Store the first distractor only on the very first round
+        if (isFirstRound) {
+          setFirstDistractor(distractor);
+          setIsFirstRound(false);
+        }
+        
+        // Always update the last distractor
+        setLastDistractor(distractor);
       }
-    }
-    
-    setLastDistractor(currentDistractor);
-    
-    // Store the first distractor only on the very first round
-    if (isFirstRound) {
-      setFirstDistractor(currentDistractor);
-      setIsFirstRound(false);
     }
     
     setStrawberryIndex(newStrawberryIndex);
