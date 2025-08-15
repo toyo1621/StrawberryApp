@@ -19,6 +19,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
   const [currentDistractor, setCurrentDistractor] = useState<string>('');
+  const [isFeverMode, setIsFeverMode] = useState(false);
 
   // タイマー用のref
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -30,10 +31,17 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     
     setFeedback(null);
     
+    // フィーバーモードの判定（残り10秒以下）
+    const feverMode = timeLeft <= 100; // 10秒 = 100 (0.1秒単位)
+    setIsFeverMode(feverMode);
+    
+    // フィーバーモード時は確率を5倍にする
+    const feverMultiplier = feverMode ? 5 : 1;
+    
     // Check if this should be a whole cake (highest priority)
-    const shouldBeWholeCake = Math.random() < WHOLE_CAKE_CHANCE;
+    const shouldBeWholeCake = Math.random() < (WHOLE_CAKE_CHANCE * feverMultiplier);
     // Check if this should be a gold strawberry (if not whole cake)
-    const shouldBeGold = !shouldBeWholeCake && Math.random() < GOLD_STRAWBERRY_CHANCE;
+    const shouldBeGold = !shouldBeWholeCake && Math.random() < (GOLD_STRAWBERRY_CHANCE * feverMultiplier);
     
     setIsGoldStrawberry(shouldBeGold);
     setIsWholeCake(shouldBeWholeCake);
@@ -64,7 +72,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     
     setStrawberryIndex(newStrawberryIndex);
     setItems(newItems);
-  }, []);
+  }, [timeLeft]);
 
   // ディストラクターを記録するuseEffect
   useEffect(() => {
@@ -158,9 +166,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       } else if (isGoldStrawberry) {
         points = GOLD_STRAWBERRY_POINTS;
         // ショートケーキの時間ボーナス（1秒）
-        setTimeLeft(prevTime => prevTime + GOLD_STRAWBERRY_TIME_BONUS);
+        setTimeLeft(prevTime => {
+          const newTime = prevTime + GOLD_STRAWBERRY_TIME_BONUS;
+          return newTime;
+        });
       }
-      setScore(prevScore => prevScore + points);
+      setScore(prevScore => {
+        const newScore = prevScore + points;
+        return newScore;
+      });
       
       // 連続正解カウントを増やす
       setConsecutiveCorrect(prev => {
@@ -206,6 +220,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       </div>
       
       <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[350px]">
+        {isFeverMode && (
+          <div className="mb-4 text-center animate-bounce">
+            <p className="text-xl font-bold text-red-500 bg-yellow-200 px-4 py-2 rounded-full border-2 border-red-500">
+              🔥 ケーキ5倍フィーバー！ 🔥
+            </p>
+          </div>
+        )}
         {isWholeCake ? (
           <>
             <p className="text-2xl font-bold text-gray-700 mb-4">
@@ -227,6 +248,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
         ) : (
           <p className="text-2xl font-bold text-gray-700 mb-8">いちごはどっち？</p>
         )}
+        
         <div className="flex justify-around w-full max-w-sm">
           {items.map((item, index) => (
             <button
