@@ -8,7 +8,7 @@ interface GameScreenProps {
 
 const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => {
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
+  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10); // 0.1秒単位で管理
   const [items, setItems] = useState<string[]>([]);
   const [strawberryIndex, setStrawberryIndex] = useState(-1);
   const [isGoldStrawberry, setIsGoldStrawberry] = useState(false);
@@ -79,7 +79,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     
     timerRef.current = setInterval(() => {
       setTimeLeft(prevTime => {
-        const newTime = prevTime - 1;
+        const newTime = prevTime - 1; // 0.1秒ずつ減少
         
         // 時間が0になったらゲーム終了処理
         if (newTime <= 0) {
@@ -122,7 +122,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
         
         return newTime;
       });
-    }, 1000);
+    }, 100); // 100ms間隔で更新
   }, [onGameOver, onMemoryGame]);
 
   // ゲーム開始時にタイマーを開始
@@ -159,7 +159,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       setFeedback({ index, type: 'correct' });
     } else {
       // 時間を減らす（ペナルティ）
-      setTimeLeft(prevTime => Math.max(0, prevTime - PENALTY_SECONDS));
+      setTimeLeft(prevTime => Math.max(0, prevTime - (PENALTY_SECONDS * 10))); // ペナルティも0.1秒単位
       setFeedback({ index, type: 'incorrect' });
     }
     
@@ -171,17 +171,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
     }, 300);
   };
 
-  const timeBarWidth = (timeLeft / INITIAL_TIME) * 100;
+  const timeBarWidth = (timeLeft / (INITIAL_TIME * 10)) * 100;
+  const displayTime = (timeLeft / 10).toFixed(1); // 0.1秒単位で表示
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 w-full animate-pop-in">
       <div className="flex justify-between items-center mb-4 text-2xl font-bold">
         <div className="text-pink-500">スコア: {score}</div>
-        <div className="text-gray-700">時間: {timeLeft}</div>
+        <div className="text-gray-700">時間: {displayTime}</div>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-4 mb-6 overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-300 ease-linear ${timeLeft <= 10 ? 'bg-red-500' : 'bg-green-400'}`}
+          className={`h-full rounded-full transition-all duration-300 ease-linear ${timeLeft <= 100 ? 'bg-red-500' : 'bg-green-400'}`}
           style={{ width: `${timeBarWidth}%` }}
         ></div>
       </div>
