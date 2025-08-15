@@ -153,10 +153,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
       let points = 1;
       if (isWholeCake) {
         points = WHOLE_CAKE_POINTS;
-        // ホールケーキの時間ボーナス（2秒）
+        // ホールケーキの時間ボーナス（5秒）
         setTimeLeft(prevTime => prevTime + WHOLE_CAKE_TIME_BONUS);
       } else if (isGoldStrawberry) {
         points = GOLD_STRAWBERRY_POINTS;
+        // ショートケーキの時間ボーナス（1秒）
+        setTimeLeft(prevTime => prevTime + GOLD_STRAWBERRY_TIME_BONUS);
       }
       setScore(prevScore => prevScore + points);
       

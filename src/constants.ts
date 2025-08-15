@@ -1,10 +1,11 @@
 export const INITIAL_TIME = 30; // seconds
 export const PENALTY_SECONDS = 3;
 export const CHOICE_COUNT = 2;
-export const GOLD_STRAWBERRY_CHANCE = 0.02; // 2% chance for cake (about 1 in 50)
+export const GOLD_STRAWBERRY_CHANCE = 0.03; // 3% chance for cake (about 1 in 33)
 export const GOLD_STRAWBERRY_POINTS = 3;
-export const WHOLE_CAKE_CHANCE = 0.005; // 0.5% chance for whole cake (about 1 in 200)
+export const GOLD_STRAWBERRY_TIME_BONUS = 10; // 1 second in 0.1 second units
+export const WHOLE_CAKE_CHANCE = 0.01; // 1% chance for whole cake (about 1 in 100)
 export const WHOLE_CAKE_POINTS = 5;
-export const WHOLE_CAKE_TIME_BONUS = 20; // 2 seconds in 0.1 second units
+export const WHOLE_CAKE_TIME_BONUS = 50; // 5 seconds in 0.1 second units
 export const MEMORY_GAME_CHANCE = 1.0; // 100% chance for memory game
 export const DISTRACTOR_EMOJIS = ['🍎', '🍊', '🍇', '🍉', '🍍', '🍑', '🥝', '🫐', '🍒', '🍈'];
