@@ -8,6 +8,7 @@ interface IslandGameScreenProps {
 
 const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
   const [score, setScore] = useState(0);
+  const scoreRef = useRef(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10);
   const [islands, setIslands] = useState<Island[]>([]);
   const [correctIslandIndex, setCorrectIslandIndex] = useState(-1);
@@ -58,10 +59,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
             }
             
             setTimeout(() => {
-              setScore(currentScore => {
-                onGameOver(currentScore);
-                return currentScore;
-              });
+              onGameOver(scoreRef.current);
             }, 0);
           }
           return 0;
@@ -96,6 +94,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
     if (isCorrect) {
       setScore(prevScore => {
         const newScore = prevScore + 1;
+        scoreRef.current = newScore;
         return newScore;
       });
       setFeedback({ index, type: 'correct' });
