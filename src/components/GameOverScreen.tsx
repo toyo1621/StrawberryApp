@@ -37,7 +37,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
         </h2>
         <ul className="space-y-2 max-h-80 overflow-y-auto pr-2">
           {ranking.length > 0 ? (
-             ranking.slice(0, 10).map((entry, index) => (
+             ranking.slice(0, 30).map((entry, index) => (
               <li key={entry.id} className={`flex justify-between items-center p-3 rounded-lg text-lg ${
                 entry.playerName === currentPlayer.name && entry.score === currentPlayer.score 
                   ? 'bg-yellow-200 ring-2 ring-yellow-400' 
