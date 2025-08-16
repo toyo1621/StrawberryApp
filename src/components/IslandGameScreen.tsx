@@ -58,10 +58,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
             }
             
             setTimeout(() => {
-              setScore(currentScore => {
-                onGameOver(currentScore);
-                return currentScore;
-              });
+              onGameOver(score);
             }, 0);
           }
           return 0;

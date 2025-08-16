@@ -105,17 +105,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
                   const firstDistractor = currentDistractors[0];
                   const lastDistractor = currentDistractors[currentDistractors.length - 1];
                   setTimeout(() => {
-                    setScore(currentScore => {
-                      onMemoryGame(currentScore, lastDistractor, firstDistractor);
-                      return currentScore;
-                    });
+                    onMemoryGame(score, lastDistractor, firstDistractor);
                   }, 0);
                 } else {
                   setTimeout(() => {
-                    setScore(currentScore => {
-                      onGameOver(currentScore);
-                      return currentScore;
-                    });
+                    onGameOver(score);
                   }, 0);
                 }
                 return currentDistractors;
