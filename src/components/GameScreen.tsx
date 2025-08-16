@@ -8,6 +8,7 @@ interface GameScreenProps {
 
 const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => {
   const [score, setScore] = useState(0);
+  const scoreRef = useRef(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10); // 0.1秒単位で管理
   const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
   const [items, setItems] = useState<string[]>([]);
@@ -100,16 +101,17 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
             
             // ゲーム終了処理を非同期で実行
             setTimeout(() => {
+              const finalScore = scoreRef.current;
               setAllDistractors(currentDistractors => {
                 if (Math.random() < MEMORY_GAME_CHANCE && currentDistractors.length > 0) {
                   const firstDistractor = currentDistractors[0];
                   const lastDistractor = currentDistractors[currentDistractors.length - 1];
                   setTimeout(() => {
-                    onMemoryGame(score, lastDistractor, firstDistractor);
+                    onMemoryGame(finalScore, lastDistractor, firstDistractor);
                   }, 0);
                 } else {
                   setTimeout(() => {
-                    onGameOver(score);
+                    onGameOver(finalScore);
                   }, 0);
                 }
                 return currentDistractors;
@@ -121,7 +123,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
         
         return newTime;
       });
-    }, 100); // 100ms間隔で更新
+    }, 100);
   }, [onGameOver, onMemoryGame]);
 
   // ゲーム開始時にタイマーを開始
@@ -158,7 +160,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame }) => 
         // ショートケーキの時間ボーナス（1秒）
         setTimeLeft(prevTime => prevTime + GOLD_STRAWBERRY_TIME_BONUS);
       }
-      setScore(prevScore => prevScore + points);
+      setScore(prevScore => {
+        const newScore = prevScore + points;
+        scoreRef.current = newScore;
+        return newScore;
+      });
       
       // 連続正解カウントを増やす
       setConsecutiveCorrect(prev => {
