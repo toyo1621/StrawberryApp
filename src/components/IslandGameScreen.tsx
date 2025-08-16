@@ -172,6 +172,9 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
                 src={`/src/assets/islands/${island.file}`} 
                 alt={island.name}
                 style={isGoldenIsland && index === correctIslandIndex ? { filter: 'hue-rotate(45deg) saturate(1.5) brightness(1.2)' } : {}}
+                style={isGoldenIsland && index === correctIslandIndex ? { 
+                  filter: 'sepia(1) saturate(3) hue-rotate(15deg) brightness(1.3) contrast(1.2)' 
+                } : {}}
                 className="w-full h-full object-contain"
               />
             </button>
