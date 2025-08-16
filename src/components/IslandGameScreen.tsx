@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { INITIAL_TIME, PENALTY_SECONDS, ISLAND_NAMES } from '../constants';
+import { INITIAL_TIME, PENALTY_SECONDS, ISLAND_NAMES, GOLD_STRAWBERRY_CHANCE, GOLD_STRAWBERRY_TIME_BONUS } from '../constants';
 import { Island } from '../types';
 
 interface IslandGameScreenProps {
@@ -13,6 +13,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
   const [islands, setIslands] = useState<Island[]>([]);
   const [correctIslandIndex, setCorrectIslandIndex] = useState(-1);
   const [targetIslandName, setTargetIslandName] = useState('');
+  const [isGoldenIsland, setIsGoldenIsland] = useState(false);
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
@@ -25,6 +26,10 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
     if (gameEndedRef.current) return;
     
     setFeedback(null);
+    
+    // ゴールデン島の判定（3%の確率）
+    const shouldBeGolden = Math.random() < GOLD_STRAWBERRY_CHANCE;
+    setIsGoldenIsland(shouldBeGolden);
     
     // ランダムに2つの島を選択
     const shuffledIslands = [...ISLAND_NAMES].sort(() => 0.5 - Math.random());
@@ -92,8 +97,15 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
     const isCorrect = index === correctIslandIndex;
 
     if (isCorrect) {
+      let points = 1;
+      if (isGoldenIsland) {
+        points = 3; // ゴールデン島は3倍
+        // 時間ボーナス（1秒）
+        setTimeLeft(prevTime => prevTime + GOLD_STRAWBERRY_TIME_BONUS);
+      }
+      
       setScore(prevScore => {
-        const newScore = prevScore + 1;
+        const newScore = prevScore + points;
         scoreRef.current = newScore;
         return newScore;
       });
@@ -130,7 +142,18 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
       </div>
       
       <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[350px]">
-        <p className="text-2xl font-bold text-gray-700 mb-8">{targetIslandName}はどっち？</p>
+        {isGoldenIsland ? (
+          <>
+            <p className="text-2xl font-bold text-gray-700 mb-4">
+              ✨ ゴールデン{targetIslandName}はどっち？ ✨
+            </p>
+            <p className="text-lg font-bold text-yellow-600 mb-4">
+              🏆 3点ゲット！
+            </p>
+          </>
+        ) : (
+          <p className="text-2xl font-bold text-gray-700 mb-8">{targetIslandName}はどっち？</p>
+        )}
         <div className="flex justify-around w-full max-w-sm">
           {islands.map((island, index) => (
             <button
@@ -148,6 +171,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
               <img 
                 src={`/src/assets/islands/${island.file}`} 
                 alt={island.name}
+                style={isGoldenIsland && index === correctIslandIndex ? { filter: 'hue-rotate(45deg) saturate(1.5) brightness(1.2)' } : {}}
                 className="w-full h-full object-contain"
               />
             </button>
