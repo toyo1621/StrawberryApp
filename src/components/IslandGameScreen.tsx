@@ -58,7 +58,10 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
             }
             
             setTimeout(() => {
-              onGameOver(score);
+              setScore(currentScore => {
+                onGameOver(currentScore);
+                return currentScore;
+              });
             }, 0);
           }
           return 0;
@@ -91,7 +94,10 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
     const isCorrect = index === correctIslandIndex;
 
     if (isCorrect) {
-      setScore(prevScore => prevScore + 1);
+      setScore(prevScore => {
+        const newScore = prevScore + 1;
+        return newScore;
+      });
       setFeedback({ index, type: 'correct' });
     } else {
       setTimeLeft(prevTime => Math.max(0, prevTime - (PENALTY_SECONDS * 10)));
