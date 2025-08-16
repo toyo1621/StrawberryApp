@@ -166,7 +166,7 @@ export const saveScore = async (playerName: string, score: number): Promise<Rank
     const currentRankings = loadLocalRankings();
     const updatedRankings = [...currentRankings, newEntry]
       .sort((a, b) => b.score - a.score)
-      .slice(0, RANKING_LIMIT);
+      .slice(0, 30);
     
     saveLocalRankings(updatedRankings);
     return newEntry;
@@ -199,7 +199,7 @@ export const saveScore = async (playerName: string, score: number): Promise<Rank
       const currentRankings = loadLocalRankings();
       const updatedRankings = [...currentRankings, newEntry]
         .sort((a, b) => b.score - a.score)
-        .slice(0, RANKING_LIMIT);
+        .slice(0, 30);
       
       saveLocalRankings(updatedRankings);
       return newEntry;
@@ -220,7 +220,7 @@ export const saveScore = async (playerName: string, score: number): Promise<Rank
     const currentRankings = loadLocalRankings();
     const updatedRankings = [...currentRankings, newEntry]
       .sort((a, b) => b.score - a.score)
-      .slice(0, RANKING_LIMIT);
+      .slice(0, 30);
     
     saveLocalRankings(updatedRankings);
     return newEntry;
@@ -242,7 +242,7 @@ export const saveIslandScore = async (playerName: string, score: number): Promis
     const currentRankings = loadLocalIslandRankings();
     const updatedRankings = [...currentRankings, newEntry]
       .sort((a, b) => b.score - a.score)
-      .slice(0, RANKING_LIMIT);
+      .slice(0, 30);
     
     saveLocalIslandRankings(updatedRankings);
     return newEntry;
@@ -275,7 +275,7 @@ export const saveIslandScore = async (playerName: string, score: number): Promis
       const currentRankings = loadLocalIslandRankings();
       const updatedRankings = [...currentRankings, newEntry]
         .sort((a, b) => b.score - a.score)
-        .slice(0, RANKING_LIMIT);
+        .slice(0, 30);
       
       saveLocalIslandRankings(updatedRankings);
       return newEntry;
@@ -296,7 +296,7 @@ export const saveIslandScore = async (playerName: string, score: number): Promis
     const currentRankings = loadLocalIslandRankings();
     const updatedRankings = [...currentRankings, newEntry]
       .sort((a, b) => b.score - a.score)
-      .slice(0, RANKING_LIMIT);
+      .slice(0, 30);
     
     saveLocalIslandRankings(updatedRankings);
     return newEntry;
