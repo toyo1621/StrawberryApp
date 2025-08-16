@@ -1,29 +1,36 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { GameState, RankingEntry } from './types';
+import { GameState, RankingEntry, GameMode } from './types';
 import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';
+import IslandGameScreen from './components/IslandGameScreen';
 import MemoryGameScreen from './components/MemoryGameScreen';
 import MemoryGame2Screen from './components/MemoryGame2Screen';
 import GameOverScreen from './components/GameOverScreen';
 import RulesScreen from './components/RulesScreen';
-import { fetchRankings, saveScore } from './services/rankingService';
+import { fetchRankings, saveScore, fetchIslandRankings, saveIslandScore } from './services/rankingService';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.START);
+  const [gameMode, setGameMode] = useState<GameMode>(GameMode.STRAWBERRY);
   const [playerName, setPlayerName] = useState<string>('');
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
+  const [islandRanking, setIslandRanking] = useState<RankingEntry[]>([]);
   const [currentScore, setCurrentScore] = useState<number>(0);
   const [memoryAnswer, setMemoryAnswer] = useState<string>('');
   const [firstDistractor, setFirstDistractor] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // ランキングを読み込み
+  // ランキングを読み込み（両方のモード）
   useEffect(() => {
     const loadRankings = async () => {
       setIsLoading(true);
       try {
-        const rankings = await fetchRankings();
-        setRanking(rankings);
+        const [strawberryRankings, islandRankings] = await Promise.all([
+          fetchRankings(),
+          fetchIslandRankings()
+        ]);
+        setRanking(strawberryRankings);
+        setIslandRanking(islandRankings);
       } catch (error) {
         console.error('Failed to load rankings:', error);
       } finally {
@@ -34,12 +41,13 @@ const App: React.FC = () => {
     loadRankings();
   }, []);
 
-  const handleGameStart = useCallback((name: string) => {
+  const handleGameStart = useCallback((name: string, mode: GameMode) => {
     setPlayerName(name);
+    setGameMode(mode);
     setCurrentScore(0);
     setMemoryAnswer('');
     setFirstDistractor('');
-    setGameState(GameState.PLAYING);
+    setGameState(mode === GameMode.STRAWBERRY ? GameState.PLAYING : GameState.ISLAND_PLAYING);
   }, []);
 
   const handleMemoryGame = useCallback((score: number, lastDistractor: string, firstDistractor: string) => {
@@ -58,18 +66,23 @@ const App: React.FC = () => {
     setCurrentScore(score);
     setGameState(GameState.GAME_OVER);
 
-    // スコアを保存
+    // スコアを保存（モードに応じて）
     if (playerName && score > 0) {
       try {
-        await saveScore(playerName, score);
-        // ランキングを再読み込み
-        const updatedRankings = await fetchRankings();
-        setRanking(updatedRankings);
+        if (gameMode === GameMode.STRAWBERRY) {
+          await saveScore(playerName, score);
+          const updatedRankings = await fetchRankings();
+          setRanking(updatedRankings);
+        } else {
+          await saveIslandScore(playerName, score);
+          const updatedIslandRankings = await fetchIslandRankings();
+          setIslandRanking(updatedIslandRankings);
+        }
       } catch (error) {
         console.error('Failed to save score:', error);
       }
     }
-  }, [playerName]);
+  }, [playerName, gameMode]);
 
   const handleRestart = useCallback(() => {
     setGameState(GameState.START);
@@ -87,6 +100,8 @@ const App: React.FC = () => {
     switch (gameState) {
       case GameState.PLAYING:
         return <GameScreen onGameOver={handleGameOver} onMemoryGame={handleMemoryGame} />;
+      case GameState.ISLAND_PLAYING:
+        return <IslandGameScreen onGameOver={handleGameOver} />;
       case GameState.MEMORY_GAME:
         return (
           <MemoryGameScreen 
@@ -106,14 +121,15 @@ const App: React.FC = () => {
       case GameState.GAME_OVER:
         return (
           <GameOverScreen 
-            ranking={ranking} 
+            ranking={gameMode === GameMode.STRAWBERRY ? ranking : islandRanking}
+            gameMode={gameMode}
             currentPlayer={{ name: playerName, score: currentScore }} 
             onRestart={handleRestart} 
           />
         );
       case GameState.START:
       default:
-        return <StartScreen onStart={handleGameStart} ranking={ranking} isLoading={isLoading} onShowRules={handleShowRules} />;
+        return <StartScreen onStart={handleGameStart} ranking={ranking} islandRanking={islandRanking} isLoading={isLoading} onShowRules={handleShowRules} />;
       case GameState.RULES:
         return <RulesScreen onBack={handleBackFromRules} />;
     }
