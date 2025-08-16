@@ -169,7 +169,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver }) => {
               aria-label={`選択肢 ${index + 1}: ${island.name}`}
             >
               <img 
-                src={`/src/assets/islands/${island.file}`} 
+                src={`/assets/islands/${island.file}`} 
                 alt={island.name}
                 style={isGoldenIsland && index === correctIslandIndex ? { filter: 'hue-rotate(45deg) saturate(1.5) brightness(1.2)' } : {}}
                 style={isGoldenIsland && index === correctIslandIndex ? { 
