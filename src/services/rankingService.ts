@@ -14,7 +14,7 @@ export interface RankingEntry {
 
 const GAME_TYPE = 'strawberry_rush';
 const ISLAND_GAME_TYPE = 'island_rush';
-const RANKING_LIMIT = 10;
+const RANKING_LIMIT = 30;
 const STORAGE_KEY = 'strawberry_game_rankings';
 const ISLAND_STORAGE_KEY = 'island_game_rankings';
 
@@ -84,7 +84,7 @@ export const fetchRankings = async (): Promise<RankingEntry[]> => {
     // 各プレイヤーの最高スコアのみを取得するクエリ
     const { data, error } = await supabase.rpc('get_top_rankings', {
       game_type_param: GAME_TYPE,
-      limit_param: RANKING_LIMIT
+      limit_param: 30
     });
 
     if (error) {
@@ -115,7 +115,7 @@ export const fetchIslandRankings = async (): Promise<RankingEntry[]> => {
     // 各プレイヤーの最高スコアのみを取得するクエリ
     const { data, error } = await supabase.rpc('get_top_rankings', {
       game_type_param: ISLAND_GAME_TYPE,
-      limit_param: RANKING_LIMIT
+      limit_param: 30
     });
 
     if (error) {
@@ -148,7 +148,7 @@ const getUniquePlayerRankings = (rankings: RankingEntry[]): RankingEntry[] => {
   
   return Array.from(playerBestScores.values())
     .sort((a, b) => b.score - a.score)
-    .slice(0, RANKING_LIMIT);
+    .slice(0, 30);
 };
 
 // 新しいスコアを保存
