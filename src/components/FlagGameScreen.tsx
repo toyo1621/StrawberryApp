@@ -148,8 +148,8 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver }) => {
               <img 
                 src={`https://cdn.jsdelivr.net/gh/lipis/flag-icons/flags/4x3/${country.code}.svg`}
                 alt={`${country.name}の国旗`}
-                className="w-full h-full object-cover rounded-lg"
-                style={{ aspectRatio: '4/3' }}
+               className="max-w-full max-h-full object-contain rounded-lg"
+               style={{ aspectRatio: '4/3', width: 'auto', height: 'auto' }}
               />
             </button>
           ))}
