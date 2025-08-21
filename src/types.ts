@@ -3,6 +3,8 @@ export enum GameState {
   PLAYING,
   ISLAND_PLAYING,
   FLAG_PLAYING,
+  SQUARE_PLAYING,
+  CUBE_PLAYING,
   MEMORY_GAME,
   MEMORY_GAME_2,
   GAME_OVER,
@@ -12,7 +14,9 @@ export enum GameState {
 export enum GameMode {
   STRAWBERRY = 'strawberry',
   ISLAND = 'island',
-  FLAG = 'flag'
+  FLAG = 'flag',
+  SQUARE = 'square',
+  CUBE = 'cube'
 }
 
 export interface RankingEntry {

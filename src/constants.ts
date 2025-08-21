@@ -207,3 +207,8 @@ export const COUNTRIES = [
   { id: 'israel', name: 'イスラエル', code: 'il' },
   { id: 'palestine', name: 'パレスチナ', code: 'ps' }
 ];
+
+const FLAG_GAME_TYPE = 'flag_rush';
+const SQUARE_GAME_TYPE = 'square_rush';
+const CUBE_GAME_TYPE = 'cube_rush';
+const RANKING_LIMIT = 30;

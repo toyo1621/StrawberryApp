@@ -4,11 +4,13 @@ import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';
 import IslandGameScreen from './components/IslandGameScreen';
 import FlagGameScreen from './components/FlagGameScreen';
+import SquareGameScreen from './components/SquareGameScreen';
+import CubeGameScreen from './components/CubeGameScreen';
 import MemoryGameScreen from './components/MemoryGameScreen';
 import MemoryGame2Screen from './components/MemoryGame2Screen';
 import GameOverScreen from './components/GameOverScreen';
 import RulesScreen from './components/RulesScreen';
-import { fetchRankings, saveScore, fetchIslandRankings, saveIslandScore, fetchFlagRankings, saveFlagScore } from './services/rankingService';
+import { fetchRankings, saveScore, fetchIslandRankings, saveIslandScore, fetchFlagRankings, saveFlagScore, fetchSquareRankings, saveSquareScore, fetchCubeRankings, saveCubeScore } from './services/rankingService';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.START);
@@ -17,6 +19,8 @@ const App: React.FC = () => {
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [islandRanking, setIslandRanking] = useState<RankingEntry[]>([]);
   const [flagRanking, setFlagRanking] = useState<RankingEntry[]>([]);
+  const [squareRanking, setSquareRanking] = useState<RankingEntry[]>([]);
+  const [cubeRanking, setCubeRanking] = useState<RankingEntry[]>([]);
   const [currentScore, setCurrentScore] = useState<number>(0);
   const [memoryAnswer, setMemoryAnswer] = useState<string>('');
   const [firstDistractor, setFirstDistractor] = useState<string>('');
@@ -27,14 +31,18 @@ const App: React.FC = () => {
     const loadRankings = async () => {
       setIsLoading(true);
       try {
-        const [strawberryRankings, islandRankings, flagRankings] = await Promise.all([
+        const [strawberryRankings, islandRankings, flagRankings, squareRankings, cubeRankings] = await Promise.all([
           fetchRankings(),
           fetchIslandRankings(),
-          fetchFlagRankings()
+          fetchFlagRankings(),
+          fetchSquareRankings(),
+          fetchCubeRankings()
         ]);
         setRanking(strawberryRankings);
         setIslandRanking(islandRankings);
         setFlagRanking(flagRankings);
+        setSquareRanking(squareRankings);
+        setCubeRanking(cubeRankings);
       } catch (error) {
         console.error('Failed to load rankings:', error);
       } finally {
@@ -55,8 +63,12 @@ const App: React.FC = () => {
       setGameState(GameState.PLAYING);
     } else if (mode === GameMode.ISLAND) {
       setGameState(GameState.ISLAND_PLAYING);
-    } else {
+    } else if (mode === GameMode.FLAG) {
       setGameState(GameState.FLAG_PLAYING);
+    } else if (mode === GameMode.SQUARE) {
+      setGameState(GameState.SQUARE_PLAYING);
+    } else {
+      setGameState(GameState.CUBE_PLAYING);
     }
   }, []);
 
@@ -87,10 +99,18 @@ const App: React.FC = () => {
           await saveIslandScore(playerName, score);
           const updatedIslandRankings = await fetchIslandRankings();
           setIslandRanking(updatedIslandRankings);
-        } else {
+        } else if (gameMode === GameMode.FLAG) {
           await saveFlagScore(playerName, score);
           const updatedFlagRankings = await fetchFlagRankings();
           setFlagRanking(updatedFlagRankings);
+        } else if (gameMode === GameMode.SQUARE) {
+          await saveSquareScore(playerName, score);
+          const updatedSquareRankings = await fetchSquareRankings();
+          setSquareRanking(updatedSquareRankings);
+        } else {
+          await saveCubeScore(playerName, score);
+          const updatedCubeRankings = await fetchCubeRankings();
+          setCubeRanking(updatedCubeRankings);
         }
       } catch (error) {
         console.error('Failed to save score:', error);
@@ -118,6 +138,10 @@ const App: React.FC = () => {
         return <IslandGameScreen onGameOver={handleGameOver} />;
       case GameState.FLAG_PLAYING:
         return <FlagGameScreen onGameOver={handleGameOver} />;
+      case GameState.SQUARE_PLAYING:
+        return <SquareGameScreen onGameOver={handleGameOver} />;
+      case GameState.CUBE_PLAYING:
+        return <CubeGameScreen onGameOver={handleGameOver} />;
       case GameState.MEMORY_GAME:
         return (
           <MemoryGameScreen 
@@ -140,7 +164,9 @@ const App: React.FC = () => {
             ranking={
               gameMode === GameMode.STRAWBERRY ? ranking : 
               gameMode === GameMode.ISLAND ? islandRanking : 
-              flagRanking
+              gameMode === GameMode.FLAG ? flagRanking :
+              gameMode === GameMode.SQUARE ? squareRanking :
+              cubeRanking
             }
             gameMode={gameMode}
             currentPlayer={{ name: playerName, score: currentScore }} 
@@ -149,7 +175,7 @@ const App: React.FC = () => {
         );
       case GameState.START:
       default:
-        return <StartScreen onStart={handleGameStart} ranking={ranking} islandRanking={islandRanking} flagRanking={flagRanking} isLoading={isLoading} onShowRules={handleShowRules} />;
+        return <StartScreen onStart={handleGameStart} ranking={ranking} islandRanking={islandRanking} flagRanking={flagRanking} squareRanking={squareRanking} cubeRanking={cubeRanking} isLoading={isLoading} onShowRules={handleShowRules} />;
       case GameState.RULES:
         return <RulesScreen onBack={handleBackFromRules} />;
     }

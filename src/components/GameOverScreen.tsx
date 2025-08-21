@@ -16,8 +16,10 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
 
   const isStrawberryMode = gameMode === GameMode.STRAWBERRY;
   const isIslandMode = gameMode === GameMode.ISLAND;
+  const isFlagMode = gameMode === GameMode.FLAG;
+  const isSquareMode = gameMode === GameMode.SQUARE;
   const unit = isStrawberryMode ? '個' : '問';
-  const modeColor = isStrawberryMode ? 'pink' : isIslandMode ? 'blue' : 'green';
+  const modeColor = isStrawberryMode ? 'pink' : isIslandMode ? 'blue' : isFlagMode ? 'green' : isSquareMode ? 'purple' : 'orange';
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-8 text-center animate-pop-in">
@@ -35,6 +37,11 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
       <div className={`bg-${modeColor}-50 rounded-lg p-4 mb-8`}>
         <h2 className={`text-2xl font-bold text-${modeColor}-600 mb-4`}>
           {isStrawberryMode ? 'いちごモード' : isIslandMode ? '島モード' : '国旗モード'} ランキング
+          {isStrawberryMode ? 'いちごモード' : 
+           isIslandMode ? '島モード' : 
+           isFlagMode ? '国旗モード' :
+           isSquareMode ? '平方数モード' :
+           '立方数モード'} ランキング
         </h2>
         <ul className="space-y-2 max-h-80 overflow-y-auto pr-2">
           {ranking.length > 0 ? (
