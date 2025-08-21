@@ -81,58 +81,79 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, squareRanki
       {/* ゲームモード選択 */}
       <div className="mb-6">
         <p className="text-lg font-bold text-gray-700 mb-3">ゲームモード選択</p>
-        <div className="grid grid-cols-2 gap-2 max-w-sm mx-auto mb-2">
+        <div className="flex overflow-x-auto gap-3 pb-2 mb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <style jsx>{`
+            div::-webkit-scrollbar {
+              display: none;
+            }
+          `}</style>
           <button
             onClick={() => setSelectedMode(GameMode.STRAWBERRY)}
-            className={`px-4 py-3 rounded-lg font-bold transition-all duration-200 text-sm ${
+            className={`flex-shrink-0 px-6 py-4 rounded-xl font-bold transition-all duration-200 text-sm min-w-[140px] ${
               selectedMode === GameMode.STRAWBERRY
-                ? 'bg-pink-500 text-white shadow-lg'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-pink-500 text-white shadow-lg scale-105'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-102'
             }`}
           >
-            🍓 いちごモード
+            <div className="text-center">
+              <div className="text-2xl mb-1">🍓</div>
+              <div>いちごモード</div>
+            </div>
           </button>
           <button
             onClick={() => setSelectedMode(GameMode.ISLAND)}
-            className={`px-4 py-3 rounded-lg font-bold transition-all duration-200 text-sm ${
+            className={`flex-shrink-0 px-6 py-4 rounded-xl font-bold transition-all duration-200 text-sm min-w-[140px] ${
               selectedMode === GameMode.ISLAND
-                ? 'bg-blue-500 text-white shadow-lg'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-blue-500 text-white shadow-lg scale-105'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-102'
             }`}
           >
-            🏝️ 島モード
+            <div className="text-center">
+              <div className="text-2xl mb-1">🏝️</div>
+              <div>島モード</div>
+            </div>
           </button>
           <button
             onClick={() => setSelectedMode(GameMode.FLAG)}
-            className={`px-4 py-3 rounded-lg font-bold transition-all duration-200 text-sm ${
+            className={`flex-shrink-0 px-6 py-4 rounded-xl font-bold transition-all duration-200 text-sm min-w-[140px] ${
               selectedMode === GameMode.FLAG
-                ? 'bg-green-500 text-white shadow-lg'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-green-500 text-white shadow-lg scale-105'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-102'
             }`}
           >
-            🏁 国旗モード
+            <div className="text-center">
+              <div className="text-2xl mb-1">🏁</div>
+              <div>国旗モード</div>
+            </div>
           </button>
           <button
             onClick={() => setSelectedMode(GameMode.SQUARE)}
-            className={`px-4 py-3 rounded-lg font-bold transition-all duration-200 text-sm ${
+            className={`flex-shrink-0 px-6 py-4 rounded-xl font-bold transition-all duration-200 text-sm min-w-[140px] ${
               selectedMode === GameMode.SQUARE
-                ? 'bg-purple-500 text-white shadow-lg'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-purple-500 text-white shadow-lg scale-105'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-102'
             }`}
           >
-            ² 平方数モード
+            <div className="text-center">
+              <div className="text-2xl mb-1">²</div>
+              <div>平方数モード</div>
+            </div>
           </button>
           <button
             onClick={() => setSelectedMode(GameMode.CUBE)}
-            className={`px-4 py-3 rounded-lg font-bold transition-all duration-200 text-sm ${
+            className={`flex-shrink-0 px-6 py-4 rounded-xl font-bold transition-all duration-200 text-sm min-w-[140px] ${
               selectedMode === GameMode.CUBE
-                ? 'bg-orange-500 text-white shadow-lg'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-orange-500 text-white shadow-lg scale-105'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-102'
             }`}
           >
-            ³ 立方数モード
+            <div className="text-center">
+              <div className="text-2xl mb-1">³</div>
+              <div>立方数モード</div>
+            </div>
           </button>
         </div>
+        <p className="text-xs text-gray-500 text-center">← スワイプしてモードを選択 →</p>
       </div>
       
       {/* ルールボタン */}
