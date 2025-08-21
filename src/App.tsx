@@ -3,11 +3,12 @@ import { GameState, RankingEntry, GameMode } from './types';
 import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';
 import IslandGameScreen from './components/IslandGameScreen';
+import FlagGameScreen from './components/FlagGameScreen';
 import MemoryGameScreen from './components/MemoryGameScreen';
 import MemoryGame2Screen from './components/MemoryGame2Screen';
 import GameOverScreen from './components/GameOverScreen';
 import RulesScreen from './components/RulesScreen';
-import { fetchRankings, saveScore, fetchIslandRankings, saveIslandScore } from './services/rankingService';
+import { fetchRankings, saveScore, fetchIslandRankings, saveIslandScore, fetchFlagRankings, saveFlagScore } from './services/rankingService';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.START);
@@ -15,6 +16,7 @@ const App: React.FC = () => {
   const [playerName, setPlayerName] = useState<string>('');
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [islandRanking, setIslandRanking] = useState<RankingEntry[]>([]);
+  const [flagRanking, setFlagRanking] = useState<RankingEntry[]>([]);
   const [currentScore, setCurrentScore] = useState<number>(0);
   const [memoryAnswer, setMemoryAnswer] = useState<string>('');
   const [firstDistractor, setFirstDistractor] = useState<string>('');
@@ -25,12 +27,14 @@ const App: React.FC = () => {
     const loadRankings = async () => {
       setIsLoading(true);
       try {
-        const [strawberryRankings, islandRankings] = await Promise.all([
+        const [strawberryRankings, islandRankings, flagRankings] = await Promise.all([
           fetchRankings(),
-          fetchIslandRankings()
+          fetchIslandRankings(),
+          fetchFlagRankings()
         ]);
         setRanking(strawberryRankings);
         setIslandRanking(islandRankings);
+        setFlagRanking(flagRankings);
       } catch (error) {
         console.error('Failed to load rankings:', error);
       } finally {
@@ -47,7 +51,13 @@ const App: React.FC = () => {
     setCurrentScore(0);
     setMemoryAnswer('');
     setFirstDistractor('');
-    setGameState(mode === GameMode.STRAWBERRY ? GameState.PLAYING : GameState.ISLAND_PLAYING);
+    if (mode === GameMode.STRAWBERRY) {
+      setGameState(GameState.PLAYING);
+    } else if (mode === GameMode.ISLAND) {
+      setGameState(GameState.ISLAND_PLAYING);
+    } else {
+      setGameState(GameState.FLAG_PLAYING);
+    }
   }, []);
 
   const handleMemoryGame = useCallback((score: number, lastDistractor: string, firstDistractor: string) => {
@@ -73,10 +83,14 @@ const App: React.FC = () => {
           await saveScore(playerName, score);
           const updatedRankings = await fetchRankings();
           setRanking(updatedRankings);
-        } else {
+        } else if (gameMode === GameMode.ISLAND) {
           await saveIslandScore(playerName, score);
           const updatedIslandRankings = await fetchIslandRankings();
           setIslandRanking(updatedIslandRankings);
+        } else {
+          await saveFlagScore(playerName, score);
+          const updatedFlagRankings = await fetchFlagRankings();
+          setFlagRanking(updatedFlagRankings);
         }
       } catch (error) {
         console.error('Failed to save score:', error);
@@ -102,6 +116,8 @@ const App: React.FC = () => {
         return <GameScreen onGameOver={handleGameOver} onMemoryGame={handleMemoryGame} />;
       case GameState.ISLAND_PLAYING:
         return <IslandGameScreen onGameOver={handleGameOver} />;
+      case GameState.FLAG_PLAYING:
+        return <FlagGameScreen onGameOver={handleGameOver} />;
       case GameState.MEMORY_GAME:
         return (
           <MemoryGameScreen 
@@ -121,7 +137,11 @@ const App: React.FC = () => {
       case GameState.GAME_OVER:
         return (
           <GameOverScreen 
-            ranking={gameMode === GameMode.STRAWBERRY ? ranking : islandRanking}
+            ranking={
+              gameMode === GameMode.STRAWBERRY ? ranking : 
+              gameMode === GameMode.ISLAND ? islandRanking : 
+              flagRanking
+            }
             gameMode={gameMode}
             currentPlayer={{ name: playerName, score: currentScore }} 
             onRestart={handleRestart} 
@@ -129,7 +149,7 @@ const App: React.FC = () => {
         );
       case GameState.START:
       default:
-        return <StartScreen onStart={handleGameStart} ranking={ranking} islandRanking={islandRanking} isLoading={isLoading} onShowRules={handleShowRules} />;
+        return <StartScreen onStart={handleGameStart} ranking={ranking} islandRanking={islandRanking} flagRanking={flagRanking} isLoading={isLoading} onShowRules={handleShowRules} />;
       case GameState.RULES:
         return <RulesScreen onBack={handleBackFromRules} />;
     }

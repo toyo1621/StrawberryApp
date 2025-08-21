@@ -5,11 +5,12 @@ interface StartScreenProps {
   onStart: (name: string, mode: GameMode) => void;
   ranking: RankingEntry[];
   islandRanking: RankingEntry[];
+  flagRanking: RankingEntry[];
   isLoading?: boolean;
   onShowRules: () => void;
 }
 
-const StartScreen = ({ onStart, ranking, islandRanking, isLoading, onShowRules }: StartScreenProps) => {
+const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, onShowRules }: StartScreenProps) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [selectedMode, setSelectedMode] = useState<GameMode>(GameMode.STRAWBERRY);
@@ -34,22 +35,33 @@ const StartScreen = ({ onStart, ranking, islandRanking, isLoading, onShowRules }
     }
   };
 
-  const currentRanking = selectedMode === GameMode.STRAWBERRY ? ranking : islandRanking;
+  const currentRanking = 
+    selectedMode === GameMode.STRAWBERRY ? ranking : 
+    selectedMode === GameMode.ISLAND ? islandRanking : 
+    flagRanking;
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-8 text-center animate-pop-in">
       <div className="flex justify-center items-center mb-4">
         <h1 className="text-4xl font-extrabold text-pink-500 mr-3">
-          {selectedMode === GameMode.STRAWBERRY ? 'いちごつめ！' : '島つめ！'}
+          {selectedMode === GameMode.STRAWBERRY ? 'いちごつめ！' : 
+           selectedMode === GameMode.ISLAND ? '島つめ！' : 
+           '国旗つめ！'}
         </h1>
-        <span className="text-5xl" role="img" aria-label={selectedMode === GameMode.STRAWBERRY ? "strawberry" : "island"}>
-          {selectedMode === GameMode.STRAWBERRY ? '🍓' : '🏝️'}
+        <span className="text-5xl" role="img" aria-label={
+          selectedMode === GameMode.STRAWBERRY ? "strawberry" : 
+          selectedMode === GameMode.ISLAND ? "island" : 
+          "flag"
+        }>
+          {selectedMode === GameMode.STRAWBERRY ? '🍓' : 
+           selectedMode === GameMode.ISLAND ? '🏝️' : 
+           '🏁'}
         </span>
       </div>
       <p className="text-gray-600 mb-6">
-        {selectedMode === GameMode.STRAWBERRY 
-          ? '時間内にいちごをたくさんつめよう！' 
-          : '時間内に島をたくさん当てよう！'
+        {selectedMode === GameMode.STRAWBERRY ? '時間内にいちごをたくさんつめよう！' : 
+         selectedMode === GameMode.ISLAND ? '時間内に島をたくさん当てよう！' : 
+         '時間内に国旗をたくさん当てよう！'
         }
       </p>
       <p className="text-sm text-blue-600 mb-4 font-medium">8/15 ランキングリセット 2ndシーズンへ</p>
@@ -57,10 +69,10 @@ const StartScreen = ({ onStart, ranking, islandRanking, isLoading, onShowRules }
       {/* ゲームモード選択 */}
       <div className="mb-6">
         <p className="text-lg font-bold text-gray-700 mb-3">ゲームモード選択</p>
-        <div className="flex justify-center space-x-4">
+        <div className="flex justify-center space-x-2">
           <button
             onClick={() => setSelectedMode(GameMode.STRAWBERRY)}
-            className={`px-6 py-3 rounded-lg font-bold transition-all duration-200 ${
+            className={`px-4 py-3 rounded-lg font-bold transition-all duration-200 text-sm ${
               selectedMode === GameMode.STRAWBERRY
                 ? 'bg-pink-500 text-white shadow-lg'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -70,13 +82,23 @@ const StartScreen = ({ onStart, ranking, islandRanking, isLoading, onShowRules }
           </button>
           <button
             onClick={() => setSelectedMode(GameMode.ISLAND)}
-            className={`px-6 py-3 rounded-lg font-bold transition-all duration-200 ${
+            className={`px-4 py-3 rounded-lg font-bold transition-all duration-200 text-sm ${
               selectedMode === GameMode.ISLAND
                 ? 'bg-blue-500 text-white shadow-lg'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
             🏝️ 島モード
+          </button>
+          <button
+            onClick={() => setSelectedMode(GameMode.FLAG)}
+            className={`px-4 py-3 rounded-lg font-bold transition-all duration-200 text-sm ${
+              selectedMode === GameMode.FLAG
+                ? 'bg-green-500 text-white shadow-lg'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            🏁 国旗モード
           </button>
         </div>
       </div>
@@ -92,9 +114,19 @@ const StartScreen = ({ onStart, ranking, islandRanking, isLoading, onShowRules }
       </div>
       
       {/* ランキング表示 */}
-      <div className={`${selectedMode === GameMode.STRAWBERRY ? 'bg-pink-50' : 'bg-blue-50'} rounded-lg p-4 mb-6`}>
-        <h2 className={`text-xl font-bold ${selectedMode === GameMode.STRAWBERRY ? 'text-pink-600' : 'text-blue-600'} mb-3`}>
-          🏆 {selectedMode === GameMode.STRAWBERRY ? 'いちごモード' : '島モード'} ランキング
+      <div className={`${
+        selectedMode === GameMode.STRAWBERRY ? 'bg-pink-50' : 
+        selectedMode === GameMode.ISLAND ? 'bg-blue-50' : 
+        'bg-green-50'
+      } rounded-lg p-4 mb-6`}>
+        <h2 className={`text-xl font-bold ${
+          selectedMode === GameMode.STRAWBERRY ? 'text-pink-600' : 
+          selectedMode === GameMode.ISLAND ? 'text-blue-600' : 
+          'text-green-600'
+        } mb-3`}>
+          🏆 {selectedMode === GameMode.STRAWBERRY ? 'いちごモード' : 
+               selectedMode === GameMode.ISLAND ? '島モード' : 
+               '国旗モード'} ランキング
         </h2>
         {isLoading ? (
           <p className="text-gray-500">読み込み中...</p>
@@ -103,7 +135,11 @@ const StartScreen = ({ onStart, ranking, islandRanking, isLoading, onShowRules }
             {currentRanking.slice(0, 10).map((entry, index) => (
               <li key={entry.id} className="flex justify-between items-center p-2 bg-white rounded text-sm">
                 <span className="font-bold text-gray-700">{index + 1}. {entry.playerName}</span>
-                <span className={`font-bold ${selectedMode === GameMode.STRAWBERRY ? 'text-pink-500' : 'text-blue-500'}`}>
+                <span className={`font-bold ${
+                  selectedMode === GameMode.STRAWBERRY ? 'text-pink-500' : 
+                  selectedMode === GameMode.ISLAND ? 'text-blue-500' : 
+                  'text-green-500'
+                }`}>
                   {entry.score} {selectedMode === GameMode.STRAWBERRY ? '個' : '問'}
                 </span>
               </li>
@@ -129,7 +165,11 @@ const StartScreen = ({ onStart, ranking, islandRanking, isLoading, onShowRules }
         <button
           type="submit"
           onClick={(e) => handleSubmit(e, selectedMode)}
-          className={`w-full ${selectedMode === GameMode.STRAWBERRY ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'} text-white font-bold py-4 px-6 rounded-lg text-xl shadow-md active:scale-95 transform transition-all duration-150`}
+          className={`w-full ${
+            selectedMode === GameMode.STRAWBERRY ? 'bg-red-500 hover:bg-red-600' : 
+            selectedMode === GameMode.ISLAND ? 'bg-blue-500 hover:bg-blue-600' : 
+            'bg-green-500 hover:bg-green-600'
+          } text-white font-bold py-4 px-6 rounded-lg text-xl shadow-md active:scale-95 transform transition-all duration-150`}
         >
           ゲーム開始！
         </button>

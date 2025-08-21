@@ -20,3 +20,27 @@ export const ISLAND_NAMES = [
   { id: 'miyakejima', name: '三宅島', file: 'miyakejima.svg' },
   { id: 'oshima', name: '大島', file: 'oshima.svg' }
 ];
+
+// Flag game constants
+export const COUNTRIES = [
+  { id: 'japan', name: '日本', code: 'jp' },
+  { id: 'usa', name: 'アメリカ', code: 'us' },
+  { id: 'china', name: '中国', code: 'cn' },
+  { id: 'korea', name: '韓国', code: 'kr' },
+  { id: 'france', name: 'フランス', code: 'fr' },
+  { id: 'germany', name: 'ドイツ', code: 'de' },
+  { id: 'italy', name: 'イタリア', code: 'it' },
+  { id: 'spain', name: 'スペイン', code: 'es' },
+  { id: 'uk', name: 'イギリス', code: 'gb' },
+  { id: 'canada', name: 'カナダ', code: 'ca' },
+  { id: 'australia', name: 'オーストラリア', code: 'au' },
+  { id: 'brazil', name: 'ブラジル', code: 'br' },
+  { id: 'india', name: 'インド', code: 'in' },
+  { id: 'russia', name: 'ロシア', code: 'ru' },
+  { id: 'mexico', name: 'メキシコ', code: 'mx' },
+  { id: 'thailand', name: 'タイ', code: 'th' },
+  { id: 'singapore', name: 'シンガポール', code: 'sg' },
+  { id: 'malaysia', name: 'マレーシア', code: 'my' },
+  { id: 'indonesia', name: 'インドネシア', code: 'id' },
+  { id: 'philippines', name: 'フィリピン', code: 'ph' }
+];

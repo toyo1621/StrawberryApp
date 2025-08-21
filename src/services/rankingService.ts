@@ -14,9 +14,11 @@ export interface RankingEntry {
 
 const GAME_TYPE = 'strawberry_rush';
 const ISLAND_GAME_TYPE = 'island_rush';
+const FLAG_GAME_TYPE = 'flag_rush';
 const RANKING_LIMIT = 30;
 const STORAGE_KEY = 'strawberry_game_rankings';
 const ISLAND_STORAGE_KEY = 'island_game_rankings';
+const FLAG_STORAGE_KEY = 'flag_game_rankings';
 
 // ローカルストレージからランキングを読み込み
 const loadLocalRankings = (): RankingEntry[] => {
@@ -40,6 +42,17 @@ const loadLocalIslandRankings = (): RankingEntry[] => {
   }
 };
 
+// ローカルストレージから国旗ランキングを読み込み
+const loadLocalFlagRankings = (): RankingEntry[] => {
+  try {
+    const stored = localStorage.getItem(FLAG_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Failed to load local flag rankings:', error);
+    return [];
+  }
+};
+
 // ローカルストレージにランキングを保存
 const saveLocalRankings = (rankings: RankingEntry[]): void => {
   try {
@@ -55,6 +68,14 @@ const saveLocalIslandRankings = (rankings: RankingEntry[]): void => {
     localStorage.setItem(ISLAND_STORAGE_KEY, JSON.stringify(rankings));
   } catch (error) {
     console.error('Failed to save local island rankings:', error);
+  }
+};
+
+// ローカルストレージに国旗ランキングを保存
+const saveLocalFlagRankings = (rankings: RankingEntry[]): void => {
+  try {
+  } catch (error) {
+    console.error('Failed to save local flag rankings:', error);
   }
 };
 
@@ -130,6 +151,37 @@ export const fetchIslandRankings = async (): Promise<RankingEntry[]> => {
     console.error('Failed to fetch island rankings:', error);
     // エラーの場合はローカルストレージにフォールバック
     const localRankings = loadLocalIslandRankings();
+    return getUniquePlayerRankings(localRankings);
+  }
+};
+
+// 国旗ランキングを取得
+export const fetchFlagRankings = async (): Promise<RankingEntry[]> => {
+  // Supabase環境変数がない場合はローカルストレージを使用
+  if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    const localRankings = loadLocalFlagRankings();
+    return getUniquePlayerRankings(localRankings);
+  }
+
+  try {
+    // 各プレイヤーの最高スコアのみを取得するクエリ
+    const { data, error } = await supabase.rpc('get_top_rankings', {
+      game_type_param: FLAG_GAME_TYPE,
+      limit_param: 30
+    });
+
+    if (error) {
+      console.error('Error fetching flag rankings:', error);
+      // エラーの場合はローカルストレージにフォールバック
+      const localRankings = loadLocalFlagRankings();
+      return getUniquePlayerRankings(localRankings);
+    }
+
+    return data?.map((row: any) => mapRowToRankingEntry(row)) || [];
+  } catch (error) {
+    console.error('Failed to fetch flag rankings:', error);
+    // エラーの場合はローカルストレージにフォールバック
+    const localRankings = loadLocalFlagRankings();
     return getUniquePlayerRankings(localRankings);
   }
 };
@@ -299,6 +351,82 @@ export const saveIslandScore = async (playerName: string, score: number): Promis
       .slice(0, 30);
     
     saveLocalIslandRankings(updatedRankings);
+    return newEntry;
+  }
+};
+
+// 新しい国旗スコアを保存
+export const saveFlagScore = async (playerName: string, score: number): Promise<RankingEntry | null> => {
+  // Supabase環境変数がない場合はローカルストレージを使用
+  if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    const newEntry: RankingEntry = {
+      id: generateId(),
+      playerName: playerName.trim(),
+      score,
+      gameType: FLAG_GAME_TYPE,
+      createdAt: new Date().toISOString(),
+    };
+
+    const currentRankings = loadLocalFlagRankings();
+    const updatedRankings = [...currentRankings, newEntry]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 30);
+    
+    saveLocalFlagRankings(updatedRankings);
+    return newEntry;
+  }
+
+  try {
+    const insertData: RankingInsert = {
+      player_name: playerName.trim(),
+      score,
+      game_type: FLAG_GAME_TYPE,
+    };
+
+    const { data, error } = await supabase
+      .from('rankings')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving flag score:', error);
+      // エラーの場合はローカルストレージにフォールバック
+      const newEntry: RankingEntry = {
+        id: generateId(),
+        playerName: playerName.trim(),
+        score,
+        gameType: FLAG_GAME_TYPE,
+        createdAt: new Date().toISOString(),
+      };
+
+      const currentRankings = loadLocalFlagRankings();
+      const updatedRankings = [...currentRankings, newEntry]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 30);
+      
+      saveLocalFlagRankings(updatedRankings);
+      return newEntry;
+    }
+
+    return data ? mapRowToRankingEntry(data) : null;
+  } catch (error) {
+    console.error('Failed to save flag score:', error);
+    // エラーの場合はローカルストレージにフォールバック
+    const newEntry: RankingEntry = {
+      id: generateId(),
+      playerName: playerName.trim(),
+      score,
+      gameType: FLAG_GAME_TYPE,
+      createdAt: new Date().toISOString(),
+    };
+
+    const currentRankings = loadLocalFlagRankings();
+    const updatedRankings = [...currentRankings, newEntry]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 30);
+    
+    saveLocalFlagRankings(updatedRankings);
     return newEntry;
   }
 };
