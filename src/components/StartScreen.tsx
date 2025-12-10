@@ -86,7 +86,7 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
 
   const currentRanking = selectedPeriod === RankingPeriod.ALL
     ? (selectedMode === GameMode.STRAWBERRY ? ranking : 
-       selectedMode === GameMode.ISLAND ? islandRanking : 
+    selectedMode === GameMode.ISLAND ? islandRanking : 
        flagRanking)
     : periodRanking;
 
@@ -137,12 +137,12 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
              selectedMode === GameMode.ISLAND ? '島つめ！' : 
              '国旗つめ！'}
           </Text>
-          <Text style={styles.description}>
-            {selectedMode === GameMode.STRAWBERRY ? '時間内にいちごをたくさんつめよう！' : 
-             selectedMode === GameMode.ISLAND ? '時間内に島をたくさん当てよう！' : 
-             '時間内に国旗をたくさん当てよう！'
-            }
-          </Text>
+        <Text style={styles.description}>
+          {selectedMode === GameMode.STRAWBERRY ? '時間内にいちごをたくさんつめよう！' : 
+           selectedMode === GameMode.ISLAND ? '時間内に島をたくさん当てよう！' : 
+           '時間内に国旗をたくさん当てよう！'
+          }
+        </Text>
         </View>
         
         {/* ゲームモード選択 */}
@@ -253,27 +253,27 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
             </Text>
           </TouchableOpacity>
         </View>
-
+        
         {/* ランキング表示 */}
         <View style={styles.rankingCard}>
           <View style={[styles.rankingHeader, modeStyles.rankingBg]}>
-            <Text style={[styles.rankingTitle, modeStyles.rankingText]}>
+          <Text style={[styles.rankingTitle, modeStyles.rankingText]}>
               {selectedMode === GameMode.STRAWBERRY ? 'いちごモード' : 
-               selectedMode === GameMode.ISLAND ? '島モード' : 
+                 selectedMode === GameMode.ISLAND ? '島モード' : 
                '国旗モード'} {selectedPeriod === RankingPeriod.ALL ? '' : 
                selectedPeriod === RankingPeriod.DAILY ? '日別' :
                selectedPeriod === RankingPeriod.WEEKLY ? '週別' :
                '月別'} ランキング
-            </Text>
+          </Text>
           </View>
           <View style={styles.rankingContent}>
             {(isLoading || isLoadingPeriod) ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color="#6b7280" />
-                <Text style={styles.loadingText}>読み込み中...</Text>
+            <Text style={styles.loadingText}>読み込み中...</Text>
               </View>
-            ) : currentRanking.length > 0 ? (
-              <View>
+          ) : currentRanking.length > 0 ? (
+            <View>
                 {currentRanking.slice(0, 10).map((entry, index) => {
                   const isTopThree = index < 3;
                   const medalEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
@@ -301,18 +301,18 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
                         modeStyles.scoreText,
                         isTopThree && styles.rankingItemScoreTopThree
                       ]}>
-                        {entry.score} {selectedMode === GameMode.STRAWBERRY ? '個' : '問'}
-                      </Text>
-                    </View>
+                    {entry.score} {selectedMode === GameMode.STRAWBERRY ? '個' : '問'}
+                  </Text>
+                </View>
                   );
                 })}
-              </View>
-            ) : (
+            </View>
+          ) : (
               <View style={styles.emptyRanking}>
                 <Text style={styles.emptyRankingEmoji}>📊</Text>
-                <Text style={styles.noRankingText}>まだランキングがありません。</Text>
+            <Text style={styles.noRankingText}>まだランキングがありません。</Text>
               </View>
-            )}
+          )}
           </View>
         </View>
         
