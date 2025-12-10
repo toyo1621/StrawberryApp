@@ -38,7 +38,9 @@ export default {
     ],
     web: {
       // favicon: "./assets/favicon.png", // ファビコンが存在しない場合はコメントアウト
-      bundler: "metro"
+      bundler: "metro",
+      // GitHub Pages用の設定（必要に応じて変更）
+      // baseUrl: "/StrawberryApp"
     },
     scheme: "ichigo-tsume-game-2024",
     newArchEnabled: true,

@@ -95,7 +95,7 @@ npm start
 
 ```bash
 # Web用にビルド
-npx expo export:web
+npm run build:web
 
 # iOS用にビルド（EAS Buildが必要）
 eas build --platform ios
@@ -104,28 +104,47 @@ eas build --platform ios
 eas build --platform android
 ```
 
-## デプロイ済みサイト
+## デプロイ
 
-本アプリケーションは既にBolt Hostingにデプロイされており、以下のURLでプレイできます：
-https://toyo1621-strawberrya-ubrg.bolt.host
+### Vercelへのデプロイ
 
-## Vercelへのデプロイ（オプション）
+1. **VercelアカウントでGitHubリポジトリをインポート**
+   - [Vercel](https://vercel.com)にログイン
+   - 「New Project」をクリック
+   - GitHubリポジトリを選択
 
-### 1. Supabaseプロジェクトの準備
+2. **環境変数の設定**
+   - プロジェクト設定 → Environment Variables
+   - 以下の環境変数を追加：
+     - `EXPO_PUBLIC_SUPABASE_URL`: あなたのSupabaseプロジェクトURL
+     - `EXPO_PUBLIC_SUPABASE_ANON_KEY`: あなたのSupabaseプロジェクトのAnon Key
 
-1. [Supabase](https://supabase.com)でプロジェクトを作成
-2. プロジェクトのURLとAnon Keyを取得
+3. **デプロイ**
+   - Vercelが自動的に`vercel.json`の設定を読み込みます
+   - `npm run build:web`が実行され、`web-build`ディレクトリがデプロイされます
 
-### 2. Vercelでの環境変数設定
+### GitHub Pagesへのデプロイ
 
-Vercelのプロジェクト設定で以下の環境変数を設定：
+1. **GitHub Secretsの設定**
+   - リポジトリの Settings → Secrets and variables → Actions
+   - 以下のSecretsを追加：
+     - `EXPO_PUBLIC_SUPABASE_URL`: あなたのSupabaseプロジェクトURL
+     - `EXPO_PUBLIC_SUPABASE_ANON_KEY`: あなたのSupabaseプロジェクトのAnon Key
 
-- `VITE_SUPABASE_URL`: あなたのSupabaseプロジェクトURL
-- `VITE_SUPABASE_ANON_KEY`: あなたのSupabaseプロジェクトのAnon Key
+2. **GitHub Pagesの有効化**
+   - リポジトリの Settings → Pages
+   - Source: 「GitHub Actions」を選択
 
-### 3. データベースマイグレーション
+3. **自動デプロイ**
+   - `main`ブランチにプッシュすると、自動的にGitHub Actionsが実行されます
+   - デプロイが完了すると、`https://toyo1621.github.io/StrawberryApp`でアクセス可能になります
 
-Supabaseのダッシュボードで、`supabase/migrations/`内のSQLファイルを実行してテーブルを作成してください。
+### データベースマイグレーション
+
+どちらの方法でも、Supabaseのダッシュボードで以下のSQLを実行してください：
+
+1. `supabase/migrations/20250815005541_sweet_snowflake.sql` - テーブル作成
+2. `supabase/migrations/20250815034556_calm_math.sql` - RPC関数作成
 
 ## 技術スタック
 
