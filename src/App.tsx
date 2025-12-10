@@ -206,15 +206,15 @@ const App: React.FC = () => {
       case GameState.GAME_OVER:
         return (
           <>
-            <GameOverScreen 
-              ranking={
-                gameMode === GameMode.STRAWBERRY ? ranking : 
-                gameMode === GameMode.ISLAND ? islandRanking : 
-                flagRanking
-              }
-              gameMode={gameMode}
-              currentPlayer={{ name: playerName, score: currentScore }} 
-              onRestart={handleRestart}
+          <GameOverScreen 
+            ranking={
+              gameMode === GameMode.STRAWBERRY ? ranking : 
+              gameMode === GameMode.ISLAND ? islandRanking : 
+              flagRanking
+            }
+            gameMode={gameMode}
+            currentPlayer={{ name: playerName, score: currentScore }} 
+            onRestart={handleRestart} 
               error={error}
               onDismissError={() => setError(null)}
             />
@@ -279,8 +279,8 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <SafeAreaView style={[styles.container, settings.darkMode && styles.containerDark]} edges={['top', 'bottom']}>
         <StatusBar style={settings.darkMode ? "light" : "dark"} />
-        {renderScreen()}
-      </SafeAreaView>
+      {renderScreen()}
+    </SafeAreaView>
     </ErrorBoundary>
   );
 };
