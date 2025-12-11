@@ -8,9 +8,11 @@ interface GameScreenProps {
   onGameOver: (score: number) => void;
   onMemoryGame: (score: number, lastDistractor: string, firstDistractor: string) => void;
   hapticsEnabled?: boolean;
+  darkMode?: boolean;
+  onShowJuice?: (show: boolean) => void;
 }
 
-const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapticsEnabled = true }) => {
+const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapticsEnabled = true, darkMode = false, onShowJuice }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10); // 0.1秒単位で管理
@@ -24,20 +26,52 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
   const [currentDistractor, setCurrentDistractor] = useState<string>('');
-
+  const [encouragementMessage, setEncouragementMessage] = useState<string>('');
   // タイマー用のref
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gameEndedRef = useRef(false);
+  
+  // 応援の言葉リスト（通常時）
+  const encouragementMessages = [
+    'いいねー',
+    'ナイストロベリー',
+    'いちごつめ！',
+    'いいよー',
+    '熟してる！',
+    '美味しい！',
+    '一期一会',
+    '3150',
+    'いちごは野菜らしい',
+    'バラ科だよ',
+    'ヘタから行く派？',
+  ];
+  
+  // 応援の言葉リスト（フィーバーモード時）
+  const feverEncouragementMessages = [
+    'いいねー',
+    'ナイストロベリー',
+    'いちごつめ！',
+    'いいよー',
+    '熟してる！',
+    '美味しい！',
+    '一期一会',
+    '3150',
+    'いちごは野菜らしい',
+    'バラ科だよ',
+    'ヘタから行く派？',
+    'ラストスパート',
+  ];
 
   const generateNewItems = useCallback(() => {
     if (gameEndedRef.current) return;
     
     setFeedback(null);
+    setEncouragementMessage(''); // 応援メッセージをリセット
     
     // フィーバーモード判定（残り10秒 = 100 * 0.1秒）
     const isFeverMode = timeLeft <= 100;
-    const feverMultiplier = isFeverMode ? 5 : 1;
+    const feverMultiplier = isFeverMode ? 10 : 1;
     
     // Check if this should be a whole cake (highest priority)
     const shouldBeWholeCake = Math.random() < (WHOLE_CAKE_CHANCE * feverMultiplier);
@@ -181,6 +215,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
       });
       
       setFeedback({ index, type: 'correct' });
+      // 応援メッセージをランダムに選択（フィーバーモード時は「ラストスパート」を含む）
+      const isFeverMode = timeLeft <= 100;
+      const messages = isFeverMode ? feverEncouragementMessages : encouragementMessages;
+      const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+      setEncouragementMessage(randomMessage);
       // ハプティックフィードバック（正解）
       if (hapticsEnabled) {
         if (isWholeCake) {
@@ -197,6 +236,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
       // 連続正解カウントをリセット
       setConsecutiveCorrect(0);
       setFeedback({ index, type: 'incorrect' });
+      // いちご汁を表示（イライラ要素）
+      if (onShowJuice) {
+        console.log('いちご汁を表示');
+        onShowJuice(true);
+      }
       // ハプティックフィードバック（不正解）
       if (hapticsEnabled) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -216,12 +260,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
   const isFeverMode = timeLeft <= 100; // 残り10秒以下でフィーバーモード
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, darkMode && styles.containerDark]}>
       <View style={styles.header}>
-        <Text style={styles.scoreText}>スコア: {score}</Text>
-        <Text style={styles.timeText}>時間: {displayTime}</Text>
+        <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
+        <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
       </View>
-      <View style={styles.timeBarContainer}>
+      <View style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}>
         <View
           style={[
             styles.timeBar,
@@ -231,20 +275,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         />
       </View>
       
-      {/* フィーバーモード表示 */}
-      {isFeverMode && (
-        <View style={styles.feverContainer}>
-          <Text style={styles.feverText}>
-            🎂✨ ケーキ5倍フィーバー！ ✨🍰
-          </Text>
-        </View>
-      )}
-      
       <View style={styles.gameArea}>
         {isWholeCake ? (
           <>
-            <Text style={styles.questionText}>
-              🎂 ホールケーキはどっち？ 🎂
+            <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
+              🎂 ホールケーキはどっち？
             </Text>
             <Text style={styles.pointsTextPurple}>
               🎂 5点ゲット！
@@ -252,7 +287,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
           </>
         ) : isGoldStrawberry ? (
           <>
-            <Text style={styles.questionText}>
+            <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
               🍰 ケーキはどっち？ 🍰
             </Text>
             <Text style={styles.pointsTextYellow}>
@@ -260,7 +295,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
             </Text>
           </>
         ) : (
-          <Text style={styles.questionTextNormal}>いちごはどっち？</Text>
+          <Text style={[styles.questionTextNormal, darkMode && styles.questionTextNormalDark]}>いちごはどっち？</Text>
         )}
         <View style={styles.choicesContainer}>
           {items.map((item, index) => (
@@ -270,6 +305,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
               disabled={!!feedback || gameEnded}
               style={[
                 styles.choiceButton,
+                darkMode && styles.choiceButtonDark,
                 feedback && feedback.index === index && feedback.type === 'correct' && styles.choiceButtonCorrect,
                 feedback && feedback.index !== index && styles.choiceButtonInactive,
                 gameEnded && styles.choiceButtonInactive,
@@ -279,7 +315,26 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
             </TouchableOpacity>
           ))}
         </View>
+        {/* 応援メッセージ表示（常にスペースを確保） */}
+        <View style={styles.encouragementContainer}>
+          {encouragementMessage && feedback && feedback.type === 'correct' ? (
+            <Text style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
+              {encouragementMessage}
+            </Text>
+          ) : (
+            <View style={styles.encouragementPlaceholder} />
+          )}
+        </View>
       </View>
+      
+      {/* フィーバーモード表示（画面下） */}
+      {isFeverMode && (
+        <View style={styles.feverContainer}>
+          <Text style={[styles.feverText, darkMode && styles.feverTextDark]}>
+            ✨ 特別アイテム出現率10倍
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -300,6 +355,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     margin: 16,
     justifyContent: 'center',
+    position: 'relative',
   },
   header: {
     flexDirection: 'row',
@@ -327,6 +383,30 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     overflow: 'hidden',
   },
+  containerDark: {
+    backgroundColor: '#1f2937',
+  },
+  scoreTextDark: {
+    color: '#f9fafb',
+  },
+  timeTextDark: {
+    color: '#f9fafb',
+  },
+  questionTextDark: {
+    color: '#f9fafb',
+  },
+  questionTextNormalDark: {
+    color: '#f9fafb',
+  },
+  choiceButtonDark: {
+    backgroundColor: '#374151',
+  },
+  timeBarContainerDark: {
+    backgroundColor: '#4b5563',
+  },
+  feverTextDark: {
+    color: '#fbbf24',
+  },
   timeBar: {
     height: '100%',
     borderRadius: 999,
@@ -342,7 +422,8 @@ const styles = StyleSheet.create({
   },
   feverContainer: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginTop: 16,
+    marginBottom: 0,
   },
   feverText: {
     fontSize: 24,
@@ -406,6 +487,24 @@ const styles = StyleSheet.create({
   },
   choiceEmoji: {
     fontSize: 72,
+  },
+  encouragementContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+    height: 32, // 固定の高さを設定
+    justifyContent: 'center',
+  },
+  encouragementText: {
+    fontSize: 20,
+    fontWeight: FONT_WEIGHT_BOLD,
+    color: '#ec4899',
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  encouragementTextDark: {
+    color: '#f9a8d4',
+  },
+  encouragementPlaceholder: {
+    height: 20, // テキストと同じ高さのプレースホルダー
   },
 });
 

@@ -537,7 +537,7 @@ export const fetchRankingsByPeriod = async (period: RankingPeriod): Promise<Rank
       query = query.gte('created_at', startDate.toISOString());
     }
 
-    const { data, error } = await query.limit(30);
+    const { data, error } = await query.limit(100); // 重複除去のため多めに取得
 
     if (error) {
       console.error('Error fetching rankings by period:', error);
@@ -548,7 +548,8 @@ export const fetchRankingsByPeriod = async (period: RankingPeriod): Promise<Rank
       return getUniquePlayerRankings(filtered);
     }
 
-    return data?.map((row: RankingRow) => mapRowToRankingEntry(row)) || [];
+    const rankings = data?.map((row: RankingRow) => mapRowToRankingEntry(row)) || [];
+    return getUniquePlayerRankings(rankings);
   } catch (error) {
     console.error('Failed to fetch rankings by period:', error);
     const localRankings = await loadLocalRankings();
@@ -583,7 +584,7 @@ export const fetchIslandRankingsByPeriod = async (period: RankingPeriod): Promis
       query = query.gte('created_at', startDate.toISOString());
     }
 
-    const { data, error } = await query.limit(30);
+    const { data, error } = await query.limit(100); // 重複除去のため多めに取得
 
     if (error) {
       console.error('Error fetching island rankings by period:', error);
@@ -594,7 +595,8 @@ export const fetchIslandRankingsByPeriod = async (period: RankingPeriod): Promis
       return getUniquePlayerRankings(filtered);
     }
 
-    return data?.map((row: RankingRow) => mapRowToRankingEntry(row)) || [];
+    const rankings = data?.map((row: RankingRow) => mapRowToRankingEntry(row)) || [];
+    return getUniquePlayerRankings(rankings);
   } catch (error) {
     console.error('Failed to fetch island rankings by period:', error);
     const localRankings = await loadLocalIslandRankings();
@@ -629,7 +631,7 @@ export const fetchFlagRankingsByPeriod = async (period: RankingPeriod): Promise<
       query = query.gte('created_at', startDate.toISOString());
     }
 
-    const { data, error } = await query.limit(30);
+    const { data, error } = await query.limit(100); // 重複除去のため多めに取得
 
     if (error) {
       console.error('Error fetching flag rankings by period:', error);
@@ -640,7 +642,8 @@ export const fetchFlagRankingsByPeriod = async (period: RankingPeriod): Promise<
       return getUniquePlayerRankings(filtered);
     }
 
-    return data?.map((row: RankingRow) => mapRowToRankingEntry(row)) || [];
+    const rankings = data?.map((row: RankingRow) => mapRowToRankingEntry(row)) || [];
+    return getUniquePlayerRankings(rankings);
   } catch (error) {
     console.error('Failed to fetch flag rankings by period:', error);
     const localRankings = await loadLocalFlagRankings();

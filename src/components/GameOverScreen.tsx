@@ -1,6 +1,7 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { RankingEntry, GameMode } from '../types';
+import { RankingPeriod, fetchRankingsByPeriod, fetchIslandRankingsByPeriod, fetchFlagRankingsByPeriod } from '../services/rankingService';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
 
 interface GameOverScreenProps {
@@ -13,15 +14,52 @@ interface GameOverScreenProps {
 }
 
 const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, currentPlayer, onRestart, error, onDismissError }) => {
-  // Find the current player's rank
-  const playerRank = ranking.findIndex(entry => 
-    entry.playerName === currentPlayer.name && entry.score === currentPlayer.score
-  ) + 1;
+  const [selectedPeriod, setSelectedPeriod] = useState<RankingPeriod>(RankingPeriod.ALL);
+  const [periodRanking, setPeriodRanking] = useState<RankingEntry[]>([]);
+  const [isLoadingPeriod, setIsLoadingPeriod] = useState(false);
 
   const isStrawberryMode = gameMode === GameMode.STRAWBERRY;
   const isIslandMode = gameMode === GameMode.ISLAND;
   const isFlagMode = gameMode === GameMode.FLAG;
   const unit = isStrawberryMode ? '個' : '問';
+
+  // 期間別ランキングを取得
+  useEffect(() => {
+    const loadPeriodRankings = async () => {
+      if (selectedPeriod === RankingPeriod.ALL) {
+        setPeriodRanking([]);
+        return;
+      }
+
+      setIsLoadingPeriod(true);
+      try {
+        let rankings: RankingEntry[] = [];
+        if (isStrawberryMode) {
+          rankings = await fetchRankingsByPeriod(selectedPeriod);
+        } else if (isIslandMode) {
+          rankings = await fetchIslandRankingsByPeriod(selectedPeriod);
+        } else {
+          rankings = await fetchFlagRankingsByPeriod(selectedPeriod);
+        }
+        setPeriodRanking(rankings);
+      } catch (error) {
+        console.error('Failed to load period rankings:', error);
+        setPeriodRanking([]);
+      } finally {
+        setIsLoadingPeriod(false);
+      }
+    };
+
+    loadPeriodRankings();
+  }, [selectedPeriod, isStrawberryMode, isIslandMode]);
+
+  // 表示するランキングを決定
+  const currentRanking = selectedPeriod === RankingPeriod.ALL ? ranking : periodRanking;
+
+  // Find the current player's rank
+  const playerRank = currentRanking.findIndex(entry => 
+    entry.playerName === currentPlayer.name && entry.score === currentPlayer.score
+  ) + 1;
 
   const getModeStyles = () => {
     if (isStrawberryMode) {
@@ -54,7 +92,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.container}>
-        <Text style={styles.title}>タイムアップ！</Text>
+        <Text style={styles.title} adjustsFontSizeToFit numberOfLines={1}>タイムアップ！</Text>
         <Text style={styles.scoreText}>
           {currentPlayer.name}さんのスコアは <Text style={styles.scoreValue}>{currentPlayer.score}</Text> {unit}でした！
         </Text>
@@ -65,15 +103,63 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
           </Text>
         )}
 
+        {/* 期間選択タブ */}
+        <View style={styles.periodTabsContainer}>
+          <TouchableOpacity
+            onPress={() => setSelectedPeriod(RankingPeriod.ALL)}
+            style={[styles.periodTab, selectedPeriod === RankingPeriod.ALL && styles.periodTabActive]}
+          >
+            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.ALL && styles.periodTabTextActive]}>
+              全体
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setSelectedPeriod(RankingPeriod.DAILY)}
+            style={[styles.periodTab, selectedPeriod === RankingPeriod.DAILY && styles.periodTabActive]}
+          >
+            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.DAILY && styles.periodTabTextActive]}>
+              日別
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setSelectedPeriod(RankingPeriod.WEEKLY)}
+            style={[styles.periodTab, selectedPeriod === RankingPeriod.WEEKLY && styles.periodTabActive]}
+          >
+            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.WEEKLY && styles.periodTabTextActive]}>
+              週別
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setSelectedPeriod(RankingPeriod.MONTHLY)}
+            style={[styles.periodTab, selectedPeriod === RankingPeriod.MONTHLY && styles.periodTabActive]}
+          >
+            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.MONTHLY && styles.periodTabTextActive]}>
+              月別
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={[styles.rankingContainer, modeStyles.rankingBg]}>
           <Text style={[styles.rankingTitle, modeStyles.rankingText]}>
-            {isStrawberryMode ? 'いちごモード' : 
-             isIslandMode ? '島モード' : 
-             '国旗モード'} ランキング
+            {isStrawberryMode ? 'いちご王' : 
+             isIslandMode ? '島王' : 
+             '国旗王'} ランキング
+            {selectedPeriod !== RankingPeriod.ALL && (
+              <Text style={styles.periodLabel}>
+                {' '}({selectedPeriod === RankingPeriod.DAILY ? '日別' :
+                       selectedPeriod === RankingPeriod.WEEKLY ? '週別' :
+                       '月別'})
+              </Text>
+            )}
           </Text>
-          <ScrollView style={styles.rankingScroll}>
-            {ranking.length > 0 ? (
-               ranking.slice(0, 30).map((entry, index) => (
+          {isLoadingPeriod ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={isStrawberryMode ? '#ec4899' : isIslandMode ? '#3b82f6' : '#10b981'} />
+            </View>
+          ) : (
+            <ScrollView style={styles.rankingScroll}>
+              {currentRanking.length > 0 ? (
+                 currentRanking.slice(0, 30).map((entry, index) => (
                 <View 
                   key={entry.id} 
                   style={[
@@ -88,7 +174,8 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
             ) : (
               <Text style={styles.noRankingText}>まだランキングがありません。</Text>
             )}
-          </ScrollView>
+            </ScrollView>
+          )}
         </View>
 
         {/* エラーメッセージ表示 */}
@@ -145,6 +232,8 @@ const styles = StyleSheet.create({
     color: '#ec4899',
     marginBottom: 8,
     fontFamily: MARU_GOTHIC_FONT,
+    textAlign: 'center',
+    width: '100%',
   },
   scoreText: {
     fontSize: 20,
@@ -283,6 +372,42 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: FONT_WEIGHT_BOLD,
     fontFamily: MARU_GOTHIC_FONT,
+  },
+  periodTabsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  periodTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  periodTabActive: {
+    backgroundColor: '#ec4899',
+  },
+  periodTabText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontFamily: MARU_GOTHIC_FONT,
+    fontWeight: FONT_WEIGHT_SEMIBOLD,
+  },
+  periodTabTextActive: {
+    color: '#ffffff',
+    fontWeight: FONT_WEIGHT_BOLD,
+  },
+  periodLabel: {
+    fontSize: 18,
+    fontWeight: FONT_WEIGHT_SEMIBOLD,
+  },
+  loadingContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

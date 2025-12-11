@@ -38,10 +38,13 @@ const RulesScreen: React.FC<RulesScreenProps> = ({ onBack }) => {
             <Text style={styles.sectionTitle}>✨ 特別アイテム</Text>
             <View style={styles.sectionContent}>
               <Text style={[styles.bulletPoint, { marginBottom: 4 }]}>
-                • <Text style={styles.bold}>🍰 ショートケーキ</Text>: 3点獲得 + 1秒時間回復（出現確率3%）
+                • <Text style={styles.bold}>🍰 ショートケーキ</Text>: 3点獲得 + 1秒時間回復（通常時: 出現確率3%）
               </Text>
               <Text style={styles.bulletPoint}>
-                • <Text style={styles.bold}>🎂 ホールケーキ</Text>: 5点獲得 + 5秒時間回復（出現確率1%）
+                • <Text style={styles.bold}>🎂 ホールケーキ</Text>: 5点獲得 + 5秒時間回復（通常時: 出現確率1%）
+              </Text>
+              <Text style={[styles.bulletPoint, { marginTop: 4, fontSize: 12, color: '#6b7280' }]}>
+                ※ フィーバーモード中は出現確率が10倍になります
               </Text>
             </View>
           </View>
@@ -52,8 +55,11 @@ const RulesScreen: React.FC<RulesScreenProps> = ({ onBack }) => {
               <Text style={[styles.bulletPoint, { marginBottom: 4 }]}>
                 • <Text style={styles.bold}>間違い</Text>: 残り時間が3.0秒減少
               </Text>
-              <Text style={styles.bulletPoint}>
+              <Text style={[styles.bulletPoint, { marginBottom: 4 }]}>
                 • <Text style={styles.bold}>連続正解リセット</Text>: 間違えると連続正解カウントが0にリセット
+              </Text>
+              <Text style={styles.bulletPoint}>
+                • <Text style={styles.bold}>🍓 いちごジュース</Text>: 間違えた瞬間に画面全体にいちごジュースが表示され、3秒かけて透明になる（イライラ要素）
               </Text>
             </View>
           </View>
@@ -65,6 +71,17 @@ const RulesScreen: React.FC<RulesScreenProps> = ({ onBack }) => {
                 • <Text style={styles.bold}>連続正解ボーナス</Text>: 2回以上連続で正解すると、毎回0.5秒の時間ボーナス
               </Text>
               <Text style={[styles.bulletPoint, { marginBottom: 4 }]}>
+                • <Text style={styles.bold}>✨ フィーバーモード</Text>: 残り10秒以下になると「特別アイテム出現率10倍」が発動
+              </Text>
+              <View style={styles.subSection}>
+                <Text style={[styles.bulletPoint, { marginBottom: 4 }]}>
+                  - ショートケーキとホールケーキの出現確率が10倍になる
+                </Text>
+                <Text style={styles.bulletPoint}>
+                  - フィーバーモード中は画面下に「✨ 特別アイテム出現率10倍 ✨」と表示される
+                </Text>
+              </View>
+              <Text style={[styles.bulletPoint, { marginTop: 8, marginBottom: 4 }]}>
                 • <Text style={styles.bold}>記憶チャレンジ</Text>: ゲーム終了後に記憶ゲームが発生
               </Text>
               <View style={styles.subSection}>
@@ -72,7 +89,7 @@ const RulesScreen: React.FC<RulesScreenProps> = ({ onBack }) => {
                   - 最後に出たいちご以外の果物を当てる（+2点）
                 </Text>
                 <Text style={styles.bulletPoint}>
-                  - 最初に出たいちご以外の果物を当てる（+2点）
+                  - 最初に出たいちご以外の果物を当てる（+10点）
                 </Text>
               </View>
             </View>

@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { strawberryJuiceImage } from './assets/images/strawberryJuiceAsset';
 import { GameState, RankingEntry, GameMode } from './types';
 import ErrorBoundary from './components/ErrorBoundary';
 import StartScreen from './components/StartScreen';
-// コンポーネントを段階的に追加してテスト
 import GameScreen from './components/GameScreen';
 import IslandGameScreen from './components/IslandGameScreen';
 import FlagGameScreen from './components/FlagGameScreen';
@@ -38,6 +38,9 @@ const App: React.FC = () => {
     darkMode: false,
     hapticsEnabled: true,
   });
+  const [showStrawberryJuice, setShowStrawberryJuice] = useState(false);
+  const juiceScale = useRef(new Animated.Value(0)).current;
+  const juiceOpacity = useRef(new Animated.Value(0)).current;
 
   // ランキングとプレイヤー名、設定を読み込み
   useEffect(() => {
@@ -45,6 +48,15 @@ const App: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
+        // いちご汁画像をプリロード
+        Image.prefetch(Image.resolveAssetSource(strawberryJuiceImage).uri)
+          .then(() => {
+            console.log('いちご汁画像のプリロード完了');
+          })
+          .catch((error) => {
+            console.error('いちご汁画像のプリロードエラー:', error);
+          });
+
         // loadPlayerNameとloadSettingsを一時的にコメントアウト
         const [strawberryRankings, islandRankings, flagRankings, savedName, appSettings] = await Promise.all([
           fetchRankings(),
@@ -181,14 +193,41 @@ const App: React.FC = () => {
     setPlayerName(name);
   }, []);
 
+  const handleShowJuice = useCallback((show: boolean) => {
+    setShowStrawberryJuice(show);
+    if (show) {
+      juiceScale.setValue(0);
+      juiceOpacity.setValue(1);
+      Animated.parallel([
+        Animated.spring(juiceScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+        Animated.timing(juiceOpacity, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ]).start((finished) => {
+        if (finished) {
+          setShowStrawberryJuice(false);
+          juiceScale.setValue(0);
+          juiceOpacity.setValue(0);
+        }
+      });
+    }
+  }, [juiceScale, juiceOpacity]);
+
   const renderScreen = () => {
     switch (gameState) {
       case GameState.PLAYING:
-        return <GameScreen onGameOver={handleGameOver} onMemoryGame={handleMemoryGame} hapticsEnabled={settings.hapticsEnabled} />;
+        return <GameScreen onGameOver={handleGameOver} onMemoryGame={handleMemoryGame} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onShowJuice={handleShowJuice} />;
       case GameState.ISLAND_PLAYING:
-        return <IslandGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} />;
+        return <IslandGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} />;
       case GameState.FLAG_PLAYING:
-        return <FlagGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} />;
+        return <FlagGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} />;
       case GameState.MEMORY_GAME:
         return (
           <MemoryGameScreen 
@@ -245,6 +284,7 @@ const App: React.FC = () => {
               savedPlayerName={playerName}
               error={error}
               onDismissError={() => setError(null)}
+              darkMode={settings.darkMode}
             />
             {isSavingScore && (
               <View style={styles.savingOverlay}>
@@ -281,8 +321,32 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <SafeAreaView style={[styles.container, settings.darkMode && styles.containerDark]} edges={['top', 'bottom']}>
         <StatusBar style={settings.darkMode ? "light" : "dark"} />
-      {renderScreen()}
-    </SafeAreaView>
+        {renderScreen()}
+        {/* いちご汁オーバーレイ（画面全体に表示） */}
+        {showStrawberryJuice && (
+          <Animated.View 
+            style={[
+              styles.juiceOverlay,
+              {
+                opacity: juiceOpacity,
+                transform: [{ scale: juiceScale }],
+              }
+            ]}
+          >
+            <Image
+              source={strawberryJuiceImage}
+              style={styles.juiceImage}
+              resizeMode="cover"
+              onError={(error) => {
+                console.error('画像の読み込みエラー:', error);
+              }}
+              onLoad={() => {
+                console.log('画像読み込み成功');
+              }}
+            />
+          </Animated.View>
+        )}
+      </SafeAreaView>
     </ErrorBoundary>
   );
 };
@@ -322,6 +386,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
     fontWeight: '600',
+  },
+  juiceOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
+    pointerEvents: 'none',
+    width: '100%',
+    height: '100%',
+  },
+  juiceImage: {
+    width: '100%',
+    height: '100%',
   },
 });
 

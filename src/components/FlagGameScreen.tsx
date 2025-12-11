@@ -9,9 +9,10 @@ import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../con
 interface FlagGameScreenProps {
   onGameOver: (score: number) => void;
   hapticsEnabled?: boolean;
+  darkMode?: boolean;
 }
 
-const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnabled = true }) => {
+const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10);
@@ -21,15 +22,29 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
+  const [encouragementMessage, setEncouragementMessage] = useState<string>('');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gameEndedRef = useRef(false);
 
+  // 応援の言葉リスト（国旗モード用）
+  const encouragementMessages = [
+    'ナイス国旗',
+    'いい国旗',
+    '国旗つめ！',
+    '世界一周',
+    'よっ国旗マスター',
+    '国旗はいいぞ',
+    '世界を知る',
+    'センター地理100点デスカ？',
+  ];
+
   const generateNewCountries = useCallback(() => {
     if (gameEndedRef.current) return;
     
     setFeedback(null);
+    setEncouragementMessage(''); // 応援メッセージをリセット
     
     // ランダムに2つの国を選択
     const shuffledCountries = [...COUNTRIES].sort(() => 0.5 - Math.random());
@@ -102,7 +117,12 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
         scoreRef.current = newScore;
         return newScore;
       });
+      // 時間ボーナス（1秒 = 10 * 0.1秒）
+      setTimeLeft(prevTime => prevTime + 10);
       setFeedback({ index, type: 'correct' });
+      // 応援メッセージをランダムに選択
+      const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
+      setEncouragementMessage(randomMessage);
       // ハプティックフィードバック（正解）
       if (hapticsEnabled) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -128,12 +148,12 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
   const displayTime = (timeLeft / 10).toFixed(1);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, darkMode && styles.containerDark]}>
       <View style={styles.header}>
-        <Text style={styles.scoreText}>スコア: {score}</Text>
-        <Text style={styles.timeText}>時間: {displayTime}</Text>
+        <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
+        <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
       </View>
-      <View style={styles.timeBarContainer}>
+      <View style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}>
         <View
           style={[
             styles.timeBar,
@@ -144,7 +164,10 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
       </View>
       
       <View style={styles.gameArea}>
-        <Text style={styles.questionText}>{targetCountryName}の国旗はどっち？</Text>
+        <View style={styles.questionContainer}>
+          <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>{targetCountryName}</Text>
+          <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>の国旗はどっち？</Text>
+        </View>
         <View style={styles.choicesContainer}>
           {countries.map((country, index) => (
             <TouchableOpacity
@@ -153,6 +176,7 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
               disabled={!!feedback || gameEnded}
               style={[
                 styles.choiceButton,
+                darkMode && styles.choiceButtonDark,
                 feedback && feedback.index !== index && styles.choiceButtonInactive,
                 gameEnded && styles.choiceButtonInactive,
               ]}
@@ -164,6 +188,16 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
               />
             </TouchableOpacity>
           ))}
+        </View>
+        {/* 応援メッセージ表示（常にスペースを確保） */}
+        <View style={styles.encouragementContainer}>
+          {encouragementMessage && feedback && feedback.type === 'correct' ? (
+            <Text style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
+              {encouragementMessage}
+            </Text>
+          ) : (
+            <View style={styles.encouragementPlaceholder} />
+          )}
         </View>
       </View>
     </View>
@@ -228,11 +262,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 300,
   },
+  questionContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
   questionText: {
     fontSize: 24,
     fontWeight: FONT_WEIGHT_BOLD,
     color: '#374151',
-    marginBottom: 32,
     textAlign: 'center',
     fontFamily: MARU_GOTHIC_FONT,
   },
@@ -260,6 +297,43 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     aspectRatio: 4/3,
+  },
+  containerDark: {
+    backgroundColor: '#1f2937',
+  },
+  scoreTextDark: {
+    color: '#f9fafb',
+  },
+  timeTextDark: {
+    color: '#f9fafb',
+  },
+  questionTextDark: {
+    color: '#f9fafb',
+  },
+  choiceButtonDark: {
+    backgroundColor: '#374151',
+    borderColor: '#4b5563',
+  },
+  timeBarContainerDark: {
+    backgroundColor: '#4b5563',
+  },
+  encouragementContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+    height: 32, // 固定の高さを設定
+    justifyContent: 'center',
+  },
+  encouragementText: {
+    fontSize: 20,
+    fontWeight: FONT_WEIGHT_BOLD,
+    color: '#10b981',
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  encouragementTextDark: {
+    color: '#6ee7b7',
+  },
+  encouragementPlaceholder: {
+    height: 20, // テキストと同じ高さのプレースホルダー
   },
 });
 
