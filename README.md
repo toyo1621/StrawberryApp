@@ -120,44 +120,9 @@ eas build --platform ios
 eas build --platform android
 ```
 
-## デプロイ
+## データベースマイグレーション
 
-### Vercelへのデプロイ
-
-1. **VercelアカウントでGitHubリポジトリをインポート**
-   - [Vercel](https://vercel.com)にログイン
-   - 「New Project」をクリック
-   - GitHubリポジトリを選択
-
-2. **環境変数の設定**
-   - プロジェクト設定 → Environment Variables
-   - 以下の環境変数を追加：
-     - `EXPO_PUBLIC_SUPABASE_URL`: あなたのSupabaseプロジェクトURL
-     - `EXPO_PUBLIC_SUPABASE_ANON_KEY`: あなたのSupabaseプロジェクトのAnon Key
-
-3. **デプロイ**
-   - Vercelが自動的に`vercel.json`の設定を読み込みます
-   - `npm run build:web`が実行され、`web-build`ディレクトリがデプロイされます
-
-### GitHub Pagesへのデプロイ
-
-1. **GitHub Secretsの設定**
-   - リポジトリの Settings → Secrets and variables → Actions
-   - 以下のSecretsを追加：
-     - `EXPO_PUBLIC_SUPABASE_URL`: あなたのSupabaseプロジェクトURL
-     - `EXPO_PUBLIC_SUPABASE_ANON_KEY`: あなたのSupabaseプロジェクトのAnon Key
-
-2. **GitHub Pagesの有効化**
-   - リポジトリの Settings → Pages
-   - Source: 「GitHub Actions」を選択
-
-3. **自動デプロイ**
-   - `main`ブランチにプッシュすると、自動的にGitHub Actionsが実行されます
-   - デプロイが完了すると、`https://toyo1621.github.io/StrawberryApp`でアクセス可能になります
-
-### データベースマイグレーション
-
-どちらの方法でも、Supabaseのダッシュボードで以下のSQLを実行してください：
+Supabaseのダッシュボードで以下のSQLを実行してください：
 
 1. `supabase/migrations/20250815005541_sweet_snowflake.sql` - テーブル作成
 2. `supabase/migrations/20250815034556_calm_math.sql` - RPC関数作成
@@ -167,7 +132,7 @@ eas build --platform android
 - **フロントエンド**: React 18 + TypeScript + Expo
 - **スタイリング**: NativeWind (Tailwind CSS for React Native)
 - **データベース**: Supabase（PostgreSQL）
-- **デプロイ**: Expo（Web/iOS/Android対応）、Vercel、GitHub Pages
+- **デプロイ**: Expo（Web/iOS/Android対応）
 - **状態管理**: React Hooks + useRef（パフォーマンス最適化）
 - **ビルドツール**: Expo CLI
 - **フォント**: 丸ゴシック（Hiragino Maru Gothic ProN）
