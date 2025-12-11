@@ -11,9 +11,10 @@ interface IslandGameScreenProps {
   onGameOver: (score: number) => void;
   hapticsEnabled?: boolean;
   darkMode?: boolean;
+  onBackToHome?: () => void;
 }
 
-const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false }) => {
+const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10);
@@ -162,6 +163,14 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
 
   return (
     <View style={[styles.container, darkMode && styles.containerDark]}>
+      {onBackToHome && (
+        <TouchableOpacity 
+          onPress={onBackToHome} 
+          style={[styles.homeButton, darkMode && styles.homeButtonDark]}
+        >
+          <Text style={[styles.homeButtonText, darkMode && styles.homeButtonTextDark]}>ゲームをやめる</Text>
+        </TouchableOpacity>
+      )}
       <View style={styles.header}>
         <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
         <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
@@ -372,6 +381,31 @@ const styles = StyleSheet.create({
   },
   encouragementPlaceholder: {
     height: 20, // テキストと同じ高さのプレースホルダー
+  },
+  homeButton: {
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginTop: 0,
+    marginBottom: 4,
+    marginRight: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(236, 72, 153, 0.3)',
+  },
+  homeButtonDark: {
+    backgroundColor: 'rgba(190, 24, 93, 0.2)',
+    borderColor: 'rgba(190, 24, 93, 0.4)',
+  },
+  homeButtonText: {
+    color: '#ec4899',
+    fontSize: 12,
+    fontWeight: FONT_WEIGHT_SEMIBOLD,
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  homeButtonTextDark: {
+    color: '#f9a8d4',
   },
 });
 

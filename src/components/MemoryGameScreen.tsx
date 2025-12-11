@@ -53,7 +53,7 @@ const MemoryGameScreen: React.FC<MemoryGameScreenProps> = ({
       <View style={styles.header}>
         <Text style={styles.title}>🧠 記憶チャレンジ！</Text>
         <Text style={styles.description}>
-          最後に出た、いちごじゃない方の果物は？
+          最後に出た、{'\n'}いちごじゃない方の果物は？
         </Text>
         <Text style={styles.hint}>
           正解で+2点ボーナス！

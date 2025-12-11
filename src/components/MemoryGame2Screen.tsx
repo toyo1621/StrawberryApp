@@ -53,7 +53,7 @@ const MemoryGame2Screen: React.FC<MemoryGame2ScreenProps> = ({
       <View style={styles.header}>
         <Text style={styles.title}>🧠 最終記憶チャレンジ！</Text>
         <Text style={styles.description}>
-          一番最初に出た、いちごじゃない方の果物は？
+          一番最初に出た、{'\n'}いちごじゃない方の果物は？
         </Text>
         <Text style={styles.hint}>
           正解で+10点ボーナス！
