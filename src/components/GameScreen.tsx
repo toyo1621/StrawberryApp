@@ -10,9 +10,10 @@ interface GameScreenProps {
   hapticsEnabled?: boolean;
   darkMode?: boolean;
   onShowJuice?: (show: boolean) => void;
+  onBackToHome?: () => void;
 }
 
-const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapticsEnabled = true, darkMode = false, onShowJuice }) => {
+const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapticsEnabled = true, darkMode = false, onShowJuice, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10); // 0.1秒単位で管理
@@ -27,9 +28,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
   const [gameEnded, setGameEnded] = useState(false);
   const [currentDistractor, setCurrentDistractor] = useState<string>('');
   const [encouragementMessage, setEncouragementMessage] = useState<string>('');
+  const [showAttackMessage, setShowAttackMessage] = useState(false);
   // タイマー用のref
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attackMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gameEndedRef = useRef(false);
   
   // 応援の言葉リスト（通常時）
@@ -176,6 +179,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
       if (feedbackTimeoutRef.current) {
         clearTimeout(feedbackTimeoutRef.current);
       }
+      if (attackMessageTimeoutRef.current) {
+        clearTimeout(attackMessageTimeoutRef.current);
+      }
     };
   }, [generateNewItems, startTimer]);
 
@@ -195,7 +201,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         setTimeLeft(prevTime => prevTime + WHOLE_CAKE_TIME_BONUS);
       } else if (isGoldStrawberry) {
         points = GOLD_STRAWBERRY_POINTS;
-        // ショートケーキの時間ボーナス（1秒）
+        // ショートケーキの時間ボーナス（2秒）
         setTimeLeft(prevTime => prevTime + GOLD_STRAWBERRY_TIME_BONUS);
       }
       setScore(prevScore => {
@@ -241,6 +247,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         console.log('いちご汁を表示');
         onShowJuice(true);
       }
+      // 攻撃メッセージを表示
+      setShowAttackMessage(true);
+      // 3秒後にメッセージを非表示にする
+      if (attackMessageTimeoutRef.current) {
+        clearTimeout(attackMessageTimeoutRef.current);
+      }
+      attackMessageTimeoutRef.current = setTimeout(() => {
+        setShowAttackMessage(false);
+      }, 3000);
       // ハプティックフィードバック（不正解）
       if (hapticsEnabled) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -261,6 +276,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
 
   return (
     <View style={[styles.container, darkMode && styles.containerDark]}>
+      {onBackToHome && (
+        <TouchableOpacity 
+          onPress={onBackToHome} 
+          style={[styles.homeButton, darkMode && styles.homeButtonDark]}
+        >
+          <Text style={[styles.homeButtonText, darkMode && styles.homeButtonTextDark]}>ゲームをやめる</Text>
+        </TouchableOpacity>
+      )}
       <View style={styles.header}>
         <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
         <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
@@ -332,6 +355,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         <View style={styles.feverContainer}>
           <Text style={[styles.feverText, darkMode && styles.feverTextDark]}>
             ✨ 特別アイテム出現率10倍
+          </Text>
+        </View>
+      )}
+      
+      {/* 攻撃メッセージ表示（画面下） */}
+      {showAttackMessage && (
+        <View style={styles.attackMessageContainer}>
+          <Text style={[styles.attackMessageText, darkMode && styles.attackMessageTextDark]}>
+            怒ったいちごに攻撃された
           </Text>
         </View>
       )}
@@ -505,6 +537,45 @@ const styles = StyleSheet.create({
   },
   encouragementPlaceholder: {
     height: 20, // テキストと同じ高さのプレースホルダー
+  },
+  attackMessageContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 0,
+  },
+  attackMessageText: {
+    fontSize: 20,
+    fontWeight: FONT_WEIGHT_BOLD,
+    color: '#ef4444',
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  attackMessageTextDark: {
+    color: '#f87171',
+  },
+  homeButton: {
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginTop: 0,
+    marginBottom: 4,
+    marginRight: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(236, 72, 153, 0.3)',
+  },
+  homeButtonDark: {
+    backgroundColor: 'rgba(190, 24, 93, 0.2)',
+    borderColor: 'rgba(190, 24, 93, 0.4)',
+  },
+  homeButtonText: {
+    color: '#ec4899',
+    fontSize: 12,
+    fontWeight: FONT_WEIGHT_SEMIBOLD,
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  homeButtonTextDark: {
+    color: '#f9a8d4',
   },
 });
 

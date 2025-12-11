@@ -38,7 +38,7 @@ const RulesScreen: React.FC<RulesScreenProps> = ({ onBack }) => {
             <Text style={styles.sectionTitle}>✨ 特別アイテム</Text>
             <View style={styles.sectionContent}>
               <Text style={[styles.bulletPoint, { marginBottom: 4 }]}>
-                • <Text style={styles.bold}>🍰 ショートケーキ</Text>: 3点獲得 + 1秒時間回復（通常時: 出現確率3%）
+                • <Text style={styles.bold}>🍰 ショートケーキ</Text>: 3点獲得 + 2秒時間回復（通常時: 出現確率3%）
               </Text>
               <Text style={styles.bulletPoint}>
                 • <Text style={styles.bold}>🎂 ホールケーキ</Text>: 5点獲得 + 5秒時間回復（通常時: 出現確率1%）
