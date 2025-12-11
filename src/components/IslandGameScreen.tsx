@@ -10,9 +10,10 @@ import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../con
 interface IslandGameScreenProps {
   onGameOver: (score: number) => void;
   hapticsEnabled?: boolean;
+  darkMode?: boolean;
 }
 
-const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, hapticsEnabled = true }) => {
+const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10);
@@ -23,15 +24,27 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
+  const [encouragementMessage, setEncouragementMessage] = useState<string>('');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gameEndedRef = useRef(false);
 
+  // 応援の言葉リスト（島モード用）
+  const encouragementMessages = [
+    'ナイス島',
+    'いい島',
+    '島来ちゃう？',
+    '島にようこそ',
+    'よっ島マスター',
+    '島はいいぞ',
+  ];
+
   const generateNewIslands = useCallback(() => {
     if (gameEndedRef.current) return;
     
     setFeedback(null);
+    setEncouragementMessage(''); // 応援メッセージをリセット
     
     // ゴールデン島の判定（3%の確率）
     const shouldBeGolden = Math.random() < GOLD_STRAWBERRY_CHANCE;
@@ -116,6 +129,9 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
         return newScore;
       });
       setFeedback({ index, type: 'correct' });
+      // 応援メッセージをランダムに選択
+      const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
+      setEncouragementMessage(randomMessage);
       // ハプティックフィードバック（正解）
       if (hapticsEnabled) {
         if (isGoldenIsland) {
@@ -145,10 +161,10 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
   const displayTime = (timeLeft / 10).toFixed(1);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, darkMode && styles.containerDark]}>
       <View style={styles.header}>
-        <Text style={styles.scoreText}>スコア: {score}</Text>
-        <Text style={styles.timeText}>時間: {displayTime}</Text>
+        <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
+        <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
       </View>
       <View style={styles.timeBarContainer}>
         <View
@@ -163,7 +179,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
       <View style={styles.gameArea}>
         {isGoldenIsland ? (
           <>
-            <Text style={styles.questionText}>
+            <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
               ✨ ゴールデン{targetIslandName}はどっち？ ✨
             </Text>
             <Text style={styles.pointsText}>
@@ -171,7 +187,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
             </Text>
           </>
         ) : (
-          <Text style={styles.questionTextNormal}>{targetIslandName}はどっち？</Text>
+          <Text style={[styles.questionTextNormal, darkMode && styles.questionTextNormalDark]}>{targetIslandName}はどっち？</Text>
         )}
         <View style={styles.choicesContainer}>
           {islands.map((island, index) => {
@@ -185,6 +201,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
                 disabled={!!feedback || gameEnded}
                 style={[
                   styles.choiceButton,
+                  darkMode && styles.choiceButtonDark,
                   feedback && feedback.index !== index && styles.choiceButtonInactive,
                   gameEnded && styles.choiceButtonInactive,
                 ]}
@@ -198,6 +215,16 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
               </TouchableOpacity>
             );
           })}
+        </View>
+        {/* 応援メッセージ表示（常にスペースを確保） */}
+        <View style={styles.encouragementContainer}>
+          {encouragementMessage && feedback && feedback.type === 'correct' ? (
+            <Text style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
+              {encouragementMessage}
+            </Text>
+          ) : (
+            <View style={styles.encouragementPlaceholder} />
+          )}
         </View>
       </View>
     </View>
@@ -306,6 +333,45 @@ const styles = StyleSheet.create({
   choiceImage: {
     width: '100%',
     height: '100%',
+  },
+  containerDark: {
+    backgroundColor: '#1f2937',
+  },
+  scoreTextDark: {
+    color: '#f9fafb',
+  },
+  timeTextDark: {
+    color: '#f9fafb',
+  },
+  questionTextDark: {
+    color: '#f9fafb',
+  },
+  questionTextNormalDark: {
+    color: '#f9fafb',
+  },
+  choiceButtonDark: {
+    backgroundColor: '#374151',
+  },
+  timeBarContainerDark: {
+    backgroundColor: '#4b5563',
+  },
+  encouragementContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+    height: 32, // 固定の高さを設定
+    justifyContent: 'center',
+  },
+  encouragementText: {
+    fontSize: 20,
+    fontWeight: FONT_WEIGHT_BOLD,
+    color: '#3b82f6',
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  encouragementTextDark: {
+    color: '#93c5fd',
+  },
+  encouragementPlaceholder: {
+    height: 20, // テキストと同じ高さのプレースホルダー
   },
 });
 

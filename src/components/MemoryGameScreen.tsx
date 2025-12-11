@@ -188,5 +188,3 @@ const styles = StyleSheet.create({
 });
 
 export default MemoryGameScreen;
-
-export default MemoryGameScreen;

@@ -43,7 +43,7 @@ const MemoryGame2Screen: React.FC<MemoryGame2ScreenProps> = ({
     setIsCompleted(true);
 
     setTimeout(() => {
-      const bonusPoints = correct ? 2 : 0;
+      const bonusPoints = correct ? 10 : 0;
       onComplete(currentScore + bonusPoints);
     }, 2000);
   };
@@ -56,7 +56,7 @@ const MemoryGame2Screen: React.FC<MemoryGame2ScreenProps> = ({
           一番最初に出た、いちごじゃない方の果物は？
         </Text>
         <Text style={styles.hint}>
-          正解で+2点ボーナス！
+          正解で+10点ボーナス！
         </Text>
       </View>
 
@@ -78,7 +78,7 @@ const MemoryGame2Screen: React.FC<MemoryGame2ScreenProps> = ({
             <View style={styles.resultContent}>
               <Text style={styles.resultEmoji}>🎉</Text>
               <Text style={styles.resultTextCorrect}>正解！</Text>
-              <Text style={styles.resultSubTextCorrect}>+2点ボーナス獲得！</Text>
+              <Text style={styles.resultSubTextCorrect}>+10点ボーナス獲得！</Text>
             </View>
           ) : (
             <View style={styles.resultContent}>

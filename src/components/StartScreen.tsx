@@ -16,9 +16,10 @@ interface StartScreenProps {
   error?: string | null;
   onDismissError?: () => void;
   onRankingPeriodChange?: (period: RankingPeriod) => void;
+  darkMode?: boolean;
 }
 
-const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, onShowRules, onShowMyPage, savedPlayerName, error, onDismissError, onRankingPeriodChange }: StartScreenProps) => {
+const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, onShowRules, onShowMyPage, savedPlayerName, error, onDismissError, onRankingPeriodChange, darkMode = false }: StartScreenProps) => {
   const [name, setName] = useState(savedPlayerName || '');
   const [inputError, setInputError] = useState('');
   const [selectedMode, setSelectedMode] = useState<GameMode>(GameMode.STRAWBERRY);
@@ -129,15 +130,15 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.container}>
+      <View style={[styles.container, darkMode && styles.containerDark]}>
         {/* ヘッダーセクション */}
         <View style={styles.headerSection}>
-          <Text style={styles.title}>
+          <Text style={[styles.title, darkMode && styles.titleDark]}>
             {selectedMode === GameMode.STRAWBERRY ? 'いちごつめ！' : 
              selectedMode === GameMode.ISLAND ? '島つめ！' : 
              '国旗つめ！'}
           </Text>
-        <Text style={styles.description}>
+        <Text style={[styles.description, darkMode && styles.descriptionDark]}>
           {selectedMode === GameMode.STRAWBERRY ? '時間内にいちごをたくさんつめよう！' : 
            selectedMode === GameMode.ISLAND ? '時間内に島をたくさん当てよう！' : 
            '時間内に国旗をたくさん当てよう！'
@@ -158,11 +159,12 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
               style={[
                 styles.modeButton,
                 selectedMode === GameMode.STRAWBERRY ? styles.modeButtonActivePink : styles.modeButtonInactive,
+                darkMode && !(selectedMode === GameMode.STRAWBERRY) && styles.modeButtonInactiveDark,
               ]}
               activeOpacity={0.8}
             >
               <Text style={styles.modeButtonEmoji}>🍓</Text>
-              <Text style={selectedMode === GameMode.STRAWBERRY ? styles.modeButtonTextActive : styles.modeButtonTextInactive}>
+              <Text style={selectedMode === GameMode.STRAWBERRY ? styles.modeButtonTextActive : [styles.modeButtonTextInactive, darkMode && styles.modeButtonTextInactiveDark]}>
                 いちごモード
               </Text>
             </TouchableOpacity>
@@ -171,11 +173,12 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
               style={[
                 styles.modeButton,
                 selectedMode === GameMode.ISLAND ? styles.modeButtonActiveBlue : styles.modeButtonInactive,
+                darkMode && !(selectedMode === GameMode.ISLAND) && styles.modeButtonInactiveDark,
               ]}
               activeOpacity={0.8}
             >
               <Text style={styles.modeButtonEmoji}>🏝️</Text>
-              <Text style={selectedMode === GameMode.ISLAND ? styles.modeButtonTextActive : styles.modeButtonTextInactive}>
+              <Text style={selectedMode === GameMode.ISLAND ? styles.modeButtonTextActive : [styles.modeButtonTextInactive, darkMode && styles.modeButtonTextInactiveDark]}>
                 島モード
               </Text>
             </TouchableOpacity>
@@ -184,12 +187,13 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
               style={[
                 styles.modeButton,
                 selectedMode === GameMode.FLAG ? styles.modeButtonActiveGreen : styles.modeButtonInactive,
+                darkMode && !(selectedMode === GameMode.FLAG) && styles.modeButtonInactiveDark,
                 { marginRight: 0 }
               ]}
               activeOpacity={0.8}
             >
               <Text style={styles.modeButtonEmoji}>🏁</Text>
-              <Text style={selectedMode === GameMode.FLAG ? styles.modeButtonTextActive : styles.modeButtonTextInactive}>
+              <Text style={selectedMode === GameMode.FLAG ? styles.modeButtonTextActive : [styles.modeButtonTextInactive, darkMode && styles.modeButtonTextInactiveDark]}>
                 国旗モード
               </Text>
             </TouchableOpacity>
@@ -218,44 +222,44 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
         <View style={styles.periodTabs}>
           <TouchableOpacity
             onPress={() => setSelectedPeriod(RankingPeriod.ALL)}
-            style={[styles.periodTab, selectedPeriod === RankingPeriod.ALL && styles.periodTabActive]}
+            style={[styles.periodTab, selectedPeriod === RankingPeriod.ALL && styles.periodTabActive, darkMode && !(selectedPeriod === RankingPeriod.ALL) && styles.periodTabDark]}
             activeOpacity={0.7}
           >
-            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.ALL && styles.periodTabTextActive]}>
+            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.ALL && styles.periodTabTextActive, darkMode && !(selectedPeriod === RankingPeriod.ALL) && styles.periodTabTextDark]}>
               全体
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setSelectedPeriod(RankingPeriod.DAILY)}
-            style={[styles.periodTab, selectedPeriod === RankingPeriod.DAILY && styles.periodTabActive]}
+            style={[styles.periodTab, selectedPeriod === RankingPeriod.DAILY && styles.periodTabActive, darkMode && !(selectedPeriod === RankingPeriod.DAILY) && styles.periodTabDark]}
             activeOpacity={0.7}
           >
-            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.DAILY && styles.periodTabTextActive]}>
+            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.DAILY && styles.periodTabTextActive, darkMode && !(selectedPeriod === RankingPeriod.DAILY) && styles.periodTabTextDark]}>
               日別
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setSelectedPeriod(RankingPeriod.WEEKLY)}
-            style={[styles.periodTab, selectedPeriod === RankingPeriod.WEEKLY && styles.periodTabActive]}
+            style={[styles.periodTab, selectedPeriod === RankingPeriod.WEEKLY && styles.periodTabActive, darkMode && !(selectedPeriod === RankingPeriod.WEEKLY) && styles.periodTabDark]}
             activeOpacity={0.7}
           >
-            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.WEEKLY && styles.periodTabTextActive]}>
+            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.WEEKLY && styles.periodTabTextActive, darkMode && !(selectedPeriod === RankingPeriod.WEEKLY) && styles.periodTabTextDark]}>
               週別
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setSelectedPeriod(RankingPeriod.MONTHLY)}
-            style={[styles.periodTab, selectedPeriod === RankingPeriod.MONTHLY && styles.periodTabActive]}
+            style={[styles.periodTab, selectedPeriod === RankingPeriod.MONTHLY && styles.periodTabActive, darkMode && !(selectedPeriod === RankingPeriod.MONTHLY) && styles.periodTabDark]}
             activeOpacity={0.7}
           >
-            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.MONTHLY && styles.periodTabTextActive]}>
+            <Text style={[styles.periodTabText, selectedPeriod === RankingPeriod.MONTHLY && styles.periodTabTextActive, darkMode && !(selectedPeriod === RankingPeriod.MONTHLY) && styles.periodTabTextDark]}>
               月別
             </Text>
           </TouchableOpacity>
         </View>
         
         {/* ランキング表示 */}
-        <View style={styles.rankingCard}>
+        <View style={[styles.rankingCard, darkMode && styles.rankingCardDark]}>
           <View style={[styles.rankingHeader, modeStyles.rankingBg]}>
           <Text style={[styles.rankingTitle, modeStyles.rankingText]}>
               {selectedMode === GameMode.STRAWBERRY ? 'いちごモード' : 
@@ -266,11 +270,11 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
                '月別'} ランキング
           </Text>
           </View>
-          <View style={styles.rankingContent}>
+          <View style={[styles.rankingContent, darkMode && styles.rankingContentDark]}>
             {(isLoading || isLoadingPeriod) ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#6b7280" />
-            <Text style={styles.loadingText}>読み込み中...</Text>
+                <ActivityIndicator size="small" color={darkMode ? "#9ca3af" : "#6b7280"} />
+            <Text style={[styles.loadingText, darkMode && styles.loadingTextDark]}>読み込み中...</Text>
               </View>
           ) : currentRanking.length > 0 ? (
             <View>
@@ -282,16 +286,20 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
                       key={entry.id} 
                       style={[
                         styles.rankingItem,
-                        isTopThree && styles.rankingItemTopThree
+                        darkMode && styles.rankingItemDark,
+                        isTopThree && styles.rankingItemTopThree,
+                        darkMode && isTopThree && styles.rankingItemTopThreeDark,
                       ]}
                     >
                       <View style={styles.rankingItemLeft}>
-                        <Text style={styles.rankingItemRank}>
+                        <Text style={[styles.rankingItemRank, darkMode && styles.rankingItemRankDark]}>
                           {isTopThree ? medalEmoji : `${index + 1}.`}
                         </Text>
                         <Text style={[
                           styles.rankingItemName,
-                          isTopThree && styles.rankingItemNameTopThree
+                          darkMode && styles.rankingItemNameDark,
+                          isTopThree && styles.rankingItemNameTopThree,
+                          darkMode && isTopThree && styles.rankingItemNameTopThreeDark,
                         ]}>
                           {entry.playerName}
                         </Text>
@@ -310,7 +318,7 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
           ) : (
               <View style={styles.emptyRanking}>
                 <Text style={styles.emptyRankingEmoji}>📊</Text>
-            <Text style={styles.noRankingText}>まだランキングがありません。</Text>
+            <Text style={[styles.noRankingText, darkMode && styles.noRankingTextDark]}>まだランキングがありません。</Text>
               </View>
           )}
           </View>
@@ -318,17 +326,20 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
         
         <View style={styles.inputSection}>
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>プレイヤー名</Text>
+            <Text style={[styles.inputLabel, darkMode && styles.inputLabelDark]}>プレイヤー名</Text>
             <TextInput
               value={name}
               onChangeText={handleNameChange}
               placeholder="名前を入力 (12文字まで)"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={darkMode ? "#6b7280" : "#9ca3af"}
               maxLength={12}
               style={[
                 styles.input,
+                darkMode && styles.inputDark,
                 inputError && styles.inputError,
-                name && styles.inputFilled
+                darkMode && inputError && styles.inputErrorDark,
+                name && styles.inputFilled,
+                darkMode && name && styles.inputFilledDark,
               ]}
             />
             {inputError && (
@@ -434,6 +445,73 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: 'center',
     fontFamily: MARU_GOTHIC_FONT,
+  },
+  containerDark: {
+    backgroundColor: '#1f2937',
+  },
+  titleDark: {
+    color: '#f9fafb',
+  },
+  descriptionDark: {
+    color: '#d1d5db',
+  },
+  modeButtonInactiveDark: {
+    backgroundColor: '#374151',
+    borderColor: '#4b5563',
+  },
+  modeButtonTextInactiveDark: {
+    color: '#d1d5db',
+  },
+  periodTabDark: {
+    backgroundColor: '#374151',
+    borderColor: '#4b5563',
+  },
+  periodTabTextDark: {
+    color: '#d1d5db',
+  },
+  rankingCardDark: {
+    backgroundColor: '#374151',
+  },
+  rankingContentDark: {
+    backgroundColor: '#374151',
+  },
+  rankingItemDark: {
+    backgroundColor: '#4b5563',
+  },
+  rankingItemTopThreeDark: {
+    backgroundColor: '#78350f',
+    borderColor: '#fbbf24',
+  },
+  rankingItemRankDark: {
+    color: '#d1d5db',
+  },
+  rankingItemNameDark: {
+    color: '#f9fafb',
+  },
+  rankingItemNameTopThreeDark: {
+    color: '#fbbf24',
+  },
+  loadingTextDark: {
+    color: '#d1d5db',
+  },
+  noRankingTextDark: {
+    color: '#d1d5db',
+  },
+  inputLabelDark: {
+    color: '#d1d5db',
+  },
+  inputDark: {
+    backgroundColor: '#374151',
+    borderColor: '#4b5563',
+    color: '#f9fafb',
+  },
+  inputFilledDark: {
+    borderColor: '#ec4899',
+    backgroundColor: '#374151',
+  },
+  inputErrorDark: {
+    borderColor: '#ef4444',
+    backgroundColor: '#7f1d1d',
   },
   modeButtonsContainer: {
     marginHorizontal: -4,
