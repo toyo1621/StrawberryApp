@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GameState, RankingEntry, GameMode } from './types';
 import ErrorBoundary from './components/ErrorBoundary';
 import StartScreen from './components/StartScreen';
+// コンポーネントを段階的に追加してテスト
 import GameScreen from './components/GameScreen';
 import IslandGameScreen from './components/IslandGameScreen';
 import FlagGameScreen from './components/FlagGameScreen';
@@ -44,6 +45,7 @@ const App: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
+        // loadPlayerNameとloadSettingsを一時的にコメントアウト
         const [strawberryRankings, islandRankings, flagRankings, savedName, appSettings] = await Promise.all([
           fetchRankings(),
           fetchIslandRankings(),
