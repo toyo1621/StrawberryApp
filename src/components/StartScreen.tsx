@@ -140,7 +140,7 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
           </Text>
         <Text style={[styles.description, darkMode && styles.descriptionDark]}>
           {selectedMode === GameMode.STRAWBERRY ? '時間内にいちごをたくさんつめよう！' : 
-           selectedMode === GameMode.ISLAND ? '時間内に島をたくさん当てよう！' : 
+           selectedMode === GameMode.ISLAND ? '時間内に有人離島をたくさんつめよう！' : 
            '時間内に国旗をたくさん当てよう！'
           }
         </Text>
@@ -216,6 +216,13 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
           >
             <Text style={styles.actionButtonText}>マイページ</Text>
           </TouchableOpacity>
+        </View>
+        
+        {/* 開発進捗表示 */}
+        <View style={styles.devProgressContainer}>
+          <Text style={[styles.devProgressText, darkMode && styles.devProgressTextDark]}>
+            開発進捗：ストアリリースに向け島を増やしています! (佐々木
+          </Text>
         </View>
         
         {/* 期間選択タブ */}
@@ -573,6 +580,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
     gap: 6,
+  },
+  devProgressContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  devProgressText: {
+    fontSize: 10,
+    color: '#9ca3af',
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  devProgressTextDark: {
+    color: '#6b7280',
   },
   periodTab: {
     paddingVertical: 8,
