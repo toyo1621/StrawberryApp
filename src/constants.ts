@@ -12,13 +12,41 @@ export const DISTRACTOR_EMOJIS = ['🍎', '🍊', '🍇', '🍉', '🍍', '🍑'
 
 // Island game constants
 export const ISLAND_NAMES = [
-  { id: 'aogashima', name: '青ヶ島', file: 'aogashima.svg' },
-  { id: 'hachijojima', name: '八丈島', file: 'hachijojima.svg' },
-  { id: 'hachijokojima', name: '八丈小島', file: 'hachijokojima.svg' },
-  { id: 'hatsushima', name: '初島', file: 'hatsushima.svg' },
-  { id: 'kozushima', name: '神津島', file: 'kozushima.svg' },
-  { id: 'miyakejima', name: '三宅島', file: 'miyakejima.svg' },
-  { id: 'oshima', name: '大島', file: 'oshima.svg' }
+  { id: '1_hokkaido_rebuntou', name: '礼文島', file: '1_hokkaido_rebuntou.svg', prefecture: '北海道' },
+  { id: '2_hokkaido_rishiritou', name: '利尻島', file: '2_hokkaido_rishiritou.svg', prefecture: '北海道' },
+  { id: '3_hokkaido_yagishiritou', name: '焼尻島', file: '3_hokkaido_yagishiritou.svg', prefecture: '北海道' },
+  { id: '4_hokkaido_teuritou', name: '天売島', file: '4_hokkaido_teuritou.svg', prefecture: '北海道' },
+  { id: '5_hokkaido_okushiritou', name: '奥尻島', file: '5_hokkaido_okushiritou.svg', prefecture: '北海道' },
+  { id: '6_hokkaido_kojima', name: '小島', file: '6_hokkaido_kojima.svg', prefecture: '北海道' },
+  { id: '7_miyagi_oshima', name: '大島', file: '7_miyagi_oshima.svg', prefecture: '宮城県' },
+  { id: '8_miyagi_izushima', name: '出島', file: '8_miyagi_izushima.svg', prefecture: '宮城県' },
+  { id: '9_miyagi_enoshima', name: '江島', file: '9_miyagi_enoshima.svg', prefecture: '宮城県' },
+  { id: '10_miyagi_ajishima', name: '網地島', file: '10_miyagi_ajishima.svg', prefecture: '宮城県' },
+  { id: '11_miyagi_tashirojima', name: '田代島', file: '11_miyagi_tashirojima.svg', prefecture: '宮城県' },
+  { id: '12_miyagi_kinkasan', name: '金華山', file: '12_miyagi_kinkasan.svg', prefecture: '宮城県' },
+  { id: '13_miyagi_sabusawajima', name: '寒風沢島', file: '13_miyagi_sabusawajima.svg', prefecture: '宮城県' },
+  { id: '14_miyagi_nonoshima', name: '野々島', file: '14_miyagi_nonoshima.svg', prefecture: '宮城県' },
+  { id: '15_miyagi_katsurajima', name: '桂島', file: '15_miyagi_katsurajima.svg', prefecture: '宮城県' },
+  { id: '16_miyagi_hoojima', name: '朴島', file: '16_miyagi_hoojima.svg', prefecture: '宮城県' },
+  { id: '17_miyagi_miyatojima', name: '宮戸島', file: '17_miyagi_miyatojima.svg', prefecture: '宮城県' },
+  { id: '18_yamagata_tobishima', name: '飛島', file: '18_yamagata_tobishima.svg', prefecture: '山形県' },
+  { id: '19_chiba_niemonjima', name: '仁右衛門島', file: '19_chiba_niemonjima.svg', prefecture: '千葉県' },
+  { id: '20_tokyo_oshima', name: '大島', file: '20_tokyo_oshima.svg', prefecture: '東京都' },
+  { id: '21_tokyo_toshima', name: '利島', file: '21_tokyo_toshima.svg', prefecture: '東京都' },
+  { id: '22_tokyo_nijima', name: '新島', file: '22_tokyo_nijima.svg', prefecture: '東京都' },
+  { id: '23_tokyo_shikinejima', name: '式根島', file: '23_tokyo_shikinejima.svg', prefecture: '東京都' },
+  { id: '24_tokyo_kozushima', name: '神津島', file: '24_tokyo_kozushima.svg', prefecture: '東京都' },
+  { id: '25_tokyo_miyakejima', name: '三宅島', file: '25_tokyo_miyakejima.svg', prefecture: '東京都' },
+  { id: '26_tokyo_mikurajima', name: '御蔵島', file: '26_tokyo_mikurajima.svg', prefecture: '東京都' },
+  { id: '27_tokyo_hachijoshima', name: '八丈島', file: '27_tokyo_hachijoshima.svg', prefecture: '東京都' },
+  { id: '28_tokyo_aogashima', name: '青ヶ島', file: '28_tokyo_aogashima.svg', prefecture: '東京都' },
+  { id: '29_tokyo_chichijima', name: '父島', file: '29_tokyo_chichijima.svg', prefecture: '東京都' },
+  { id: '30_tokyo_hahajima', name: '母島', file: '30_tokyo_hahajima.svg', prefecture: '東京都' },
+  { id: '31_tokyo_ioujima', name: '硫黄島', file: '31_tokyo_ioujima.svg', prefecture: '東京都' },
+  { id: '32_tokyo_minamitorishima', name: '南鳥島', file: '32_tokyo_minamitorishima.svg', prefecture: '東京都' },
+  { id: '33_kanagawa_jogashima', name: '城ヶ島', file: '33_kanagawa_jogashima.svg', prefecture: '神奈川県' },
+  { id: '34_kanagawa_enoshima', name: '江の島', file: '34_kanagawa_enoshima.svg', prefecture: '神奈川県' },
+  { id: '40_shizuoka_hatsushima', name: '初島', file: '40_shizuoka_hatsushima.svg', prefecture: '静岡県' }
 ];
 
 // Flag game constants

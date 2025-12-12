@@ -36,6 +36,7 @@ export interface Island {
   id: string;
   name: string;
   file: string;
+  prefecture?: string;
 }
 
 export interface Country {

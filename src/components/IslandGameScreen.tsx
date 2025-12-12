@@ -21,6 +21,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
   const [islands, setIslands] = useState<Island[]>([]);
   const [correctIslandIndex, setCorrectIslandIndex] = useState(-1);
   const [targetIslandName, setTargetIslandName] = useState('');
+  const [targetIslandPrefecture, setTargetIslandPrefecture] = useState('');
   const [isGoldenIsland, setIsGoldenIsland] = useState(false);
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [isProcessingClick, setIsProcessingClick] = useState(false);
@@ -62,6 +63,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
     setIslands(selectedIslands);
     setCorrectIslandIndex(correctIndex);
     setTargetIslandName(targetIsland.name);
+    setTargetIslandPrefecture(targetIsland.prefecture || '');
   }, []);
 
   const startTimer = useCallback(() => {
@@ -118,9 +120,12 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
 
     if (isCorrect) {
       let points = 1;
+      // 時間ボーナス（0.3秒 = 3 * 0.1秒）
+      setTimeLeft(prevTime => prevTime + 3);
+      
       if (isGoldenIsland) {
         points = 3; // ゴールデン島は3倍
-        // 時間ボーナス（1秒）
+        // 追加の時間ボーナス（1秒）
         setTimeLeft(prevTime => prevTime + GOLD_STRAWBERRY_TIME_BONUS);
       }
       
@@ -188,15 +193,27 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
       <View style={styles.gameArea}>
         {isGoldenIsland ? (
           <>
-            <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
-              ✨ ゴールデン{targetIslandName}はどっち？ ✨
-            </Text>
+            <View style={styles.questionContainer}>
+              <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
+                ✨ ゴールデン{targetIslandName}{targetIslandPrefecture ? `（${targetIslandPrefecture}）` : ''}
+              </Text>
+              <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
+                はどっち？ ✨
+              </Text>
+            </View>
             <Text style={styles.pointsText}>
               🏆 3点ゲット！
             </Text>
           </>
         ) : (
-          <Text style={[styles.questionTextNormal, darkMode && styles.questionTextNormalDark]}>{targetIslandName}はどっち？</Text>
+          <View style={styles.questionContainer}>
+            <Text style={[styles.questionTextNormal, darkMode && styles.questionTextNormalDark]}>
+              {targetIslandName}{targetIslandPrefecture ? `（${targetIslandPrefecture}）` : ''}
+            </Text>
+            <Text style={[styles.questionTextNormal, darkMode && styles.questionTextNormalDark]}>
+              はどっち？
+            </Text>
+          </View>
         )}
         <View style={styles.choicesContainer}>
           {islands.map((island, index) => {
@@ -298,11 +315,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 300,
   },
+  questionContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
   questionText: {
     fontSize: 24,
     fontWeight: FONT_WEIGHT_BOLD,
     color: '#374151',
-    marginBottom: 16,
     textAlign: 'center',
     fontFamily: MARU_GOTHIC_FONT,
   },
@@ -310,7 +330,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: FONT_WEIGHT_BOLD,
     color: '#374151',
-    marginBottom: 32,
     textAlign: 'center',
     fontFamily: MARU_GOTHIC_FONT,
   },
