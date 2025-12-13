@@ -1,28 +1,25 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { INITIAL_TIME, PENALTY_SECONDS, ISLAND_NAMES, GOLD_STRAWBERRY_CHANCE, GOLD_STRAWBERRY_TIME_BONUS } from '../constants';
-import { Island } from '../types';
-import { islandAssets } from '../assets/islandAssets';
+import { INITIAL_TIME, PENALTY_SECONDS, COLORS } from '../constants';
+import { Color } from '../types';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
 
-interface IslandGameScreenProps {
+interface ColorGameScreenProps {
   onGameOver: (score: number) => void;
   hapticsEnabled?: boolean;
   darkMode?: boolean;
   onBackToHome?: () => void;
 }
 
-const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false, onBackToHome }) => {
+const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10);
-  const [islands, setIslands] = useState<Island[]>([]);
-  const [correctIslandIndex, setCorrectIslandIndex] = useState(-1);
-  const [targetIslandName, setTargetIslandName] = useState('');
-  const [targetIslandPrefecture, setTargetIslandPrefecture] = useState('');
-  const [isGoldenIsland, setIsGoldenIsland] = useState(false);
+  const [colors, setColors] = useState<Color[]>([]);
+  const [correctColorIndex, setCorrectColorIndex] = useState(-1);
+  const [targetColorName, setTargetColorName] = useState('');
+  const [targetColorDescription, setTargetColorDescription] = useState('');
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
@@ -32,38 +29,67 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gameEndedRef = useRef(false);
 
-  // 応援の言葉リスト（島モード用）
+  // 応援の言葉リスト（色モード用）
   const encouragementMessages = [
-    'ナイス島',
-    'いい島',
-    '島来ちゃう？',
-    '島にようこそ',
-    'よっ島マスター',
-    '島はいいぞ',
+    'ナイス色',
+    'いい色',
+    '色つめ！',
+    '色彩検定',
+    'よっ色マスター',
+    '色はいいぞ',
+    'カラフル',
+    '色彩豊か',
   ];
 
-  const generateNewIslands = useCallback(() => {
+  // 色の系統を判定する関数
+  const getColorCategory = (colorId: string): string => {
+    const id = parseInt(colorId);
+    if (id >= 1 && id <= 20) return 'red'; // 赤系
+    if (id >= 21 && id <= 32) return 'yellow-red'; // 黄赤系
+    if (id >= 33 && id <= 40) return 'yellow'; // 黄系
+    if (id >= 41 && id <= 47) return 'yellow-green'; // 黄緑系
+    if (id >= 48 && id <= 56) return 'green'; // 緑系
+    if (id >= 57 && id <= 64) return 'blue-green'; // 青緑系
+    if (id >= 65 && id <= 77) return 'blue'; // 青系
+    if (id >= 78 && id <= 83) return 'blue-violet'; // 青紫系
+    if (id >= 84 && id <= 89) return 'violet'; // 紫系
+    if (id >= 90 && id <= 95) return 'red-violet'; // 赤紫系
+    if (id >= 96 && id <= 108) return 'brown'; // 茶系・アースカラー
+    if (id >= 109 && id <= 120) return 'grayish'; // グレイッシュカラー
+    return 'achromatic'; // 無彩色系
+  };
+
+  const generateNewColors = useCallback(() => {
     if (gameEndedRef.current) return;
     
     setFeedback(null);
     setEncouragementMessage(''); // 応援メッセージをリセット
     
-    // ゴールデン島の判定（3%の確率）
-    const shouldBeGolden = Math.random() < GOLD_STRAWBERRY_CHANCE;
-    setIsGoldenIsland(shouldBeGolden);
+    // ランダムに1つの色を選ぶ（正解）
+    const shuffledColors = [...COLORS].sort(() => 0.5 - Math.random());
+    const correctColor = shuffledColors[0];
+    const correctCategory = getColorCategory(correctColor.id);
     
-    // ランダムに2つの島を選択
-    const shuffledIslands = [...ISLAND_NAMES].sort(() => 0.5 - Math.random());
-    const selectedIslands = shuffledIslands.slice(0, 2);
+    // 同じ系統の色をフィルタリング
+    const sameCategoryColors = COLORS.filter(color => 
+      getColorCategory(color.id) === correctCategory && color.id !== correctColor.id
+    );
+    
+    // 同じ系統の色からランダムに1つ選ぶ（選択肢）
+    const wrongColor = sameCategoryColors.length > 0
+      ? sameCategoryColors[Math.floor(Math.random() * sameCategoryColors.length)]
+      : shuffledColors[1]; // 同じ系統がない場合はランダムに選ぶ（フォールバック）
     
     // どちらが正解かをランダムに決定
     const correctIndex = Math.floor(Math.random() * 2);
-    const targetIsland = selectedIslands[correctIndex];
+    const selectedColors = correctIndex === 0 
+      ? [correctColor, wrongColor]
+      : [wrongColor, correctColor];
     
-    setIslands(selectedIslands);
-    setCorrectIslandIndex(correctIndex);
-    setTargetIslandName(targetIsland.name);
-    setTargetIslandPrefecture(targetIsland.prefecture || '');
+    setColors(selectedColors);
+    setCorrectColorIndex(correctIndex);
+    setTargetColorName(correctColor.name);
+    setTargetColorDescription(correctColor.description);
   }, []);
 
   const startTimer = useCallback(() => {
@@ -98,7 +124,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
   }, [onGameOver]);
 
   useEffect(() => {
-    generateNewIslands();
+    generateNewColors();
     startTimer();
     
     return () => {
@@ -109,42 +135,30 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
         clearTimeout(feedbackTimeoutRef.current);
       }
     };
-  }, [generateNewIslands, startTimer]);
+  }, [generateNewColors, startTimer]);
 
   const handleChoice = (index: number) => {
     if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) return;
     
     setIsProcessingClick(true);
 
-    const isCorrect = index === correctIslandIndex;
+    const isCorrect = index === correctColorIndex;
 
     if (isCorrect) {
-      let points = 1;
-      // 時間ボーナス（0.3秒 = 3 * 0.1秒）
-      setTimeLeft(prevTime => prevTime + 3);
-      
-      if (isGoldenIsland) {
-        points = 3; // ゴールデン島は3倍
-        // 追加の時間ボーナス（1秒）
-        setTimeLeft(prevTime => prevTime + GOLD_STRAWBERRY_TIME_BONUS);
-      }
-      
       setScore(prevScore => {
-        const newScore = prevScore + points;
+        const newScore = prevScore + 1;
         scoreRef.current = newScore;
         return newScore;
       });
+      // 時間ボーナス（1秒 = 10 * 0.1秒）
+      setTimeLeft(prevTime => prevTime + 10);
       setFeedback({ index, type: 'correct' });
       // 応援メッセージをランダムに選択
       const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
       setEncouragementMessage(randomMessage);
       // ハプティックフィードバック（正解）
       if (hapticsEnabled) {
-        if (isGoldenIsland) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } else {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } else {
       setTimeLeft(prevTime => Math.max(0, prevTime - (PENALTY_SECONDS * 10)));
@@ -158,7 +172,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
     feedbackTimeoutRef.current = setTimeout(() => {
       if (!gameEndedRef.current) {
         setIsProcessingClick(false);
-        generateNewIslands();
+        generateNewColors();
       }
     }, 300);
   };
@@ -180,7 +194,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
         <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
         <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
       </View>
-      <View style={styles.timeBarContainer}>
+      <View style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}>
         <View
           style={[
             styles.timeBar,
@@ -191,56 +205,27 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
       </View>
       
       <View style={styles.gameArea}>
-        {isGoldenIsland ? (
-          <>
-            <View style={styles.questionContainer}>
-              <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
-                ✨ ゴールデン{targetIslandName}{targetIslandPrefecture ? `（${targetIslandPrefecture}）` : ''}
-              </Text>
-              <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
-                はどっち？ ✨
-              </Text>
-            </View>
-            <Text style={styles.pointsText}>
-              🏆 3点ゲット！
-            </Text>
-          </>
-        ) : (
-          <View style={styles.questionContainer}>
-            <Text style={[styles.questionTextNormal, darkMode && styles.questionTextNormalDark]}>
-              {targetIslandName}{targetIslandPrefecture ? `（${targetIslandPrefecture}）` : ''}
-            </Text>
-            <Text style={[styles.questionTextNormal, darkMode && styles.questionTextNormalDark]}>
-              はどっち？
-            </Text>
-          </View>
-        )}
+        <View style={styles.questionContainer}>
+          <Text style={[styles.colorNameText, darkMode && styles.colorNameTextDark]}>{targetColorName}</Text>
+          <Text style={[styles.descriptionText, darkMode && styles.descriptionTextDark]}>{targetColorDescription}</Text>
+        </View>
         <View style={styles.choicesContainer}>
-          {islands.map((island, index) => {
-            // ゴールデン島の時、正解の島の画像をゴールデン色に変更
-            const isGoldenIslandImage = isGoldenIsland && index === correctIslandIndex;
-            
-            return (
-              <TouchableOpacity
-                key={index}
-                onPress={() => handleChoice(index)}
-                disabled={!!feedback || gameEnded}
-                style={[
-                  styles.choiceButton,
-                  darkMode && styles.choiceButtonDark,
-                  feedback && feedback.index !== index && styles.choiceButtonInactive,
-                  gameEnded && styles.choiceButtonInactive,
-                ]}
-              >
-                <Image 
-                  source={islandAssets[island.file]}
-                  style={styles.choiceImage}
-                  contentFit="contain"
-                  tintColor={isGoldenIslandImage ? '#fbbf24' : undefined}
-                />
-              </TouchableOpacity>
-            );
-          })}
+          {colors.map((color, index) => (
+            <TouchableOpacity
+              key={index}
+              onPress={() => handleChoice(index)}
+              disabled={!!feedback || gameEnded}
+              style={[
+                styles.choiceButton,
+                darkMode && styles.choiceButtonDark,
+                feedback && feedback.index !== index && styles.choiceButtonInactive,
+                gameEnded && styles.choiceButtonInactive,
+              ]}
+            >
+              <View style={[styles.colorBox, { backgroundColor: color.hex }]} />
+              <Text style={[styles.munsellText, darkMode && styles.munsellTextDark]}>{color.munsell}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
         {/* 応援メッセージ表示（常にスペースを確保） */}
         <View style={styles.encouragementContainer}>
@@ -283,7 +268,7 @@ const styles = StyleSheet.create({
   scoreText: {
     fontSize: 24,
     fontWeight: FONT_WEIGHT_BOLD,
-    color: '#3b82f6',
+    color: '#a855f7',
     fontFamily: MARU_GOTHIC_FONT,
   },
   timeText: {
@@ -305,7 +290,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   timeBarNormal: {
-    backgroundColor: '#60a5fa',
+    backgroundColor: '#a855f7',
   },
   timeBarDanger: {
     backgroundColor: '#ef4444',
@@ -318,6 +303,7 @@ const styles = StyleSheet.create({
   questionContainer: {
     alignItems: 'center',
     marginBottom: 32,
+    paddingHorizontal: 16,
   },
   questionText: {
     fontSize: 24,
@@ -325,48 +311,63 @@ const styles = StyleSheet.create({
     color: '#374151',
     textAlign: 'center',
     fontFamily: MARU_GOTHIC_FONT,
-  },
-  questionTextNormal: {
-    fontSize: 24,
-    fontWeight: FONT_WEIGHT_BOLD,
-    color: '#374151',
-    textAlign: 'center',
-    fontFamily: MARU_GOTHIC_FONT,
-  },
-  pointsText: {
-    fontSize: 18,
-    fontWeight: FONT_WEIGHT_BOLD,
-    color: '#facc15',
     marginBottom: 16,
-    fontFamily: MARU_GOTHIC_FONT,
   },
   choicesContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
     maxWidth: 384,
+    gap: 16,
   },
   choiceButton: {
-    width: 144,
-    height: 144,
-    backgroundColor: '#eff6ff',
+    flex: 1,
+    backgroundColor: '#faf5ff',
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    minHeight: 200,
   },
   choiceButtonInactive: {
     opacity: 0.5,
   },
-  choiceImage: {
+  colorBox: {
     width: '100%',
-    height: '100%',
+    height: 120,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  munsellText: {
+    fontSize: 14,
+    fontWeight: FONT_WEIGHT_SEMIBOLD,
+    color: '#6b7280',
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  colorNameText: {
+    fontSize: 20,
+    fontWeight: FONT_WEIGHT_BOLD,
+    color: '#374151',
+    fontFamily: MARU_GOTHIC_FONT,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  descriptionText: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontFamily: MARU_GOTHIC_FONT,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   containerDark: {
     backgroundColor: '#1f2937',
   },
   scoreTextDark: {
-    color: '#f9fafb',
+    color: '#c084fc',
   },
   timeTextDark: {
     color: '#f9fafb',
@@ -374,14 +375,24 @@ const styles = StyleSheet.create({
   questionTextDark: {
     color: '#f9fafb',
   },
-  questionTextNormalDark: {
-    color: '#f9fafb',
-  },
   choiceButtonDark: {
     backgroundColor: '#374151',
+    borderColor: '#4b5563',
   },
   timeBarContainerDark: {
     backgroundColor: '#4b5563',
+  },
+  colorCodeTextDark: {
+    color: '#f9fafb',
+  },
+  munsellTextDark: {
+    color: '#d1d5db',
+  },
+  colorNameTextDark: {
+    color: '#f9fafb',
+  },
+  descriptionTextDark: {
+    color: '#d1d5db',
   },
   encouragementContainer: {
     alignItems: 'center',
@@ -392,11 +403,11 @@ const styles = StyleSheet.create({
   encouragementText: {
     fontSize: 20,
     fontWeight: FONT_WEIGHT_BOLD,
-    color: '#3b82f6',
+    color: '#a855f7',
     fontFamily: MARU_GOTHIC_FONT,
   },
   encouragementTextDark: {
-    color: '#93c5fd',
+    color: '#c084fc',
   },
   encouragementPlaceholder: {
     height: 20, // テキストと同じ高さのプレースホルダー
@@ -428,4 +439,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default IslandGameScreen;
+export default ColorGameScreen;
+
