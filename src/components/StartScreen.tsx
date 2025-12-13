@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { RankingEntry, GameMode } from '../types';
-import { RankingPeriod, fetchRankingsByPeriod, fetchIslandRankingsByPeriod, fetchFlagRankingsByPeriod } from '../services/rankingService';
+import { RankingPeriod, fetchRankingsByPeriod, fetchIslandRankingsByPeriod, fetchFlagRankingsByPeriod, fetchColorRankingsByPeriod } from '../services/rankingService';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD, FONT_WEIGHT_MEDIUM } from '../constants/fonts';
 
 interface StartScreenProps {
@@ -9,6 +9,7 @@ interface StartScreenProps {
   ranking: RankingEntry[];
   islandRanking: RankingEntry[];
   flagRanking: RankingEntry[];
+  colorRanking: RankingEntry[];
   isLoading?: boolean;
   onShowRules: () => void;
   onShowMyPage: () => void;
@@ -19,7 +20,7 @@ interface StartScreenProps {
   darkMode?: boolean;
 }
 
-const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, onShowRules, onShowMyPage, savedPlayerName, error, onDismissError, onRankingPeriodChange, darkMode = false }: StartScreenProps) => {
+const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRanking, isLoading, onShowRules, onShowMyPage, savedPlayerName, error, onDismissError, onRankingPeriodChange, darkMode = false }: StartScreenProps) => {
   const [name, setName] = useState(savedPlayerName || '');
   const [inputError, setInputError] = useState('');
   const [selectedMode, setSelectedMode] = useState<GameMode>(GameMode.STRAWBERRY);
@@ -48,6 +49,8 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
           rankings = await fetchRankingsByPeriod(selectedPeriod);
         } else if (selectedMode === GameMode.ISLAND) {
           rankings = await fetchIslandRankingsByPeriod(selectedPeriod);
+        } else if (selectedMode === GameMode.COLOR) {
+          rankings = await fetchColorRankingsByPeriod(selectedPeriod);
         } else {
           rankings = await fetchFlagRankingsByPeriod(selectedPeriod);
         }
@@ -88,6 +91,7 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
   const currentRanking = selectedPeriod === RankingPeriod.ALL
     ? (selectedMode === GameMode.STRAWBERRY ? ranking : 
     selectedMode === GameMode.ISLAND ? islandRanking : 
+    selectedMode === GameMode.COLOR ? colorRanking :
        flagRanking)
     : periodRanking;
 
@@ -109,6 +113,15 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
         rankingText: styles.blueRankingText,
         scoreText: styles.blueScoreText,
         buttonBg: styles.blueButtonBg,
+      };
+    } else if (selectedMode === GameMode.COLOR) {
+      return {
+        bg: styles.purpleBg,
+        text: styles.purpleText,
+        rankingBg: styles.purpleRankingBg,
+        rankingText: styles.purpleRankingText,
+        scoreText: styles.purpleScoreText,
+        buttonBg: styles.purpleButtonBg,
       };
     } else {
       return {
@@ -136,11 +149,13 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
           <Text style={[styles.title, darkMode && styles.titleDark]}>
             {selectedMode === GameMode.STRAWBERRY ? 'いちごつめ！' : 
              selectedMode === GameMode.ISLAND ? '島つめ！' : 
+             selectedMode === GameMode.COLOR ? '色つめ！' :
              '国旗つめ！'}
           </Text>
         <Text style={[styles.description, darkMode && styles.descriptionDark]}>
           {selectedMode === GameMode.STRAWBERRY ? '時間内にいちごをたくさんつめよう！' : 
-           selectedMode === GameMode.ISLAND ? '時間内に島をたくさん当てよう！' : 
+           selectedMode === GameMode.ISLAND ? '時間内に有人離島をたくさんつめよう！' : 
+           selectedMode === GameMode.COLOR ? '時間内に色名をたくさん当てよう！' :
            '時間内に国旗をたくさん当てよう！'
           }
         </Text>
@@ -188,13 +203,27 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
                 styles.modeButton,
                 selectedMode === GameMode.FLAG ? styles.modeButtonActiveGreen : styles.modeButtonInactive,
                 darkMode && !(selectedMode === GameMode.FLAG) && styles.modeButtonInactiveDark,
-                { marginRight: 0 }
               ]}
               activeOpacity={0.8}
             >
               <Text style={styles.modeButtonEmoji}>🏁</Text>
               <Text style={selectedMode === GameMode.FLAG ? styles.modeButtonTextActive : [styles.modeButtonTextInactive, darkMode && styles.modeButtonTextInactiveDark]}>
                 国旗モード
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setSelectedMode(GameMode.COLOR)}
+              style={[
+                styles.modeButton,
+                selectedMode === GameMode.COLOR ? styles.modeButtonActivePurple : styles.modeButtonInactive,
+                darkMode && !(selectedMode === GameMode.COLOR) && styles.modeButtonInactiveDark,
+                { marginRight: 0 }
+              ]}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modeButtonEmoji}>🎨</Text>
+              <Text style={selectedMode === GameMode.COLOR ? styles.modeButtonTextActive : [styles.modeButtonTextInactive, darkMode && styles.modeButtonTextInactiveDark]}>
+                色モード
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -216,6 +245,13 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
           >
             <Text style={styles.actionButtonText}>マイページ</Text>
           </TouchableOpacity>
+        </View>
+        
+        {/* 開発進捗表示 */}
+        <View style={styles.devProgressContainer}>
+          <Text style={[styles.devProgressText, darkMode && styles.devProgressTextDark]}>
+            開発進捗：色彩検定の色を学べる色モード実装！
+          </Text>
         </View>
         
         {/* 期間選択タブ */}
@@ -264,6 +300,7 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, isLoading, 
           <Text style={[styles.rankingTitle, modeStyles.rankingText]}>
               {selectedMode === GameMode.STRAWBERRY ? 'いちごモード' : 
                  selectedMode === GameMode.ISLAND ? '島モード' : 
+                 selectedMode === GameMode.COLOR ? '色モード' :
                '国旗モード'} {selectedPeriod === RankingPeriod.ALL ? '' : 
                selectedPeriod === RankingPeriod.DAILY ? '日別' :
                selectedPeriod === RankingPeriod.WEEKLY ? '週別' :
@@ -545,6 +582,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#059669',
   },
+  modeButtonActivePurple: {
+    backgroundColor: '#a855f7',
+    borderWidth: 2,
+    borderColor: '#9333ea',
+  },
   modeButtonInactive: {
     backgroundColor: '#f9fafb',
     borderWidth: 1,
@@ -573,6 +615,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
     gap: 6,
+  },
+  devProgressContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  devProgressText: {
+    fontSize: 10,
+    color: '#9ca3af',
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  devProgressTextDark: {
+    color: '#6b7280',
   },
   periodTab: {
     paddingVertical: 8,
@@ -662,6 +717,9 @@ const styles = StyleSheet.create({
   greenRankingBg: {
     backgroundColor: '#f0fdf4',
   },
+  purpleRankingBg: {
+    backgroundColor: '#faf5ff',
+  },
   pinkRankingText: {
     color: '#db2777',
   },
@@ -670,6 +728,9 @@ const styles = StyleSheet.create({
   },
   greenRankingText: {
     color: '#059669',
+  },
+  purpleRankingText: {
+    color: '#9333ea',
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -775,6 +836,9 @@ const styles = StyleSheet.create({
   greenScoreText: {
     color: '#10b981',
   },
+  purpleScoreText: {
+    color: '#a855f7',
+  },
   noRankingText: {
     color: '#6b7280',
     textAlign: 'center',
@@ -847,6 +911,9 @@ const styles = StyleSheet.create({
   greenButtonBg: {
     backgroundColor: '#059669',
   },
+  purpleButtonBg: {
+    backgroundColor: '#9333ea',
+  },
   startButtonText: {
     color: '#ffffff',
     fontWeight: FONT_WEIGHT_SEMIBOLD,
@@ -884,9 +951,11 @@ const styles = StyleSheet.create({
   pinkBg: {},
   blueBg: {},
   greenBg: {},
+  purpleBg: {},
   pinkText: {},
   blueText: {},
   greenText: {},
+  purpleText: {},
 });
 
 export default StartScreen;

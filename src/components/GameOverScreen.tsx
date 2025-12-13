@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { RankingEntry, GameMode } from '../types';
-import { RankingPeriod, fetchRankingsByPeriod, fetchIslandRankingsByPeriod, fetchFlagRankingsByPeriod } from '../services/rankingService';
+import { RankingPeriod, fetchRankingsByPeriod, fetchIslandRankingsByPeriod, fetchFlagRankingsByPeriod, fetchColorRankingsByPeriod } from '../services/rankingService';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
 
 interface GameOverScreenProps {
   ranking: RankingEntry[];
   gameMode: GameMode;
   currentPlayer: { name: string; score: number };
-  onRestart: () => void;
+  onPlayAgain: () => void;
+  onGoHome: () => void;
   error?: string | null;
   onDismissError?: () => void;
 }
 
-const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, currentPlayer, onRestart, error, onDismissError }) => {
+const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, currentPlayer, onPlayAgain, onGoHome, error, onDismissError }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<RankingPeriod>(RankingPeriod.ALL);
   const [periodRanking, setPeriodRanking] = useState<RankingEntry[]>([]);
   const [isLoadingPeriod, setIsLoadingPeriod] = useState(false);
@@ -21,6 +22,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
   const isStrawberryMode = gameMode === GameMode.STRAWBERRY;
   const isIslandMode = gameMode === GameMode.ISLAND;
   const isFlagMode = gameMode === GameMode.FLAG;
+  const isColorMode = gameMode === GameMode.COLOR;
   const unit = isStrawberryMode ? '個' : '問';
 
   // 期間別ランキングを取得
@@ -38,6 +40,8 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
           rankings = await fetchRankingsByPeriod(selectedPeriod);
         } else if (isIslandMode) {
           rankings = await fetchIslandRankingsByPeriod(selectedPeriod);
+        } else if (isColorMode) {
+          rankings = await fetchColorRankingsByPeriod(selectedPeriod);
         } else {
           rankings = await fetchFlagRankingsByPeriod(selectedPeriod);
         }
@@ -51,7 +55,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
     };
 
     loadPeriodRankings();
-  }, [selectedPeriod, isStrawberryMode, isIslandMode]);
+  }, [selectedPeriod, isStrawberryMode, isIslandMode, isColorMode]);
 
   // 表示するランキングを決定
   const currentRanking = selectedPeriod === RankingPeriod.ALL ? ranking : periodRanking;
@@ -73,6 +77,12 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
         rankingBg: styles.blueRankingBg,
         rankingText: styles.blueRankingText,
         scoreText: styles.blueScoreText,
+      };
+    } else if (isColorMode) {
+      return {
+        rankingBg: styles.purpleRankingBg,
+        rankingText: styles.purpleRankingText,
+        scoreText: styles.purpleScoreText,
       };
     } else {
       return {
@@ -143,6 +153,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
           <Text style={[styles.rankingTitle, modeStyles.rankingText]}>
             {isStrawberryMode ? 'いちご王' : 
              isIslandMode ? '島王' : 
+             isColorMode ? '色王' :
              '国旗王'} ランキング
             {selectedPeriod !== RankingPeriod.ALL && (
               <Text style={styles.periodLabel}>
@@ -154,7 +165,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
           </Text>
           {isLoadingPeriod ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={isStrawberryMode ? '#ec4899' : isIslandMode ? '#3b82f6' : '#10b981'} />
+              <ActivityIndicator size="large" color={isStrawberryMode ? '#ec4899' : isIslandMode ? '#3b82f6' : isColorMode ? '#a855f7' : '#10b981'} />
             </View>
           ) : (
             <ScrollView style={styles.rankingScroll}>
@@ -190,12 +201,20 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
           </View>
         )}
 
-        <TouchableOpacity
-          onPress={onRestart}
-          style={styles.restartButton}
-        >
-          <Text style={styles.restartButtonText}>もう一度プレイ</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            onPress={onPlayAgain}
+            style={styles.playAgainButton}
+          >
+            <Text style={styles.playAgainButtonText}>もう一度遊ぶ</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onGoHome}
+            style={styles.goHomeButton}
+          >
+            <Text style={styles.goHomeButtonText}>ホームに戻る</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -270,6 +289,9 @@ const styles = StyleSheet.create({
   greenRankingBg: {
     backgroundColor: '#f0fdf4',
   },
+  purpleRankingBg: {
+    backgroundColor: '#faf5ff',
+  },
   rankingTitle: {
     fontSize: 24,
     fontWeight: FONT_WEIGHT_BOLD,
@@ -285,6 +307,9 @@ const styles = StyleSheet.create({
   },
   greenRankingText: {
     color: '#059669',
+  },
+  purpleRankingText: {
+    color: '#9333ea',
   },
   rankingScroll: {
     maxHeight: 320,
@@ -321,12 +346,19 @@ const styles = StyleSheet.create({
   greenScoreText: {
     color: '#10b981',
   },
+  purpleScoreText: {
+    color: '#a855f7',
+  },
   noRankingText: {
     color: '#6b7280',
     textAlign: 'center',
     fontFamily: MARU_GOTHIC_FONT,
   },
-  restartButton: {
+  buttonContainer: {
+    width: '100%',
+    gap: 12,
+  },
+  playAgainButton: {
     width: '100%',
     backgroundColor: '#ef4444',
     paddingVertical: 16,
@@ -338,10 +370,31 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  restartButtonText: {
+  playAgainButtonText: {
     color: '#ffffff',
     fontWeight: FONT_WEIGHT_BOLD,
     fontSize: 20,
+    textAlign: 'center',
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  goHomeButton: {
+    width: '100%',
+    backgroundColor: '#6b7280',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    alignSelf: 'center',
+    maxWidth: '70%',
+  },
+  goHomeButtonText: {
+    color: '#ffffff',
+    fontWeight: FONT_WEIGHT_SEMIBOLD,
+    fontSize: 16,
     textAlign: 'center',
     fontFamily: MARU_GOTHIC_FONT,
   },

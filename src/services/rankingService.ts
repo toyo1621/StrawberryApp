@@ -16,10 +16,12 @@ export interface RankingEntry {
 const GAME_TYPE = 'strawberry_rush';
 const ISLAND_GAME_TYPE = 'island_rush';
 const FLAG_GAME_TYPE = 'flag_rush';
+const COLOR_GAME_TYPE = 'color_rush';
 const RANKING_LIMIT = 30;
 const STORAGE_KEY = 'strawberry_game_rankings';
 const ISLAND_STORAGE_KEY = 'island_game_rankings';
 const FLAG_STORAGE_KEY = 'flag_game_rankings';
+const COLOR_STORAGE_KEY = 'color_game_rankings';
 
 // ローカルストレージからランキングを読み込み
 const loadLocalRankings = async (): Promise<RankingEntry[]> => {
@@ -54,6 +56,17 @@ const loadLocalFlagRankings = async (): Promise<RankingEntry[]> => {
   }
 };
 
+// ローカルストレージから色ランキングを読み込み
+const loadLocalColorRankings = async (): Promise<RankingEntry[]> => {
+  try {
+    const stored = await AsyncStorage.getItem(COLOR_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Failed to load local color rankings:', error);
+    return [];
+  }
+};
+
 // ローカルストレージにランキングを保存
 const saveLocalRankings = async (rankings: RankingEntry[]): Promise<void> => {
   try {
@@ -78,6 +91,15 @@ const saveLocalFlagRankings = async (rankings: RankingEntry[]): Promise<void> =>
     await AsyncStorage.setItem(FLAG_STORAGE_KEY, JSON.stringify(rankings));
   } catch (error) {
     console.error('Failed to save local flag rankings:', error);
+  }
+};
+
+// ローカルストレージに色ランキングを保存
+const saveLocalColorRankings = async (rankings: RankingEntry[]): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(COLOR_STORAGE_KEY, JSON.stringify(rankings));
+  } catch (error) {
+    console.error('Failed to save local color rankings:', error);
   }
 };
 
@@ -433,6 +455,113 @@ export const saveFlagScore = async (playerName: string, score: number): Promise<
   }
 };
 
+// 色ランキングを取得
+export const fetchColorRankings = async (): Promise<RankingEntry[]> => {
+  // Supabase環境変数がない場合はローカルストレージを使用
+  if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+    const localRankings = await loadLocalColorRankings();
+    return getUniquePlayerRankings(localRankings);
+  }
+
+  try {
+    // 各プレイヤーの最高スコアのみを取得するクエリ
+    const { data, error } = await supabase.rpc('get_top_rankings', {
+      game_type_param: COLOR_GAME_TYPE,
+      limit_param: 30
+    });
+
+    if (error) {
+      console.error('Error fetching color rankings:', error);
+      // エラーの場合はローカルストレージにフォールバック
+      const localRankings = await loadLocalColorRankings();
+      return getUniquePlayerRankings(localRankings);
+    }
+
+    return data?.map((row: any) => mapRowToRankingEntry(row)) || [];
+  } catch (error) {
+    console.error('Failed to fetch color rankings:', error);
+    // エラーの場合はローカルストレージにフォールバック
+    const localRankings = await loadLocalColorRankings();
+    return getUniquePlayerRankings(localRankings);
+  }
+};
+
+// 新しい色スコアを保存
+export const saveColorScore = async (playerName: string, score: number): Promise<RankingEntry | null> => {
+  // Supabase環境変数がない場合はローカルストレージを使用
+  if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+    const newEntry: RankingEntry = {
+      id: generateId(),
+      playerName: playerName.trim(),
+      score,
+      gameType: COLOR_GAME_TYPE,
+      createdAt: new Date().toISOString(),
+    };
+
+    const currentRankings = await loadLocalColorRankings();
+    const updatedRankings = [...currentRankings, newEntry]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 30);
+    
+    await saveLocalColorRankings(updatedRankings);
+    return newEntry;
+  }
+
+  try {
+    const insertData: RankingInsert = {
+      player_name: playerName.trim(),
+      score,
+      game_type: COLOR_GAME_TYPE,
+    };
+
+    const { data, error } = await supabase
+      .from('rankings')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving color score:', error);
+      // エラーの場合はローカルストレージにフォールバック
+      const newEntry: RankingEntry = {
+        id: generateId(),
+        playerName: playerName.trim(),
+        score,
+        gameType: COLOR_GAME_TYPE,
+        createdAt: new Date().toISOString(),
+      };
+
+      const currentRankings = await loadLocalColorRankings();
+      const updatedRankings = [...currentRankings, newEntry]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 30);
+      
+      await saveLocalColorRankings(updatedRankings);
+      return newEntry;
+    }
+
+    return data ? mapRowToRankingEntry(data) : null;
+  } catch (error) {
+    console.error('Failed to save color score:', error);
+    // エラーの場合はローカルストレージにフォールバック
+    const newEntry: RankingEntry = {
+      id: generateId(),
+      playerName: playerName.trim(),
+      score,
+      gameType: COLOR_GAME_TYPE,
+      createdAt: new Date().toISOString(),
+    };
+
+    const currentRankings = await loadLocalColorRankings();
+    const updatedRankings = [...currentRankings, newEntry]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 30);
+    
+    await saveLocalColorRankings(updatedRankings);
+    return newEntry;
+  }
+};
+
 // プレイヤーの最高スコアを取得
 export const getPlayerBestScore = async (playerName: string): Promise<number> => {
   // Supabase環境変数がない場合はローカルストレージを使用
@@ -654,6 +783,53 @@ export const fetchFlagRankingsByPeriod = async (period: RankingPeriod): Promise<
   }
 };
 
+// 期間別色ランキングを取得
+export const fetchColorRankingsByPeriod = async (period: RankingPeriod): Promise<RankingEntry[]> => {
+  const startDate = getPeriodStartDate(period);
+  
+  if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+    const localRankings = await loadLocalColorRankings();
+    const filtered = period === RankingPeriod.ALL 
+      ? localRankings
+      : localRankings.filter(entry => new Date(entry.createdAt) >= startDate);
+    return getUniquePlayerRankings(filtered);
+  }
+
+  try {
+    let query = supabase
+      .from('rankings')
+      .select('*')
+      .eq('game_type', COLOR_GAME_TYPE)
+      .order('score', { ascending: false })
+      .order('created_at', { ascending: true });
+
+    if (period !== RankingPeriod.ALL) {
+      query = query.gte('created_at', startDate.toISOString());
+    }
+
+    const { data, error } = await query.limit(100); // 重複除去のため多めに取得
+
+    if (error) {
+      console.error('Error fetching color rankings by period:', error);
+      const localRankings = await loadLocalColorRankings();
+      const filtered = period === RankingPeriod.ALL 
+        ? localRankings
+        : localRankings.filter(entry => new Date(entry.createdAt) >= startDate);
+      return getUniquePlayerRankings(filtered);
+    }
+
+    const rankings = data?.map((row: RankingRow) => mapRowToRankingEntry(row)) || [];
+    return getUniquePlayerRankings(rankings);
+  } catch (error) {
+    console.error('Failed to fetch color rankings by period:', error);
+    const localRankings = await loadLocalColorRankings();
+    const filtered = period === RankingPeriod.ALL 
+      ? localRankings
+      : localRankings.filter(entry => new Date(entry.createdAt) >= startDate);
+    return getUniquePlayerRankings(filtered);
+  }
+};
+
 // プレイヤーのスコア履歴を取得（いちごモード）
 export const fetchPlayerScoreHistory = async (playerName: string, gameType: string = GAME_TYPE): Promise<RankingEntry[]> => {
   if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
@@ -661,6 +837,8 @@ export const fetchPlayerScoreHistory = async (playerName: string, gameType: stri
       ? ISLAND_STORAGE_KEY 
       : gameType === FLAG_GAME_TYPE 
       ? FLAG_STORAGE_KEY 
+      : gameType === COLOR_GAME_TYPE
+      ? COLOR_STORAGE_KEY
       : STORAGE_KEY;
     
     const stored = await AsyncStorage.getItem(storageKey);
@@ -690,6 +868,8 @@ export const fetchPlayerScoreHistory = async (playerName: string, gameType: stri
         ? ISLAND_STORAGE_KEY 
         : gameType === FLAG_GAME_TYPE 
         ? FLAG_STORAGE_KEY 
+        : gameType === COLOR_GAME_TYPE
+        ? COLOR_STORAGE_KEY
         : STORAGE_KEY;
       
       const stored = await AsyncStorage.getItem(storageKey);
@@ -711,6 +891,8 @@ export const fetchPlayerScoreHistory = async (playerName: string, gameType: stri
       ? ISLAND_STORAGE_KEY 
       : gameType === FLAG_GAME_TYPE 
       ? FLAG_STORAGE_KEY 
+      : gameType === COLOR_GAME_TYPE
+      ? COLOR_STORAGE_KEY
       : STORAGE_KEY;
     
     const stored = await AsyncStorage.getItem(storageKey);
