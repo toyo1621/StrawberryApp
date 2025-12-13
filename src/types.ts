@@ -3,6 +3,7 @@ export enum GameState {
   PLAYING,
   ISLAND_PLAYING,
   FLAG_PLAYING,
+  COLOR_PLAYING,
   MEMORY_GAME,
   MEMORY_GAME_2,
   GAME_OVER,
@@ -16,7 +17,8 @@ export enum GameState {
 export enum GameMode {
   STRAWBERRY = 'strawberry',
   ISLAND = 'island',
-  FLAG = 'flag'
+  FLAG = 'flag',
+  COLOR = 'color'
 }
 
 export interface RankingEntry {
@@ -43,4 +45,13 @@ export interface Country {
   id: string;
   name: string;
   code: string;
+}
+
+export interface Color {
+  id: string;
+  name: string;
+  nameEn: string;
+  munsell: string;
+  hex: string;
+  description: string;
 }
