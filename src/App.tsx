@@ -9,6 +9,7 @@ import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';
 import IslandGameScreen from './components/IslandGameScreen';
 import FlagGameScreen from './components/FlagGameScreen';
+import ColorGameScreen from './components/ColorGameScreen';
 import MemoryGameScreen from './components/MemoryGameScreen';
 import MemoryGame2Screen from './components/MemoryGame2Screen';
 import GameOverScreen from './components/GameOverScreen';
@@ -17,7 +18,7 @@ import MyPageScreen from './components/MyPageScreen';
 import PrivacyPolicyScreen from './components/PrivacyPolicyScreen';
 import TermsOfServiceScreen from './components/TermsOfServiceScreen';
 import SettingsScreen from './components/SettingsScreen';
-import { fetchRankings, saveScore, fetchIslandRankings, saveIslandScore, fetchFlagRankings, saveFlagScore } from './services/rankingService';
+import { fetchRankings, saveScore, fetchIslandRankings, saveIslandScore, fetchFlagRankings, saveFlagScore, fetchColorRankings, saveColorScore } from './services/rankingService';
 import { loadPlayerName } from './services/playerService';
 import { loadSettings, AppSettings } from './services/settingsService';
 
@@ -28,6 +29,7 @@ const App: React.FC = () => {
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [islandRanking, setIslandRanking] = useState<RankingEntry[]>([]);
   const [flagRanking, setFlagRanking] = useState<RankingEntry[]>([]);
+  const [colorRanking, setColorRanking] = useState<RankingEntry[]>([]);
   const [currentScore, setCurrentScore] = useState<number>(0);
   const [memoryAnswer, setMemoryAnswer] = useState<string>('');
   const [firstDistractor, setFirstDistractor] = useState<string>('');
@@ -58,16 +60,18 @@ const App: React.FC = () => {
           });
 
         // loadPlayerNameとloadSettingsを一時的にコメントアウト
-        const [strawberryRankings, islandRankings, flagRankings, savedName, appSettings] = await Promise.all([
+        const [strawberryRankings, islandRankings, flagRankings, colorRankings, savedName, appSettings] = await Promise.all([
           fetchRankings(),
           fetchIslandRankings(),
           fetchFlagRankings(),
+          fetchColorRankings(),
           loadPlayerName(),
           loadSettings()
         ]);
         setRanking(strawberryRankings);
         setIslandRanking(islandRankings);
         setFlagRanking(flagRankings);
+        setColorRanking(colorRankings);
         if (savedName) {
           setPlayerName(savedName);
         }
@@ -93,6 +97,8 @@ const App: React.FC = () => {
       setGameState(GameState.PLAYING);
     } else if (mode === GameMode.ISLAND) {
       setGameState(GameState.ISLAND_PLAYING);
+    } else if (mode === GameMode.COLOR) {
+      setGameState(GameState.COLOR_PLAYING);
     } else {
       setGameState(GameState.FLAG_PLAYING);
     }
@@ -127,6 +133,10 @@ const App: React.FC = () => {
           await saveIslandScore(playerName, score);
           const updatedIslandRankings = await fetchIslandRankings();
           setIslandRanking(updatedIslandRankings);
+        } else if (gameMode === GameMode.COLOR) {
+          await saveColorScore(playerName, score);
+          const updatedColorRankings = await fetchColorRankings();
+          setColorRanking(updatedColorRankings);
         } else {
           await saveFlagScore(playerName, score);
           const updatedFlagRankings = await fetchFlagRankings();
@@ -144,6 +154,21 @@ const App: React.FC = () => {
   const handleRestart = useCallback(() => {
     setGameState(GameState.START);
   }, []);
+
+  const handlePlayAgain = useCallback(() => {
+    setCurrentScore(0);
+    setMemoryAnswer('');
+    setFirstDistractor('');
+    if (gameMode === GameMode.STRAWBERRY) {
+      setGameState(GameState.PLAYING);
+    } else if (gameMode === GameMode.ISLAND) {
+      setGameState(GameState.ISLAND_PLAYING);
+    } else if (gameMode === GameMode.COLOR) {
+      setGameState(GameState.COLOR_PLAYING);
+    } else {
+      setGameState(GameState.FLAG_PLAYING);
+    }
+  }, [gameMode]);
 
   const handleShowRules = useCallback(() => {
     setGameState(GameState.RULES);
@@ -228,6 +253,8 @@ const App: React.FC = () => {
         return <IslandGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={handleRestart} />;
       case GameState.FLAG_PLAYING:
         return <FlagGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={handleRestart} />;
+      case GameState.COLOR_PLAYING:
+        return <ColorGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={handleRestart} />;
       case GameState.MEMORY_GAME:
         return (
           <MemoryGameScreen 
@@ -251,13 +278,15 @@ const App: React.FC = () => {
             ranking={
               gameMode === GameMode.STRAWBERRY ? ranking : 
               gameMode === GameMode.ISLAND ? islandRanking : 
+              gameMode === GameMode.COLOR ? colorRanking :
               flagRanking
             }
             gameMode={gameMode}
             currentPlayer={{ name: playerName, score: currentScore }} 
-            onRestart={handleRestart} 
-              error={error}
-              onDismissError={() => setError(null)}
+            onPlayAgain={handlePlayAgain}
+            onGoHome={handleRestart}
+            error={error}
+            onDismissError={() => setError(null)}
             />
             {isSavingScore && (
               <View style={styles.savingOverlay}>
@@ -277,7 +306,8 @@ const App: React.FC = () => {
               onStart={handleGameStart} 
               ranking={ranking} 
               islandRanking={islandRanking} 
-              flagRanking={flagRanking} 
+              flagRanking={flagRanking}
+              colorRanking={colorRanking}
               isLoading={isLoading} 
               onShowRules={handleShowRules} 
               onShowMyPage={handleShowMyPage}
