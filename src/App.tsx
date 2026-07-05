@@ -22,6 +22,26 @@ import { fetchRankings, saveScore, fetchIslandRankings, saveIslandScore, fetchFl
 import { loadPlayerName } from './services/playerService';
 import { loadSettings, AppSettings } from './services/settingsService';
 
+const prefetchStrawberryJuiceImage = () => {
+  try {
+    const assetSource = Image.resolveAssetSource?.(strawberryJuiceImage);
+
+    if (!assetSource?.uri) {
+      return;
+    }
+
+    Image.prefetch(assetSource.uri)
+      .then(() => {
+        console.log('いちご汁画像のプリロード完了');
+      })
+      .catch((error) => {
+        console.error('いちご汁画像のプリロードエラー:', error);
+      });
+  } catch (error) {
+    console.error('いちご汁画像のプリロードエラー:', error);
+  }
+};
+
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.START);
   const [gameMode, setGameMode] = useState<GameMode>(GameMode.STRAWBERRY);
@@ -51,13 +71,7 @@ const App: React.FC = () => {
       setError(null);
       try {
         // いちご汁画像をプリロード
-        Image.prefetch(Image.resolveAssetSource(strawberryJuiceImage).uri)
-          .then(() => {
-            console.log('いちご汁画像のプリロード完了');
-          })
-          .catch((error) => {
-            console.error('いちご汁画像のプリロードエラー:', error);
-          });
+        prefetchStrawberryJuiceImage();
 
         // loadPlayerNameとloadSettingsを一時的にコメントアウト
         const [strawberryRankings, islandRankings, flagRankings, colorRankings, savedName, appSettings] = await Promise.all([
