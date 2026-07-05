@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Activi
 import { RankingEntry, GameMode } from '../types';
 import { RankingPeriod, fetchRankingsByPeriod, fetchIslandRankingsByPeriod, fetchFlagRankingsByPeriod, fetchColorRankingsByPeriod } from '../services/rankingService';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD, FONT_WEIGHT_MEDIUM } from '../constants/fonts';
+import { formatRelativeDay } from '../utils/relativeDate';
 
 interface StartScreenProps {
   onStart: (name: string, mode: GameMode) => void;
@@ -318,6 +319,7 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
                 {currentRanking.slice(0, 10).map((entry, index) => {
                   const isTopThree = index < 3;
                   const medalEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
+                  const relativeDate = formatRelativeDay(entry.createdAt);
                   return (
                     <View 
                       key={entry.id} 
@@ -337,17 +339,33 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
                           darkMode && styles.rankingItemNameDark,
                           isTopThree && styles.rankingItemNameTopThree,
                           darkMode && isTopThree && styles.rankingItemNameTopThreeDark,
-                        ]}>
+                        ]}
+                          numberOfLines={1}
+                        >
                           {entry.playerName}
                         </Text>
                       </View>
-                      <Text style={[
-                        styles.rankingItemScore, 
-                        modeStyles.scoreText,
-                        isTopThree && styles.rankingItemScoreTopThree
-                      ]}>
-                    {entry.score} {selectedMode === GameMode.STRAWBERRY ? '個' : '問'}
-                  </Text>
+                      <View style={styles.rankingItemRight}>
+                        <Text style={[
+                          styles.rankingItemScore,
+                          modeStyles.scoreText,
+                          isTopThree && styles.rankingItemScoreTopThree
+                        ]}>
+                          {entry.score} {selectedMode === GameMode.STRAWBERRY ? '個' : '問'}
+                        </Text>
+                        {relativeDate ? (
+                          <Text style={[
+                            styles.rankingItemDate,
+                            darkMode && styles.rankingItemDateDark,
+                            isTopThree && styles.rankingItemDateTopThree,
+                            darkMode && isTopThree && styles.rankingItemDateTopThreeDark,
+                          ]}
+                            numberOfLines={1}
+                          >
+                            {relativeDate}
+                          </Text>
+                        ) : null}
+                      </View>
                 </View>
                   );
                 })}
@@ -790,6 +808,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
   },
   rankingItemRank: {
     fontSize: 14,
@@ -814,6 +833,28 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHT_SEMIBOLD,
     fontSize: 14,
     fontFamily: MARU_GOTHIC_FONT,
+  },
+  rankingItemRight: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'flex-end',
+    marginLeft: 8,
+  },
+  rankingItemDate: {
+    marginLeft: 6,
+    color: '#9ca3af',
+    fontSize: 11,
+    fontWeight: FONT_WEIGHT_MEDIUM,
+    fontFamily: MARU_GOTHIC_FONT,
+  },
+  rankingItemDateDark: {
+    color: '#d1d5db',
+  },
+  rankingItemDateTopThree: {
+    color: '#92400e',
+  },
+  rankingItemDateTopThreeDark: {
+    color: '#fde68a',
   },
   rankingItemScoreTopThree: {
     fontWeight: FONT_WEIGHT_BOLD,
