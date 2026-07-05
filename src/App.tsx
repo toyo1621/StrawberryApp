@@ -63,6 +63,7 @@ const App: React.FC = () => {
   const [showStrawberryJuice, setShowStrawberryJuice] = useState(false);
   const juiceScale = useRef(new Animated.Value(0)).current;
   const juiceOpacity = useRef(new Animated.Value(0)).current;
+  const gameStartedAtRef = useRef<number | null>(null);
 
   // ランキングとプレイヤー名、設定を読み込み
   useEffect(() => {
@@ -107,6 +108,7 @@ const App: React.FC = () => {
     setCurrentScore(0);
     setMemoryAnswer('');
     setFirstDistractor('');
+    gameStartedAtRef.current = Date.now();
     if (mode === GameMode.STRAWBERRY) {
       setGameState(GameState.PLAYING);
     } else if (mode === GameMode.ISLAND) {
@@ -133,6 +135,8 @@ const App: React.FC = () => {
   const handleGameOver = useCallback(async (score: number) => {
     setCurrentScore(score);
     setGameState(GameState.GAME_OVER);
+    const durationMs = gameStartedAtRef.current ? Date.now() - gameStartedAtRef.current : undefined;
+    const scoreMetadata = durationMs ? { durationMs } : undefined;
 
     // スコアを保存（モードに応じて）
     if (playerName && score > 0) {
@@ -140,19 +144,19 @@ const App: React.FC = () => {
       setError(null);
       try {
         if (gameMode === GameMode.STRAWBERRY) {
-          await saveScore(playerName, score);
+          await saveScore(playerName, score, scoreMetadata);
           const updatedRankings = await fetchRankings();
           setRanking(updatedRankings);
         } else if (gameMode === GameMode.ISLAND) {
-          await saveIslandScore(playerName, score);
+          await saveIslandScore(playerName, score, scoreMetadata);
           const updatedIslandRankings = await fetchIslandRankings();
           setIslandRanking(updatedIslandRankings);
         } else if (gameMode === GameMode.COLOR) {
-          await saveColorScore(playerName, score);
+          await saveColorScore(playerName, score, scoreMetadata);
           const updatedColorRankings = await fetchColorRankings();
           setColorRanking(updatedColorRankings);
         } else {
-          await saveFlagScore(playerName, score);
+          await saveFlagScore(playerName, score, scoreMetadata);
           const updatedFlagRankings = await fetchFlagRankings();
           setFlagRanking(updatedFlagRankings);
         }
@@ -173,6 +177,7 @@ const App: React.FC = () => {
     setCurrentScore(0);
     setMemoryAnswer('');
     setFirstDistractor('');
+    gameStartedAtRef.current = Date.now();
     if (gameMode === GameMode.STRAWBERRY) {
       setGameState(GameState.PLAYING);
     } else if (gameMode === GameMode.ISLAND) {
