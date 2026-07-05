@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator
 import { RankingEntry, GameMode } from '../types';
 import { RankingPeriod, fetchRankingsByPeriod, fetchIslandRankingsByPeriod, fetchFlagRankingsByPeriod, fetchColorRankingsByPeriod } from '../services/rankingService';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
-import { formatRelativeDay } from '../utils/relativeDate';
 
 interface GameOverScreenProps {
   ranking: RankingEntry[];
@@ -171,29 +170,18 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ ranking, gameMode, curr
           ) : (
             <ScrollView style={styles.rankingScroll}>
               {currentRanking.length > 0 ? (
-                currentRanking.slice(0, 30).map((entry, index) => {
-                  const relativeDate = formatRelativeDay(entry.createdAt);
-
-                  return (
-                    <View
-                      key={entry.id}
-                      style={[
-                        styles.rankingItem,
-                        entry.playerName === currentPlayer.name && entry.score === currentPlayer.score && styles.rankingItemHighlight
-                      ]}
-                    >
-                      <Text style={styles.rankingItemName} numberOfLines={1}>
-                        {index + 1}. {entry.playerName}
-                      </Text>
-                      <View style={styles.rankingItemRight}>
-                        <Text style={[styles.rankingItemScore, modeStyles.scoreText]}>{entry.score} {unit}</Text>
-                        {relativeDate ? (
-                          <Text style={styles.rankingItemDate} numberOfLines={1}>{relativeDate}</Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  );
-                })
+                 currentRanking.slice(0, 30).map((entry, index) => (
+                <View 
+                  key={entry.id} 
+                  style={[
+                    styles.rankingItem,
+                    entry.playerName === currentPlayer.name && entry.score === currentPlayer.score && styles.rankingItemHighlight
+                  ]}
+                >
+                  <Text style={styles.rankingItemName}>{index + 1}. {entry.playerName}</Text>
+                  <Text style={[styles.rankingItemScore, modeStyles.scoreText]}>{entry.score} {unit}</Text>
+                </View>
+              ))
             ) : (
               <Text style={styles.noRankingText}>まだランキングがありません。</Text>
             )}
@@ -343,25 +331,10 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontSize: 18,
     fontFamily: MARU_GOTHIC_FONT,
-    flex: 1,
-    minWidth: 0,
-    marginRight: 12,
   },
   rankingItemScore: {
     fontWeight: FONT_WEIGHT_BOLD,
     fontSize: 18,
-    fontFamily: MARU_GOTHIC_FONT,
-  },
-  rankingItemRight: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'flex-end',
-  },
-  rankingItemDate: {
-    marginLeft: 8,
-    color: '#9ca3af',
-    fontSize: 12,
-    fontWeight: FONT_WEIGHT_SEMIBOLD,
     fontFamily: MARU_GOTHIC_FONT,
   },
   pinkScoreText: {
