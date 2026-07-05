@@ -15,6 +15,10 @@ export enum RankingPeriod {
   MONTHLY = 'monthly',
 }
 
+export interface ScoreMetadata {
+  durationMs?: number;
+}
+
 const GAME_TYPE = 'strawberry_rush';
 const ISLAND_GAME_TYPE = 'island_rush';
 const FLAG_GAME_TYPE = 'flag_rush';
@@ -186,6 +190,7 @@ const saveScoreForGame = async (
   playerName: string,
   score: number,
   gameType: string,
+  metadata: ScoreMetadata = {},
 ): Promise<RankingEntry | null> => {
   if (hasRankingsApi()) {
     try {
@@ -195,6 +200,7 @@ const saveScoreForGame = async (
           playerName: playerName.trim(),
           score,
           gameType,
+          durationMs: metadata.durationMs,
         }),
       });
     } catch (error) {
@@ -221,20 +227,36 @@ export const fetchColorRankings = async (): Promise<RankingEntry[]> => {
   return fetchRankingsForGame(COLOR_GAME_TYPE);
 };
 
-export const saveScore = async (playerName: string, score: number): Promise<RankingEntry | null> => {
-  return saveScoreForGame(playerName, score, GAME_TYPE);
+export const saveScore = async (
+  playerName: string,
+  score: number,
+  metadata?: ScoreMetadata,
+): Promise<RankingEntry | null> => {
+  return saveScoreForGame(playerName, score, GAME_TYPE, metadata);
 };
 
-export const saveIslandScore = async (playerName: string, score: number): Promise<RankingEntry | null> => {
-  return saveScoreForGame(playerName, score, ISLAND_GAME_TYPE);
+export const saveIslandScore = async (
+  playerName: string,
+  score: number,
+  metadata?: ScoreMetadata,
+): Promise<RankingEntry | null> => {
+  return saveScoreForGame(playerName, score, ISLAND_GAME_TYPE, metadata);
 };
 
-export const saveFlagScore = async (playerName: string, score: number): Promise<RankingEntry | null> => {
-  return saveScoreForGame(playerName, score, FLAG_GAME_TYPE);
+export const saveFlagScore = async (
+  playerName: string,
+  score: number,
+  metadata?: ScoreMetadata,
+): Promise<RankingEntry | null> => {
+  return saveScoreForGame(playerName, score, FLAG_GAME_TYPE, metadata);
 };
 
-export const saveColorScore = async (playerName: string, score: number): Promise<RankingEntry | null> => {
-  return saveScoreForGame(playerName, score, COLOR_GAME_TYPE);
+export const saveColorScore = async (
+  playerName: string,
+  score: number,
+  metadata?: ScoreMetadata,
+): Promise<RankingEntry | null> => {
+  return saveScoreForGame(playerName, score, COLOR_GAME_TYPE, metadata);
 };
 
 export const getPlayerBestScore = async (playerName: string): Promise<number> => {

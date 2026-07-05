@@ -1,6 +1,14 @@
+import {
+  ValidationError,
+  parseGameType,
+  parseRankingPeriod,
+  validateScoreSubmission,
+} from './rankingValidation';
+
 export interface Env {
   DB: D1Database;
   ALLOWED_ORIGINS?: string;
+  RATE_LIMIT_SALT?: string;
 }
 
 type RankingRow = {
@@ -19,17 +27,11 @@ type RankingEntry = {
   createdAt: string;
 };
 
-const GAME_TYPES = new Set([
-  'strawberry_rush',
-  'island_rush',
-  'flag_rush',
-  'color_rush',
-]);
-
-const PERIODS = new Set(['all', 'daily', 'weekly', 'monthly']);
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 100;
-const MAX_SCORE = 1000000;
+const SCORE_SUBMISSION_LIMIT = 8;
+const SCORE_SUBMISSION_WINDOW_MS = 60 * 1000;
+const SCORE_SUBMISSION_RETENTION_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://toyo1621.github.io',
   'http://localhost:3000',
@@ -79,6 +81,26 @@ const getAllowedOrigin = (origin?: string, env?: Env) => {
   return allowed.includes(origin) ? origin : allowed[0];
 };
 
+const isAllowedOrigin = (origin?: string, env?: Env) => {
+  if (!origin) {
+    return false;
+  }
+
+  const configured = env?.ALLOWED_ORIGINS
+    ?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const allowed = configured?.length ? configured : DEFAULT_ALLOWED_ORIGINS;
+
+  return allowed.includes(origin);
+};
+
+const requireAllowedOrigin = (origin: string | undefined, env: Env) => {
+  if (!isAllowedOrigin(origin, env)) {
+    throw new HttpError(403, 'Score submissions require an allowed origin.');
+  }
+};
+
 const getPeriodStart = (period: string) => {
   if (period === 'all') {
     return null;
@@ -123,28 +145,66 @@ const clampLimit = (value: string | null) => {
   return Math.min(parsed, MAX_LIMIT);
 };
 
-const getGameType = (value: string | null) => {
-  const gameType = value || 'strawberry_rush';
-  if (!GAME_TYPES.has(gameType)) {
-    throw new Error('Unsupported game type');
-  }
-
-  return gameType;
+const sha256Hex = async (value: string) => {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 };
 
-const getPeriod = (value: string | null) => {
-  const period = value || 'all';
-  if (!PERIODS.has(period)) {
-    throw new Error('Unsupported ranking period');
+const getClientIdentityHash = async (request: Request, env: Env) => {
+  const ip =
+    request.headers.get('cf-connecting-ip') ??
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    'unknown-ip';
+  const userAgent = request.headers.get('user-agent') ?? 'unknown-agent';
+  const salt = env.RATE_LIMIT_SALT ?? 'strawberry-rankings';
+
+  return sha256Hex(`${salt}:${ip}:${userAgent}`);
+};
+
+const enforceScoreSubmissionRateLimit = async (
+  request: Request,
+  env: Env,
+  playerName: string,
+  gameType: string,
+) => {
+  const identityHash = await getClientIdentityHash(request, env);
+  const now = Date.now();
+  const windowStart = new Date(now - SCORE_SUBMISSION_WINDOW_MS).toISOString();
+
+  const row = await env.DB.prepare(
+    `
+      SELECT COUNT(*) AS count
+      FROM score_submission_events
+      WHERE identity_hash = ? AND created_at >= ?
+    `,
+  ).bind(identityHash, windowStart).first<{ count: number }>();
+
+  if ((row?.count ?? 0) >= SCORE_SUBMISSION_LIMIT) {
+    throw new HttpError(429, 'Too many score submissions. Please wait a moment and try again.');
   }
 
-  return period;
+  await env.DB.prepare(
+    `
+      INSERT INTO score_submission_events (id, identity_hash, player_name, game_type, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `,
+  ).bind(crypto.randomUUID(), identityHash, playerName, gameType, new Date(now).toISOString()).run();
+
+  await env.DB.prepare(
+    `
+      DELETE FROM score_submission_events
+      WHERE created_at < ?
+    `,
+  ).bind(new Date(now - SCORE_SUBMISSION_RETENTION_MS).toISOString()).run();
 };
 
 const fetchRankings = async (request: Request, env: Env) => {
   const url = new URL(request.url);
-  const gameType = getGameType(url.searchParams.get('gameType'));
-  const period = getPeriod(url.searchParams.get('period'));
+  const gameType = parseGameType(url.searchParams.get('gameType'));
+  const period = parseRankingPeriod(url.searchParams.get('period'));
   const limit = clampLimit(url.searchParams.get('limit'));
   const start = getPeriodStart(period);
 
@@ -185,24 +245,18 @@ const fetchRankings = async (request: Request, env: Env) => {
   return results.map(mapRanking);
 };
 
-const saveScore = async (request: Request, env: Env) => {
+const saveScore = async (request: Request, env: Env, origin?: string) => {
+  requireAllowedOrigin(origin, env);
+
   const body = await request.json().catch(() => null) as {
     playerName?: unknown;
     score?: unknown;
     gameType?: unknown;
+    durationMs?: unknown;
   } | null;
 
-  const playerName = typeof body?.playerName === 'string' ? body.playerName.trim() : '';
-  const score = typeof body?.score === 'number' ? body.score : Number(body?.score);
-  const gameType = typeof body?.gameType === 'string' ? getGameType(body.gameType) : 'strawberry_rush';
-
-  if (!playerName || playerName.length > 30) {
-    throw new HttpError(400, 'Player name must be 1-30 characters.');
-  }
-
-  if (!Number.isInteger(score) || score < 0 || score > MAX_SCORE) {
-    throw new HttpError(400, 'Score is out of range.');
-  }
+  const { playerName, score, gameType } = validateScoreSubmission(body);
+  await enforceScoreSubmissionRateLimit(request, env, playerName, gameType);
 
   const entry: RankingEntry = {
     id: crypto.randomUUID(),
@@ -224,7 +278,7 @@ const saveScore = async (request: Request, env: Env) => {
 
 const getPlayerBestScore = async (request: Request, env: Env, playerName: string) => {
   const url = new URL(request.url);
-  const gameType = getGameType(url.searchParams.get('gameType'));
+  const gameType = parseGameType(url.searchParams.get('gameType'));
 
   const row = await env.DB.prepare(
     `
@@ -241,7 +295,7 @@ const getPlayerBestScore = async (request: Request, env: Env, playerName: string
 
 const getPlayerHistory = async (request: Request, env: Env, playerName: string) => {
   const url = new URL(request.url);
-  const gameType = getGameType(url.searchParams.get('gameType'));
+  const gameType = parseGameType(url.searchParams.get('gameType'));
   const limit = clampLimit(url.searchParams.get('limit'));
 
   const { results } = await env.DB.prepare(
@@ -279,7 +333,7 @@ export default {
       }
 
       if (request.method === 'POST' && url.pathname === '/scores') {
-        return json(await saveScore(request, env), { status: 201 }, origin, env);
+        return json(await saveScore(request, env, origin), { status: 201 }, origin, env);
       }
 
       const bestMatch = url.pathname.match(/^\/players\/([^/]+)\/best$/);
@@ -295,7 +349,10 @@ export default {
       return json({ error: 'Not found' }, { status: 404 }, origin, env);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Internal server error';
-      const status = error instanceof HttpError ? error.status : message.startsWith('Unsupported') ? 400 : 500;
+      const status =
+        error instanceof HttpError || error instanceof ValidationError
+          ? error.status
+          : 500;
       return json({ error: message }, { status }, origin, env);
     }
   },

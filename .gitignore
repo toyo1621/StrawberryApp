@@ -2,6 +2,7 @@
 .expo/
 dist/
 web-build/
+.tmp/
 .wrangler/
 
 # Node

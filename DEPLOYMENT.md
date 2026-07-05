@@ -30,10 +30,25 @@ npm run d1:apply-schema
 npm run worker:deploy
 ```
 
-6. Set the web app environment variable.
+6. Optional: set a private rate-limit salt for hashed submission identities.
+
+```bash
+npx wrangler secret put RATE_LIMIT_SALT --config worker/wrangler.toml
+```
+
+7. Set the web app environment variable.
 
 ```bash
 EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.dev
+```
+
+The Worker validates score submissions by allowed origin, game type, player name,
+game-specific score limits, reported duration, and a short submission rate limit.
+
+After deployment, verify the API:
+
+```bash
+EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.dev npm run smoke:rankings-api
 ```
 
 ## Migrating Existing Supabase Rankings
@@ -64,6 +79,9 @@ The generated files `rankings-export.json` and `rankings-import.sql` are ignored
 
 GitHub Pages is deployed from GitHub Actions. Set the repository variable or secret
 `EXPO_PUBLIC_RANKINGS_API_URL` to the Worker URL before deploying.
+
+The workflow runs type checks, Worker tests, and `npm run audit:high` before uploading
+the Pages artifact.
 
 The public URL is:
 

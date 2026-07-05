@@ -171,6 +171,9 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
           >
             <TouchableOpacity
               onPress={() => setSelectedMode(GameMode.STRAWBERRY)}
+              accessibilityRole="button"
+              accessibilityLabel="いちごモードを選択"
+              accessibilityState={{ selected: selectedMode === GameMode.STRAWBERRY }}
               style={[
                 styles.modeButton,
                 selectedMode === GameMode.STRAWBERRY ? styles.modeButtonActivePink : styles.modeButtonInactive,
@@ -185,6 +188,9 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setSelectedMode(GameMode.ISLAND)}
+              accessibilityRole="button"
+              accessibilityLabel="島モードを選択"
+              accessibilityState={{ selected: selectedMode === GameMode.ISLAND }}
               style={[
                 styles.modeButton,
                 selectedMode === GameMode.ISLAND ? styles.modeButtonActiveBlue : styles.modeButtonInactive,
@@ -199,6 +205,9 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setSelectedMode(GameMode.FLAG)}
+              accessibilityRole="button"
+              accessibilityLabel="国旗モードを選択"
+              accessibilityState={{ selected: selectedMode === GameMode.FLAG }}
               style={[
                 styles.modeButton,
                 selectedMode === GameMode.FLAG ? styles.modeButtonActiveGreen : styles.modeButtonInactive,
@@ -213,6 +222,9 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setSelectedMode(GameMode.COLOR)}
+              accessibilityRole="button"
+              accessibilityLabel="色モードを選択"
+              accessibilityState={{ selected: selectedMode === GameMode.COLOR }}
               style={[
                 styles.modeButton,
                 selectedMode === GameMode.COLOR ? styles.modeButtonActivePurple : styles.modeButtonInactive,
@@ -233,6 +245,8 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
         <View style={styles.actionButtonsRow}>
           <TouchableOpacity
             onPress={onShowRules}
+            accessibilityRole="button"
+            accessibilityLabel="ルールを開く"
             style={styles.actionButton}
             activeOpacity={0.8}
           >
@@ -240,6 +254,8 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onShowMyPage}
+            accessibilityRole="button"
+            accessibilityLabel="マイページを開く"
             style={styles.actionButton}
             activeOpacity={0.8}
           >
@@ -258,6 +274,9 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
         <View style={styles.periodTabs}>
           <TouchableOpacity
             onPress={() => setSelectedPeriod(RankingPeriod.ALL)}
+            accessibilityRole="button"
+            accessibilityLabel="全体ランキングを表示"
+            accessibilityState={{ selected: selectedPeriod === RankingPeriod.ALL }}
             style={[styles.periodTab, selectedPeriod === RankingPeriod.ALL && styles.periodTabActive, darkMode && !(selectedPeriod === RankingPeriod.ALL) && styles.periodTabDark]}
             activeOpacity={0.7}
           >
@@ -267,6 +286,9 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setSelectedPeriod(RankingPeriod.DAILY)}
+            accessibilityRole="button"
+            accessibilityLabel="日別ランキングを表示"
+            accessibilityState={{ selected: selectedPeriod === RankingPeriod.DAILY }}
             style={[styles.periodTab, selectedPeriod === RankingPeriod.DAILY && styles.periodTabActive, darkMode && !(selectedPeriod === RankingPeriod.DAILY) && styles.periodTabDark]}
             activeOpacity={0.7}
           >
@@ -276,6 +298,9 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setSelectedPeriod(RankingPeriod.WEEKLY)}
+            accessibilityRole="button"
+            accessibilityLabel="週別ランキングを表示"
+            accessibilityState={{ selected: selectedPeriod === RankingPeriod.WEEKLY }}
             style={[styles.periodTab, selectedPeriod === RankingPeriod.WEEKLY && styles.periodTabActive, darkMode && !(selectedPeriod === RankingPeriod.WEEKLY) && styles.periodTabDark]}
             activeOpacity={0.7}
           >
@@ -285,6 +310,9 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setSelectedPeriod(RankingPeriod.MONTHLY)}
+            accessibilityRole="button"
+            accessibilityLabel="月別ランキングを表示"
+            accessibilityState={{ selected: selectedPeriod === RankingPeriod.MONTHLY }}
             style={[styles.periodTab, selectedPeriod === RankingPeriod.MONTHLY && styles.periodTabActive, darkMode && !(selectedPeriod === RankingPeriod.MONTHLY) && styles.periodTabDark]}
             activeOpacity={0.7}
           >
@@ -368,6 +396,8 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
               value={name}
               onChangeText={handleNameChange}
               placeholder="名前を入力 (12文字まで)"
+              accessibilityLabel="プレイヤー名"
+              accessibilityHint="ランキングに表示する名前を入力します"
               placeholderTextColor={darkMode ? "#6b7280" : "#9ca3af"}
               maxLength={12}
               style={[
@@ -387,6 +417,11 @@ const StartScreen = ({ onStart, ranking, islandRanking, flagRanking, colorRankin
           </View>
           <TouchableOpacity
             onPress={() => handleSubmit(selectedMode)}
+            accessibilityRole="button"
+            accessibilityLabel={`${selectedMode === GameMode.STRAWBERRY ? 'いちご' :
+              selectedMode === GameMode.ISLAND ? '島' :
+              selectedMode === GameMode.COLOR ? '色' :
+              '国旗'}モードでゲーム開始`}
             style={[styles.startButton, modeStyles.buttonBg]}
             activeOpacity={0.9}
           >
