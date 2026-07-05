@@ -1,0 +1,11 @@
+name = "strawberry-rankings-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-05"
+
+[vars]
+ALLOWED_ORIGINS = "https://toyo1621.github.io,http://localhost:3000,http://localhost:8081,http://localhost:19006"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "strawberry-rankings"
+database_id = "d0174a55-3491-496b-a9ad-be050121fbb2"

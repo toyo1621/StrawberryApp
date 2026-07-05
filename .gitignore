@@ -1,0 +1,26 @@
+# Expo
+.expo/
+dist/
+web-build/
+.wrangler/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment variables
+.env
+.env.local
+rankings-export.json
+rankings-import.sql
+
+# macOS
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
