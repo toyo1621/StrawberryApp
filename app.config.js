@@ -24,6 +24,9 @@ export default {
     web: {
       bundler: "metro"
     },
+    experiments: {
+      baseUrl: "/StrawberryApp"
+    },
     scheme: "ichigo-tsume-game-2024",
     extra: {
       rankingsApiUrl: process.env.EXPO_PUBLIC_RANKINGS_API_URL
