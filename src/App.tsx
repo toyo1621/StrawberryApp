@@ -3,7 +3,7 @@ import { View, StyleSheet, ActivityIndicator, Text, Image, Animated, Accessibili
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { strawberryJuiceImage } from './assets/images/strawberryJuiceAsset';
-import { GameState, GameMode, RankingsByMode } from './types';
+import { GameState, GameMode, IslandRegion, RankingsByMode } from './types';
 import ErrorBoundary from './components/ErrorBoundary';
 import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';
@@ -46,6 +46,7 @@ const prefetchStrawberryJuiceImage = () => {
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.START);
   const [gameMode, setGameMode] = useState<GameMode>(GameMode.STRAWBERRY);
+  const [islandRegion, setIslandRegion] = useState<IslandRegion>(IslandRegion.ALL);
   const [playerName, setPlayerName] = useState<string>('');
   const [rankingsByMode, setRankingsByMode] = useState<RankingsByMode>(createEmptyRankings);
   const [currentScore, setCurrentScore] = useState<number>(0);
@@ -154,9 +155,10 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
-  const handleGameStart = useCallback((name: string, mode: GameMode) => {
+  const handleGameStart = useCallback((name: string, mode: GameMode, selectedIslandRegion: IslandRegion) => {
     setPlayerName(name);
     setGameMode(mode);
+    setIslandRegion(selectedIslandRegion);
     setCurrentScore(0);
     setMemoryAnswer('');
     setFirstDistractor('');
@@ -349,7 +351,7 @@ const App: React.FC = () => {
       case GameState.PLAYING:
         return <GameScreen onGameOver={handleGameOver} onMemoryGame={handleMemoryGame} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onShowJuice={handleShowJuice} onBackToHome={handleRestart} />;
       case GameState.ISLAND_PLAYING:
-        return <IslandGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={handleRestart} />;
+        return <IslandGameScreen region={islandRegion} onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={handleRestart} />;
       case GameState.FLAG_PLAYING:
         return <FlagGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={handleRestart} />;
       case GameState.COLOR_PLAYING:
@@ -407,6 +409,7 @@ const App: React.FC = () => {
               onShowMyPage={handleShowMyPage}
               savedPlayerName={playerName}
               initialMode={gameMode}
+              initialIslandRegion={islandRegion}
               error={error}
               onDismissError={() => setError(null)}
               notice={notice}
