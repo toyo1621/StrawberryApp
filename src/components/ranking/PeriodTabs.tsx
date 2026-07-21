@@ -31,6 +31,7 @@ const PeriodTabs: React.FC<PeriodTabsProps> = ({ value, onChange, accent, darkMo
             accessibilityRole="tab"
             accessibilityLabel={`${period.label}ランキング`}
             accessibilityState={{ selected }}
+            aria-selected={selected}
             onPress={() => onChange(period.value)}
             style={[
               styles.tab,

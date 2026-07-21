@@ -24,13 +24,14 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({ value, onChange, darkMode =
       {GAME_MODE_ORDER.map((mode) => {
         const config = GAME_MODE_CONFIG[mode];
         const selected = value === mode;
-        const accent = darkMode ? config.accentDark : config.accent;
+        const accent = config.accent;
         return (
           <TouchableOpacity
             key={mode}
             accessibilityRole="button"
             accessibilityLabel={`${config.shortLabel}モードを選択`}
             accessibilityState={{ selected }}
+            aria-pressed={selected}
             onPress={() => onChange(mode)}
             style={[
               styles.button,

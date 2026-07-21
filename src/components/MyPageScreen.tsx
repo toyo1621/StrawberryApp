@@ -25,6 +25,7 @@ type MyPageScreenProps = {
   onShowSettings?: () => void;
   onShowPrivacyPolicy?: () => void;
   onShowTermsOfService?: () => void;
+  onDeleteData: () => Promise<number>;
   darkMode?: boolean;
 };
 
@@ -48,6 +49,7 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
   onShowSettings,
   onShowPrivacyPolicy,
   onShowTermsOfService,
+  onDeleteData,
   darkMode = false,
 }) => {
   const [name, setName] = useState('');
@@ -57,6 +59,8 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
   const [scoreHistory, setScoreHistory] = useState<RankingEntry[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [isDeletingData, setIsDeletingData] = useState(false);
   const theme = getTheme(darkMode);
   const historyConfig = GAME_MODE_CONFIG[historyMode];
   const accent = darkMode ? historyConfig.accentDark : historyConfig.accent;
@@ -121,6 +125,23 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
     }
   };
 
+  const handleDeleteData = async () => {
+    setIsDeletingData(true);
+    setMessage(null);
+    try {
+      await onDeleteData();
+    } catch (error) {
+      console.error('Failed to delete player data:', error);
+      setMessage({
+        text: 'データを削除できませんでした。通信状態を確認して、もう一度お試しください。',
+        tone: 'error',
+      });
+      setShowDeleteConfirmation(false);
+    } finally {
+      setIsDeletingData(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.loadingScreen, { backgroundColor: theme.background }]}>
@@ -144,7 +165,7 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
       showsVerticalScrollIndicator={false}
     >
       <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>マイページ</Text>
+        <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: theme.text }]}>マイページ</Text>
 
         {message && (
           <StatusBanner
@@ -156,7 +177,7 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
         )}
 
         <View style={styles.section}>
-          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.text }]}>プレイヤー名</Text>
+          <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>プレイヤー名</Text>
           <TextInput
             value={name}
             onChangeText={setName}
@@ -177,14 +198,56 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
             accessibilityRole="button"
             accessibilityLabel="プレイヤー名を保存"
             onPress={handleSave}
-            style={[styles.primaryButton, { backgroundColor: theme.focus }]}
+            style={[styles.primaryButton, { backgroundColor: theme.action }]}
           >
             <Text style={styles.primaryButtonText}>名前を保存</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
-          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.text }]}>スコア履歴</Text>
+          <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>データ管理</Text>
+          <Text style={[styles.bodyText, { color: theme.textMuted }]}>
+            この端末から登録した公開スコア、プレイヤー名、設定、保存待ちスコアを削除します。
+          </Text>
+          {showDeleteConfirmation ? (
+            <View accessibilityRole="alert" style={styles.deleteConfirmation}>
+              <Text style={[styles.confirmationText, { color: theme.danger }]}>この操作は元に戻せません。削除しますか？</Text>
+              <View style={styles.confirmationActions}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="データ削除をキャンセル"
+                  disabled={isDeletingData}
+                  onPress={() => setShowDeleteConfirmation(false)}
+                  style={[styles.confirmationButton, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
+                >
+                  <Text style={[styles.outlineButtonText, { color: theme.text }]}>キャンセル</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="すべてのプレイヤーデータを削除"
+                  accessibilityState={{ disabled: isDeletingData }}
+                  disabled={isDeletingData}
+                  onPress={handleDeleteData}
+                  style={[styles.confirmationButton, styles.dangerButton]}
+                >
+                  <Text style={styles.dangerButtonText}>{isDeletingData ? '削除中' : '削除する'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="プレイヤーデータの削除確認を開く"
+              onPress={() => setShowDeleteConfirmation(true)}
+              style={[styles.outlineButton, { borderColor: theme.danger }]}
+            >
+              <Text style={[styles.outlineButtonText, { color: theme.danger }]}>プレイヤーデータを削除</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>スコア履歴</Text>
           <ModeSelector
             value={historyMode}
             onChange={(mode) => {
@@ -232,7 +295,7 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
         </View>
 
         <View style={styles.section}>
-          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.text }]}>サポート</Text>
+          <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>サポート</Text>
           <Text style={[styles.bodyText, { color: theme.textMuted }]}>お問い合わせはGoogleフォームで開きます。</Text>
           <TouchableOpacity
             accessibilityRole="link"
@@ -307,6 +370,25 @@ const styles = StyleSheet.create({
   },
   caption: { fontFamily: MARU_GOTHIC_FONT, fontSize: 13, lineHeight: 18 },
   bodyText: { fontFamily: MARU_GOTHIC_FONT, fontSize: 14, lineHeight: 20 },
+  deleteConfirmation: { width: '100%', gap: 10 },
+  confirmationText: {
+    fontFamily: MARU_GOTHIC_FONT,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: FONT_WEIGHT_BOLD,
+  },
+  confirmationActions: { flexDirection: 'row', gap: 10 },
+  confirmationButton: {
+    flex: 1,
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  dangerButton: { backgroundColor: '#b91c1c', borderColor: '#b91c1c' },
+  dangerButtonText: { color: '#ffffff', fontFamily: MARU_GOTHIC_FONT, fontSize: 14, fontWeight: FONT_WEIGHT_BOLD },
   primaryButton: { minHeight: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#ffffff', fontFamily: MARU_GOTHIC_FONT, fontSize: 15, fontWeight: FONT_WEIGHT_BOLD },
   outlineButton: {

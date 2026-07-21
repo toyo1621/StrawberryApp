@@ -5,7 +5,8 @@ import { COUNTRIES } from '../constants';
 import { Country, GameMode } from '../types';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
 import { countryCodeToFlagEmoji, progressPercent, shuffle } from '../domain/game';
-import { GAMEPLAY_RULES } from '../gameRules';
+import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES, ticksToSeconds } from '../gameRules';
+import { useGameTimer } from '../hooks/useGameTimer';
 
 const RULES = GAMEPLAY_RULES[GameMode.FLAG];
 
@@ -19,18 +20,20 @@ interface FlagGameScreenProps {
 const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
-  const [timeLeft, setTimeLeft] = useState(RULES.initialTimeTicks);
   const [countries, setCountries] = useState<Country[]>([]);
   const [correctCountryIndex, setCorrectCountryIndex] = useState(-1);
   const [targetCountryName, setTargetCountryName] = useState('');
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
-  const [isProcessingClick, setIsProcessingClick] = useState(false);
-  const [gameEnded, setGameEnded] = useState(false);
   const [encouragementMessage, setEncouragementMessage] = useState<string>('');
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const gameEndedRef = useRef(false);
+  const processingClickRef = useRef(false);
+  const handleTimeExpired = useCallback(() => onGameOver(scoreRef.current), [onGameOver]);
+  const { adjustTime, gameEnded, gameEndedRef, timeLeft } = useGameTimer({
+    initialTicks: RULES.initialTimeTicks,
+    maximumDurationTicks: RULES.maxSessionTicks,
+    onExpire: handleTimeExpired,
+  });
 
   // 応援の言葉リスト（国旗モード用）
   const encouragementMessages = [
@@ -61,57 +64,22 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
     setCountries(selectedCountries);
     setCorrectCountryIndex(correctIndex);
     setTargetCountryName(targetCountry.name);
-  }, []);
-
-  const startTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prevTime => {
-        const newTime = prevTime - 1;
-        
-        if (newTime <= 0) {
-          if (!gameEndedRef.current) {
-            gameEndedRef.current = true;
-            setGameEnded(true);
-            
-            if (timerRef.current) {
-              clearInterval(timerRef.current);
-              timerRef.current = null;
-            }
-            
-            setTimeout(() => {
-              onGameOver(scoreRef.current);
-            }, 0);
-          }
-          return 0;
-        }
-        
-        return newTime;
-      });
-    }, 100);
-  }, [onGameOver]);
+  }, [gameEndedRef]);
 
   useEffect(() => {
     generateNewCountries();
-    startTimer();
     
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
       if (feedbackTimeoutRef.current) {
         clearTimeout(feedbackTimeoutRef.current);
       }
     };
-  }, [generateNewCountries, startTimer]);
+  }, [generateNewCountries]);
 
   const handleChoice = (index: number) => {
-    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) {return;}
+    if (feedback || processingClickRef.current || gameEnded || gameEndedRef.current) {return;}
     
-    setIsProcessingClick(true);
+    processingClickRef.current = true;
 
     const isCorrect = index === correctCountryIndex;
 
@@ -121,8 +89,7 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
         scoreRef.current = newScore;
         return newScore;
       });
-      // 時間ボーナス（1秒 = 10 * 0.1秒）
-      setTimeLeft(prevTime => prevTime + RULES.regularTimeBonusTicks);
+      adjustTime(RULES.regularTimeBonusTicks);
       setFeedback({ index, type: 'correct' });
       // 応援メッセージをランダムに選択
       const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
@@ -132,7 +99,7 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } else {
-      setTimeLeft(prevTime => Math.max(0, prevTime - RULES.penaltyTicks));
+      adjustTime(-RULES.penaltyTicks);
       setFeedback({ index, type: 'incorrect' });
       // ハプティックフィードバック（不正解）
       if (hapticsEnabled) {
@@ -142,10 +109,10 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
     
     feedbackTimeoutRef.current = setTimeout(() => {
       if (!gameEndedRef.current) {
-        setIsProcessingClick(false);
+        processingClickRef.current = false;
         generateNewCountries();
       }
-    }, 300);
+    }, ANSWER_FEEDBACK_MS);
   };
 
   const timeBarWidth = progressPercent(timeLeft, RULES.initialTimeTicks);
@@ -209,7 +176,11 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
         </View>
         {/* 応援メッセージ表示（常にスペースを確保） */}
         <View style={styles.encouragementContainer}>
-          {encouragementMessage && feedback && feedback.type === 'correct' ? (
+          {feedback?.type === 'incorrect' ? (
+            <Text accessibilityLiveRegion="assertive" style={[styles.incorrectText, darkMode && styles.incorrectTextDark]}>
+              不正解。残り時間が{ticksToSeconds(RULES.penaltyTicks)}秒減りました。
+            </Text>
+          ) : encouragementMessage && feedback?.type === 'correct' ? (
             <Text accessibilityLiveRegion="polite" style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
               {encouragementMessage}
             </Text>
@@ -349,13 +320,22 @@ const styles = StyleSheet.create({
   encouragementTextDark: {
     color: '#6ee7b7',
   },
+  incorrectText: {
+    color: '#b91c1c',
+    fontFamily: MARU_GOTHIC_FONT,
+    fontSize: 16,
+    fontWeight: FONT_WEIGHT_BOLD,
+  },
+  incorrectTextDark: {
+    color: '#fecaca',
+  },
   encouragementPlaceholder: {
     height: 20, // テキストと同じ高さのプレースホルダー
   },
   homeButton: {
     alignSelf: 'flex-end',
+    minHeight: 44,
     backgroundColor: 'rgba(236, 72, 153, 0.1)',
-    paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 6,
     marginTop: 0,
@@ -363,6 +343,7 @@ const styles = StyleSheet.create({
     marginRight: 0,
     borderWidth: 1,
     borderColor: 'rgba(236, 72, 153, 0.3)',
+    justifyContent: 'center',
   },
   homeButtonDark: {
     backgroundColor: 'rgba(190, 24, 93, 0.2)',
@@ -370,7 +351,7 @@ const styles = StyleSheet.create({
   },
   homeButtonText: {
     color: '#ec4899',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: FONT_WEIGHT_SEMIBOLD,
     fontFamily: MARU_GOTHIC_FONT,
   },

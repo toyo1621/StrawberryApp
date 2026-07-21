@@ -7,38 +7,47 @@ export interface AppSettings {
   hapticsEnabled: boolean;
 }
 
-const DEFAULT_SETTINGS: AppSettings = {
+export const DEFAULT_SETTINGS: AppSettings = {
   darkMode: false,
   hapticsEnabled: true,
 };
 
-// 設定を読み込む
 export const loadSettings = async (): Promise<AppSettings> => {
+  const stored = await AsyncStorage.getItem(SETTINGS_KEY);
+  if (!stored) {
+    return { ...DEFAULT_SETTINGS };
+  }
+
   try {
-    const stored = await AsyncStorage.getItem(SETTINGS_KEY);
-    if (stored) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+    const parsed = JSON.parse(stored) as Partial<AppSettings> | null;
+    if (
+      !parsed
+      || typeof parsed !== 'object'
+      || (parsed.darkMode !== undefined && typeof parsed.darkMode !== 'boolean')
+      || (parsed.hapticsEnabled !== undefined && typeof parsed.hapticsEnabled !== 'boolean')
+    ) {
+      throw new Error('Invalid settings shape.');
     }
-    return DEFAULT_SETTINGS;
+
+    return { ...DEFAULT_SETTINGS, ...parsed };
   } catch (error) {
-    console.error('Failed to load settings:', error);
-    return DEFAULT_SETTINGS;
+    console.warn('Invalid saved settings were reset.', error);
+    await AsyncStorage.removeItem(SETTINGS_KEY);
+    return { ...DEFAULT_SETTINGS };
   }
 };
 
-// 設定を保存する
 export const saveSettings = async (settings: AppSettings): Promise<void> => {
-  try {
-    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  } catch (error) {
-    console.error('Failed to save settings:', error);
-  }
+  await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 };
 
-// 設定を更新する
 export const updateSettings = async (updates: Partial<AppSettings>): Promise<AppSettings> => {
   const currentSettings = await loadSettings();
   const newSettings = { ...currentSettings, ...updates };
   await saveSettings(newSettings);
   return newSettings;
+};
+
+export const clearSettings = async (): Promise<void> => {
+  await AsyncStorage.removeItem(SETTINGS_KEY);
 };

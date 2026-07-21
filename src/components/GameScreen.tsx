@@ -4,7 +4,8 @@ import * as Haptics from 'expo-haptics';
 import { DISTRACTOR_EMOJIS, CHOICE_COUNT, MEMORY_GAME_CHANCE } from '../constants';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
 import { describeEmoji, progressPercent, shuffle } from '../domain/game';
-import { GAMEPLAY_RULES } from '../gameRules';
+import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES, ticksToSeconds } from '../gameRules';
+import { useGameTimer } from '../hooks/useGameTimer';
 import { GameMode } from '../types';
 
 const RULES = GAMEPLAY_RULES[GameMode.STRAWBERRY];
@@ -21,25 +22,34 @@ interface GameScreenProps {
 const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapticsEnabled = true, darkMode = false, onShowJuice, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
-  const [timeLeft, setTimeLeft] = useState(RULES.initialTimeTicks); // 0.1秒単位で管理
-  const [, setConsecutiveCorrect] = useState(0);
+  const consecutiveCorrectRef = useRef(0);
   const [items, setItems] = useState<string[]>([]);
   const [strawberryIndex, setStrawberryIndex] = useState(-1);
   const [isGoldStrawberry, setIsGoldStrawberry] = useState(false);
   const [isWholeCake, setIsWholeCake] = useState(false);
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
-  const [, setAllDistractors] = useState<string[]>([]);
-  const [isProcessingClick, setIsProcessingClick] = useState(false);
-  const [gameEnded, setGameEnded] = useState(false);
-  const [currentDistractor, setCurrentDistractor] = useState<string>('');
   const [encouragementMessage, setEncouragementMessage] = useState<string>('');
   const [showAttackMessage, setShowAttackMessage] = useState(false);
-  // タイマー用のref
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attackMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const gameEndedRef = useRef(false);
+  const distractorHistoryRef = useRef<string[]>([]);
+  const processingClickRef = useRef(false);
   const timeLeftRef = useRef(RULES.initialTimeTicks);
+
+  const handleTimeExpired = useCallback(() => {
+    const finalScore = scoreRef.current;
+    const distractors = distractorHistoryRef.current;
+    if (Math.random() < MEMORY_GAME_CHANCE && distractors.length > 0) {
+      onMemoryGame(finalScore, distractors[distractors.length - 1], distractors[0]);
+      return;
+    }
+    onGameOver(finalScore);
+  }, [onGameOver, onMemoryGame]);
+  const { adjustTime, gameEnded, gameEndedRef, timeLeft } = useGameTimer({
+    initialTicks: RULES.initialTimeTicks,
+    maximumDurationTicks: RULES.maxSessionTicks,
+    onExpire: handleTimeExpired,
+  });
 
   useEffect(() => {
     timeLeftRef.current = timeLeft;
@@ -115,79 +125,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         const distractor = distractors[distractorCursor++];
         newItems[i] = distractor;
         
-        // 現在のディストラクターを記録
-        setCurrentDistractor(distractor);
+        distractorHistoryRef.current.push(distractor);
       }
     }
     
     setStrawberryIndex(newStrawberryIndex);
     setItems(newItems);
-  }, []);
+  }, [gameEndedRef]);
 
-  // ディストラクターを記録するuseEffect
-  useEffect(() => {
-    if (currentDistractor) {
-      setAllDistractors(prev => [...prev, currentDistractor]);
-    }
-  }, [currentDistractor]);
-  // タイマーを開始する関数
-  const startTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prevTime => {
-        const newTime = prevTime - 1; // 0.1秒ずつ減少
-        
-        // 時間が0になったらゲーム終了処理
-        if (newTime <= 0) {
-          if (!gameEndedRef.current) {
-            gameEndedRef.current = true;
-            setGameEnded(true);
-            
-            // タイマーを停止
-            if (timerRef.current) {
-              clearInterval(timerRef.current);
-              timerRef.current = null;
-            }
-            
-            // ゲーム終了処理を非同期で実行
-            setTimeout(() => {
-              const finalScore = scoreRef.current;
-              setAllDistractors(currentDistractors => {
-                if (Math.random() < MEMORY_GAME_CHANCE && currentDistractors.length > 0) {
-                  const firstDistractor = currentDistractors[0];
-                  const lastDistractor = currentDistractors[currentDistractors.length - 1];
-                  setTimeout(() => {
-                    onMemoryGame(finalScore, lastDistractor, firstDistractor);
-                  }, 0);
-                } else {
-                  setTimeout(() => {
-                    onGameOver(finalScore);
-                  }, 0);
-                }
-                return currentDistractors;
-              });
-            }, 0);
-          }
-          return 0;
-        }
-        
-        return newTime;
-      });
-    }, 100);
-  }, [onGameOver, onMemoryGame]);
-
-  // ゲーム開始時にタイマーを開始
   useEffect(() => {
     generateNewItems();
-    startTimer();
     
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
       if (feedbackTimeoutRef.current) {
         clearTimeout(feedbackTimeoutRef.current);
       }
@@ -195,26 +144,25 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         clearTimeout(attackMessageTimeoutRef.current);
       }
     };
-  }, [generateNewItems, startTimer]);
+  }, [generateNewItems]);
 
   const handleChoice = (index: number) => {
     // 重複クリック防止の強化
-    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) {return;}
+    if (feedback || processingClickRef.current || gameEnded || gameEndedRef.current) {return;}
     
-    setIsProcessingClick(true);
+    processingClickRef.current = true;
 
     const isCorrect = index === strawberryIndex;
 
     if (isCorrect) {
       let points: number = RULES.regularPoints;
+      let bonusTicks = 0;
       if (isWholeCake) {
         points = RULES.wholeCake.points;
-        // ホールケーキの時間ボーナス（5秒）
-        setTimeLeft(prevTime => prevTime + RULES.wholeCake.timeBonusTicks);
+        bonusTicks += RULES.wholeCake.timeBonusTicks;
       } else if (isGoldStrawberry) {
         points = RULES.shortCake.points;
-        // ショートケーキの時間ボーナス（2秒）
-        setTimeLeft(prevTime => prevTime + RULES.shortCake.timeBonusTicks);
+        bonusTicks += RULES.shortCake.timeBonusTicks;
       }
       setScore(prevScore => {
         const newScore = prevScore + points;
@@ -222,15 +170,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         return newScore;
       });
       
-      // 連続正解カウントを増やす
-      setConsecutiveCorrect(prev => {
-        const newCount = prev + 1;
-        // 連続正解で時間ボーナス（0.5秒 = 5）
-        if (newCount >= RULES.streak.startsAt) {
-          setTimeLeft(prevTime => prevTime + RULES.streak.timeBonusTicks);
-        }
-        return newCount;
-      });
+      consecutiveCorrectRef.current += 1;
+      if (consecutiveCorrectRef.current >= RULES.streak.startsAt) {
+        bonusTicks += RULES.streak.timeBonusTicks;
+      }
+      if (bonusTicks > 0) {
+        adjustTime(bonusTicks);
+      }
       
       setFeedback({ index, type: 'correct' });
       // 応援メッセージをランダムに選択（フィーバーモード時は「ラストスパート」を含む）
@@ -250,9 +196,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
       }
     } else {
       // 時間を減らす（ペナルティ）
-      setTimeLeft(prevTime => Math.max(0, prevTime - RULES.penaltyTicks));
-      // 連続正解カウントをリセット
-      setConsecutiveCorrect(0);
+      adjustTime(-RULES.penaltyTicks);
+      consecutiveCorrectRef.current = 0;
       setFeedback({ index, type: 'incorrect' });
       // いちご汁を表示（イライラ要素）
       if (onShowJuice) {
@@ -275,10 +220,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
     
     feedbackTimeoutRef.current = setTimeout(() => {
       if (!gameEndedRef.current) {
-        setIsProcessingClick(false);
+        processingClickRef.current = false;
         generateNewItems();
       }
-    }, 300);
+    }, ANSWER_FEEDBACK_MS);
   };
 
   const timeBarWidth = progressPercent(timeLeft, RULES.initialTimeTicks);
@@ -384,7 +329,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
       {showAttackMessage && (
         <View style={styles.attackMessageContainer}>
           <Text accessibilityLiveRegion="assertive" style={[styles.attackMessageText, darkMode && styles.attackMessageTextDark]}>
-            怒ったいちごに攻撃された
+            不正解。残り時間が{ticksToSeconds(RULES.penaltyTicks)}秒減りました。
           </Text>
         </View>
       )}
@@ -575,8 +520,8 @@ const styles = StyleSheet.create({
   },
   homeButton: {
     alignSelf: 'flex-end',
+    minHeight: 44,
     backgroundColor: 'rgba(236, 72, 153, 0.1)',
-    paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 6,
     marginTop: 0,
@@ -584,6 +529,7 @@ const styles = StyleSheet.create({
     marginRight: 0,
     borderWidth: 1,
     borderColor: 'rgba(236, 72, 153, 0.3)',
+    justifyContent: 'center',
   },
   homeButtonDark: {
     backgroundColor: 'rgba(190, 24, 93, 0.2)',
@@ -591,7 +537,7 @@ const styles = StyleSheet.create({
   },
   homeButtonText: {
     color: '#ec4899',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: FONT_WEIGHT_SEMIBOLD,
     fontFamily: MARU_GOTHIC_FONT,
   },

@@ -2,8 +2,8 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 const buildDir = path.resolve('web-build');
-const MAX_JS_BYTES = 900 * 1024;
-const MAX_TOTAL_BYTES = 5 * 1024 * 1024;
+const MAX_JS_BYTES = 800 * 1024;
+const MAX_TOTAL_BYTES = 2 * 1024 * 1024;
 const PRODUCTION_BASE_PATH = '/StrawberryApp/';
 
 const walk = async (directory) => {

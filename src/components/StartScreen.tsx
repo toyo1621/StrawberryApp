@@ -11,7 +11,7 @@ import { FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD, MARU_GOTHIC_FONT } from '../con
 import { normalizePlayerName } from '../domain/rankings';
 import { GAME_MODE_CONFIG } from '../gameConfig';
 import { savePlayerName } from '../services/playerService';
-import { fetchRankingsForMode } from '../services/rankingService';
+import { fetchRankingsForModeWithStatus } from '../services/rankingService';
 import { getTheme } from '../theme';
 import { GameMode, RankingEntry, RankingPeriod, RankingsByMode } from '../types';
 import ModeSelector from './game/ModeSelector';
@@ -58,6 +58,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
   const theme = getTheme(darkMode);
   const config = GAME_MODE_CONFIG[selectedMode];
   const accent = darkMode ? config.accentDark : config.accent;
+  const actionAccent = config.accent;
 
   useEffect(() => {
     if (savedPlayerName) {
@@ -78,10 +79,13 @@ const StartScreen: React.FC<StartScreenProps> = ({
 
     setIsLoadingPeriod(true);
     setPeriodError('');
-    fetchRankingsForMode(selectedMode, selectedPeriod)
-      .then((entries) => {
+    fetchRankingsForModeWithStatus(selectedMode, selectedPeriod)
+      .then((result) => {
         if (active) {
-          setPeriodRanking(entries);
+          setPeriodRanking(result.entries);
+          if (result.stale) {
+            setPeriodError('通信できないため端末に保存したランキングを表示しています。');
+          }
         }
       })
       .catch(() => {
@@ -122,8 +126,12 @@ const StartScreen: React.FC<StartScreenProps> = ({
     }
 
     setInputError('');
-    await savePlayerName(normalizedName).catch(() => undefined);
-    onStart(normalizedName, selectedMode);
+    try {
+      await savePlayerName(normalizedName);
+      onStart(normalizedName, selectedMode);
+    } catch {
+      setInputError('プレイヤー名を端末に保存できませんでした。空き容量とブラウザ設定を確認してください。');
+    }
   };
 
   return (
@@ -136,7 +144,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
       <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.header}>
           <Text accessible={false} style={styles.heroEmoji}>{config.emoji}</Text>
-          <Text accessibilityRole="header" style={[styles.title, { color: accent }]}>{config.title}</Text>
+          <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: accent }]}>{config.title}</Text>
           <Text style={[styles.description, { color: theme.textMuted }]}>{config.description}</Text>
         </View>
 
@@ -164,7 +172,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
         <View style={styles.rankingSection}>
           <View style={styles.sectionHeader}>
             <View>
-              <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.text }]}>ランキング</Text>
+              <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>ランキング</Text>
               <Text style={[styles.sectionCaption, { color: theme.textMuted }]}>{config.shortLabel}モード</Text>
             </View>
             <Text style={[styles.rankingMark, { color: accent }]}>{config.rankingTitle}</Text>
@@ -172,7 +180,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
           <PeriodTabs
             value={selectedPeriod}
             onChange={setSelectedPeriod}
-            accent={accent}
+            accent={actionAccent}
             darkMode={darkMode}
           />
           <RankingList
@@ -224,7 +232,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
             accessibilityRole="button"
             accessibilityLabel={`${config.shortLabel}モードでゲームを開始`}
             onPress={handleSubmit}
-            style={[styles.startButton, { backgroundColor: accent }]}
+            style={[styles.startButton, { backgroundColor: actionAccent }]}
           >
             <Text style={styles.startButtonText}>ゲーム開始</Text>
           </TouchableOpacity>
