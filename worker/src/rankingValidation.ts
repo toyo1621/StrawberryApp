@@ -19,6 +19,7 @@ type GameScoreProfile = {
 const DEFAULT_GAME_TYPE: GameType = 'strawberry_rush';
 const MAX_PLAYER_NAME_LENGTH = 12;
 const CONTROL_OR_MARKUP_PATTERN = /[\u0000-\u001f\u007f<>]/;
+const SUBMISSION_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/;
 
 const GAME_TYPE_SET = new Set<string>(GAME_TYPES);
 const PERIOD_SET = new Set<string>(PERIODS);
@@ -52,6 +53,7 @@ export class ValidationError extends Error {
 }
 
 export type RawScoreSubmission = {
+  submissionId?: unknown;
   playerName?: unknown;
   score?: unknown;
   gameType?: unknown;
@@ -59,10 +61,11 @@ export type RawScoreSubmission = {
 };
 
 export type ScoreSubmission = {
+  submissionId: string;
   playerName: string;
   score: number;
   gameType: GameType;
-  durationMs?: number;
+  durationMs: number;
 };
 
 export const normalizePlayerName = (value: unknown): string => {
@@ -95,10 +98,19 @@ export const parseRankingPeriod = (value: string | null): RankingPeriod => {
 };
 
 export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreSubmission => {
+  const submissionId = body?.submissionId;
   const playerName = normalizePlayerName(body?.playerName);
-  const score = typeof body?.score === 'number' ? body.score : Number(body?.score);
+  const score = body?.score;
   const gameType = parseGameType(body?.gameType);
-  const durationMs = typeof body?.durationMs === 'number' ? body.durationMs : Number(body?.durationMs);
+  const durationMs = body?.durationMs;
+
+  if (typeof submissionId !== 'string' || !SUBMISSION_ID_PATTERN.test(submissionId)) {
+    throw new ValidationError(400, 'A valid submission ID is required.');
+  }
+
+  if (typeof body?.gameType !== 'string') {
+    throw new ValidationError(400, 'Game type is required.');
+  }
 
   if (!playerName) {
     throw new ValidationError(400, 'Player name is required.');
@@ -112,7 +124,7 @@ export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreS
     throw new ValidationError(400, 'Player name contains unsupported characters.');
   }
 
-  if (!Number.isInteger(score) || score < 0) {
+  if (typeof score !== 'number' || !Number.isInteger(score) || score < 0) {
     throw new ValidationError(400, 'Score must be a non-negative integer.');
   }
 
@@ -121,27 +133,28 @@ export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreS
     throw new ValidationError(400, 'Score is outside the accepted range for this game.');
   }
 
-  if (Number.isFinite(durationMs)) {
-    if (!Number.isInteger(durationMs) || durationMs < 1000 || durationMs > 10 * 60 * 1000) {
-      throw new ValidationError(400, 'Game duration is outside the accepted range.');
-    }
+  if (typeof durationMs !== 'number' || !Number.isInteger(durationMs) || durationMs < 1_000 || durationMs > 10 * 60 * 1000) {
+    throw new ValidationError(400, 'Game duration is outside the accepted range.');
+  }
 
-    const maxScoreForDuration = Math.ceil((durationMs / 1000) * profile.maxScorePerSecond);
-    if (score > maxScoreForDuration) {
-      throw new ValidationError(400, 'Score is too high for the reported game duration.');
-    }
-
-    return {
-      playerName,
-      score,
-      gameType,
-      durationMs,
-    };
+  const maxScoreForDuration = Math.ceil((durationMs / 1000) * profile.maxScorePerSecond);
+  if (score > maxScoreForDuration) {
+    throw new ValidationError(400, 'Score is too high for the reported game duration.');
   }
 
   return {
+    submissionId,
     playerName,
     score,
     gameType,
+    durationMs,
   };
+};
+
+export const validatePlayerName = (value: unknown): string => {
+  const playerName = normalizePlayerName(value);
+  if (!playerName || playerName.length > MAX_PLAYER_NAME_LENGTH || CONTROL_OR_MARKUP_PATTERN.test(playerName)) {
+    throw new ValidationError(400, 'Invalid player name.');
+  }
+  return playerName;
 };

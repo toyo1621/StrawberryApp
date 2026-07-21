@@ -1,0 +1,31 @@
+name: Monitor Production
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-monitor
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check web app
+        run: node scripts/smoke-web.mjs
+        env:
+          WEB_URL: https://toyo1621.github.io/StrawberryApp
+
+      - name: Check rankings API and database
+        run: node scripts/smoke-rankings-api.mjs
+        env:
+          EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev

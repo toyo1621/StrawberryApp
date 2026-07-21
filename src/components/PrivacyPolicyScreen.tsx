@@ -1,195 +1,70 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
+import InfoScreen, { InfoSection } from './info/InfoScreen';
 
-interface PrivacyPolicyScreenProps {
+type PrivacyPolicyScreenProps = {
   onBack: () => void;
-}
-
-const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({ onBack }) => {
-  return (
-    <ScrollView 
-      style={styles.scrollView} 
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>プライバシーポリシー</Text>
-        </View>
-
-        <View style={styles.content}>
-          <Text style={styles.lastUpdated}>最終更新日: 2024年8月15日</Text>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>1. 収集する情報</Text>
-            <Text style={styles.sectionText}>
-              本アプリでは、以下の情報を収集・保存します：
-            </Text>
-            <Text style={styles.bulletPoint}>
-              • プレイヤー名（ユーザーが入力した名前）
-            </Text>
-            <Text style={styles.bulletPoint}>
-              • ゲームスコア（各ゲームモードでの最高スコア）
-            </Text>
-            <Text style={styles.bulletPoint}>
-              • スコア記録日時
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>2. 情報の利用目的</Text>
-            <Text style={styles.sectionText}>
-              収集した情報は、以下の目的でのみ使用されます：
-            </Text>
-            <Text style={styles.bulletPoint}>
-              • ランキング機能の提供
-            </Text>
-            <Text style={styles.bulletPoint}>
-              • ゲーム体験の向上
-            </Text>
-            <Text style={styles.bulletPoint}>
-              • アプリの改善・開発
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>3. データの保存・管理</Text>
-            <Text style={styles.sectionText}>
-              スコアデータはCloudflare D1（クラウドデータベースサービス）に保存されます。
-              データは適切なセキュリティ対策の下で管理されています。
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>4. 第三者への提供</Text>
-            <Text style={styles.sectionText}>
-              本アプリは、ユーザーの個人情報を第三者に提供することはありません。
-              ただし、法令に基づく要請がある場合を除きます。
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>5. データの削除</Text>
-            <Text style={styles.sectionText}>
-              ランキングから自分のデータを削除したい場合は、
-              開発者へのお問い合わせからご連絡ください。
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>6. お問い合わせ</Text>
-            <Text style={styles.sectionText}>
-              プライバシーポリシーに関するご質問やご意見は、
-              開発者へのお問い合わせからご連絡ください。
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.backButtonContainer}>
-          <TouchableOpacity
-            onPress={onBack}
-            style={styles.backButton}
-          >
-            <Text style={styles.backButtonText}>戻る</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
-  );
+  darkMode?: boolean;
 };
 
-const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
+const sections: InfoSection[] = [
+  {
+    title: '1. 収集・保存する情報',
+    paragraphs: ['ランキングへスコアを送信した場合、次の情報を取り扱います。'],
+    bullets: [
+      '入力したプレイヤー名、スコア、ゲームモード、プレイ時間、送信日時、重複送信を防ぐ投稿ID',
+      '不正な連続投稿を抑止するため、IPアドレスとブラウザ情報を秘密値と組み合わせて一方向変換した識別ハッシュ',
+      '端末内に保存するプレイヤー名、設定、ランキングキャッシュ、未送信スコア',
+    ],
   },
-  scrollContent: {
-    padding: 16,
-    paddingVertical: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexGrow: 1,
-    minHeight: '100%',
+  {
+    title: '2. 利用目的',
+    bullets: [
+      'モード別・期間別ランキングとスコア履歴の提供',
+      'オフライン時のプレイ結果をオンライン復帰後に再送するため',
+      '重複投稿、機械的な連続投稿、明らかに不正なスコアを抑止するため',
+      '障害の調査とサービスの安定運用のため',
+    ],
   },
-  container: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    padding: 24,
-    width: '100%',
-    maxWidth: 448,
+  {
+    title: '3. 公開範囲',
+    paragraphs: [
+      'プレイヤー名、スコア、ゲームモード、記録日時はランキングAPIから公開されます。氏名や連絡先など、公開したくない情報をプレイヤー名に入力しないでください。',
+    ],
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
+  {
+    title: '4. 保存先と保持期間',
+    paragraphs: [
+      'ランキングはCloudflare WorkersおよびCloudflare D1で処理・保存します。ランキング記録はサービス提供中または削除依頼へ対応するまで保持します。連続投稿対策の識別ハッシュは最大15分で削除します。端末内データはブラウザまたはアプリのデータを消去すると削除されます。',
+    ],
   },
-  title: {
-    fontSize: 28,
-    fontWeight: FONT_WEIGHT_BOLD,
-    color: '#ec4899',
-    marginBottom: 8,
-    fontFamily: MARU_GOTHIC_FONT,
+  {
+    title: '5. 外部サービス',
+    paragraphs: [
+      'インフラ提供者としてCloudflareを利用します。お問い合わせを選ぶとGoogleフォームが外部ブラウザで開き、その先ではGoogleのプライバシーポリシーが適用されます。本アプリには広告SDKや行動分析SDKを組み込んでいません。',
+    ],
   },
-  content: {
-    marginBottom: 24,
+  {
+    title: '6. データの削除',
+    paragraphs: [
+      'ランキング記録の削除を希望する場合は、マイページのお問い合わせフォームから、対象のプレイヤー名、ゲームモード、記録時期をお知らせください。第三者の記録を誤って削除しないため、追加確認をお願いする場合があります。',
+    ],
   },
-  lastUpdated: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginBottom: 24,
-    textAlign: 'center',
-    fontFamily: MARU_GOTHIC_FONT,
+  {
+    title: '7. セキュリティとお問い合わせ',
+    paragraphs: [
+      '通信はHTTPSを使用し、送信元、入力値、投稿頻度をサーバー側で検証します。本ポリシーに関する連絡はマイページのお問い合わせフォームをご利用ください。',
+    ],
   },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: FONT_WEIGHT_BOLD,
-    color: '#1f2937',
-    marginBottom: 12,
-    fontFamily: MARU_GOTHIC_FONT,
-  },
-  sectionText: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 22,
-    marginBottom: 8,
-    fontFamily: MARU_GOTHIC_FONT,
-  },
-  bulletPoint: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 22,
-    marginBottom: 4,
-    marginLeft: 8,
-    fontFamily: MARU_GOTHIC_FONT,
-  },
-  backButtonContainer: {
-    marginTop: 24,
-    alignItems: 'center',
-  },
-  backButton: {
-    backgroundColor: '#ec4899',
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  backButtonText: {
-    color: '#ffffff',
-    fontWeight: FONT_WEIGHT_BOLD,
-    fontSize: 18,
-    fontFamily: MARU_GOTHIC_FONT,
-  },
-});
+];
+
+const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({ onBack, darkMode = false }) => (
+  <InfoScreen
+    title="プライバシーポリシー"
+    updatedAt="2026年7月21日"
+    sections={sections}
+    onBack={onBack}
+    darkMode={darkMode}
+  />
+);
 
 export default PrivacyPolicyScreen;
