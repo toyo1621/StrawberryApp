@@ -11,7 +11,7 @@
 5. Expo Doctor 18項目、iOS/Android本番Metroバンドル
 6. Desktop ChromeとPixel 7相当のPlaywright E2E
 7. axe WCAG A/AA、ライト/ダーク、見出し、ARIA状態、live region、44px操作領域
-8. Web本番ビルド、800 KiB/JS・2 MiB/全体の静的予算、Worker dry-run
+8. Web本番ビルド、950 KiB/JS・12 MiB/島SVG・14 MiB/全体の静的予算、415 SVG完全性、Worker dry-run
 
 失敗時のPlaywright trace、スクリーンショット、HTML reportは7日間だけCI artifactへ保存します。
 

@@ -21,6 +21,19 @@ export enum GameMode {
   COLOR = 'color',
 }
 
+export enum IslandRegion {
+  ALL = 'all',
+  HOKKAIDO_TOHOKU = 'hokkaido_tohoku',
+  KANTO = 'kanto',
+  CHUBU_KINKI = 'chubu_kinki',
+  CHUGOKU = 'chugoku',
+  SHIKOKU = 'shikoku',
+  KYUSHU = 'kyushu',
+  OKINAWA = 'okinawa',
+}
+
+export type IslandRegionGroup = Exclude<IslandRegion, IslandRegion.ALL>;
+
 export enum RankingPeriod {
   ALL = 'all',
   DAILY = 'daily',
@@ -47,7 +60,9 @@ export interface Island {
   id: string;
   name: string;
   file: string;
-  prefecture?: string;
+  prefecture: string;
+  municipality: string;
+  region: IslandRegionGroup;
 }
 
 export interface Country {

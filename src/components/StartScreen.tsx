@@ -13,20 +13,22 @@ import { GAME_MODE_CONFIG } from '../gameConfig';
 import { savePlayerName } from '../services/playerService';
 import { fetchRankingsForModeWithStatus } from '../services/rankingService';
 import { getTheme } from '../theme';
-import { GameMode, RankingEntry, RankingPeriod, RankingsByMode } from '../types';
+import { GameMode, IslandRegion, RankingEntry, RankingPeriod, RankingsByMode } from '../types';
+import IslandRegionSelector from './game/IslandRegionSelector';
 import ModeSelector from './game/ModeSelector';
 import PeriodTabs from './ranking/PeriodTabs';
 import RankingList from './ranking/RankingList';
 import StatusBanner from './ui/StatusBanner';
 
 type StartScreenProps = {
-  onStart: (name: string, mode: GameMode) => void;
+  onStart: (name: string, mode: GameMode, islandRegion: IslandRegion) => void;
   rankings: RankingsByMode;
   isLoading?: boolean;
   onShowRules: () => void;
   onShowMyPage: () => void;
   savedPlayerName?: string;
   initialMode?: GameMode;
+  initialIslandRegion?: IslandRegion;
   error?: string | null;
   onDismissError?: () => void;
   notice?: string | null;
@@ -42,6 +44,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
   onShowMyPage,
   savedPlayerName = '',
   initialMode = GameMode.STRAWBERRY,
+  initialIslandRegion = IslandRegion.ALL,
   error,
   onDismissError,
   notice,
@@ -51,6 +54,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
   const [name, setName] = useState(savedPlayerName);
   const [inputError, setInputError] = useState('');
   const [selectedMode, setSelectedMode] = useState(initialMode);
+  const [selectedIslandRegion, setSelectedIslandRegion] = useState(initialIslandRegion);
   const [selectedPeriod, setSelectedPeriod] = useState(RankingPeriod.ALL);
   const [periodRanking, setPeriodRanking] = useState<RankingEntry[]>([]);
   const [periodError, setPeriodError] = useState('');
@@ -128,7 +132,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
     setInputError('');
     try {
       await savePlayerName(normalizedName);
-      onStart(normalizedName, selectedMode);
+      onStart(normalizedName, selectedMode, selectedIslandRegion);
     } catch {
       setInputError('プレイヤー名を端末に保存できませんでした。空き容量とブラウザ設定を確認してください。');
     }
@@ -149,6 +153,14 @@ const StartScreen: React.FC<StartScreenProps> = ({
         </View>
 
         <ModeSelector value={selectedMode} onChange={setSelectedMode} darkMode={darkMode} />
+
+        {selectedMode === GameMode.ISLAND && (
+          <IslandRegionSelector
+            value={selectedIslandRegion}
+            onChange={setSelectedIslandRegion}
+            darkMode={darkMode}
+          />
+        )}
 
         <View style={styles.actionRow}>
           <TouchableOpacity

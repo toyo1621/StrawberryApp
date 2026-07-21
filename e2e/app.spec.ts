@@ -72,6 +72,46 @@ test('a player can start and answer every mode without page errors or external f
   expect(pageErrors).toEqual([]);
 });
 
+test('island mode filters all 415 islands by the selected area', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '島モードを選択' }).click();
+
+  const nationwide = page.getByRole('button', { name: '日本全国を出題エリアに選択、415島' });
+  const chugoku = page.getByRole('button', { name: '中国を出題エリアに選択、89島' });
+  const shikoku = page.getByRole('button', { name: '四国を出題エリアに選択、72島' });
+  const okinawa = page.getByRole('button', { name: '沖縄を出題エリアに選択、46島' });
+  await expect(nationwide).toHaveAttribute('aria-pressed', 'true');
+  await expect(chugoku).toHaveAttribute('aria-pressed', 'false');
+  await expect(shikoku).toHaveAttribute('aria-pressed', 'false');
+  await expect(okinawa).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(
+    () => performance.getEntriesByType('resource').filter((entry) => entry.name.includes('.svg')).length,
+  )).toBe(0);
+
+  await okinawa.click();
+  await expect(okinawa).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('プレイヤー名').fill('島地域テスト');
+  await page.getByRole('button', { name: '島モードでゲームを開始' }).click();
+
+  await expect(page.getByText('沖縄・46島')).toBeVisible();
+  await expect(page.getByText(/（沖縄県）/)).toBeVisible();
+  const choices = page.getByRole('button', { name: /選択肢[12]、/ });
+  await expect(choices).toHaveCount(2);
+  for (const choice of await choices.all()) {
+    const image = choice.locator('img');
+    await expect(image).toHaveCount(1);
+    await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+  }
+  expect(await page.evaluate(
+    () => performance.getEntriesByType('resource').filter((entry) => entry.name.includes('.svg')).length,
+  )).toBe(2);
+
+  const hasHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(hasHorizontalOverflow).toBe(false);
+});
+
 test('settings and all-mode score history are reachable', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('プレイヤー名').fill('設定テスト');
