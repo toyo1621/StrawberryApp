@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(190, 24, 93, 0.4)',
   },
   homeButtonText: {
-    color: '#ec4899',
+    color: '#be185d',
     fontSize: 14,
     fontWeight: FONT_WEIGHT_SEMIBOLD,
     fontFamily: MARU_GOTHIC_FONT,

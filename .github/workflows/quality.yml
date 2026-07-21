@@ -17,7 +17,6 @@ jobs:
     timeout-minutes: 25
     env:
       CI: true
-      EXPO_PUBLIC_RANKINGS_API_URL: ${{ vars.EXPO_PUBLIC_RANKINGS_API_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -48,6 +47,8 @@ jobs:
 
       - name: Build production web app
         run: npm run build:web
+        env:
+          EXPO_PUBLIC_RANKINGS_API_URL: ${{ vars.EXPO_PUBLIC_RANKINGS_API_URL }}
 
       - name: Enforce web build budgets
         run: npm run check:web-build

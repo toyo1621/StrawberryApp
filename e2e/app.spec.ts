@@ -2,8 +2,18 @@ import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 test('home and policy screens have no detectable accessibility violations', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('strawberry_game_rankings', JSON.stringify([{
+      id: 'e2e-ranking-entry',
+      playerName: 'ランキングテスト',
+      score: 12,
+      gameType: 'strawberry_rush',
+      createdAt: '2026-07-20T00:00:00.000Z',
+    }]));
+  });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'いちごつめ！' })).toBeVisible();
+  await expect(page.getByText('ランキングテスト')).toBeVisible();
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
   await expect(page.getByRole('main')).toBeVisible();

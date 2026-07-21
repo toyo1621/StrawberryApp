@@ -388,7 +388,7 @@ const App: React.FC = () => {
             {isSavingScore && (
               <View style={styles.savingOverlay}>
                 <View style={styles.savingContainer}>
-                  <ActivityIndicator size="large" color="#be185d" />
+                  <ActivityIndicator accessibilityLabel="スコアを保存中" size="large" color="#be185d" />
                   <Text accessibilityLiveRegion="polite" style={styles.savingText}>スコアを保存中...</Text>
                 </View>
               </View>
@@ -416,7 +416,7 @@ const App: React.FC = () => {
             {isSavingScore && (
               <View style={styles.savingOverlay}>
                 <View style={styles.savingContainer}>
-                  <ActivityIndicator size="large" color="#be185d" />
+                  <ActivityIndicator accessibilityLabel="スコアを保存中" size="large" color="#be185d" />
                   <Text accessibilityLiveRegion="polite" style={styles.savingText}>スコアを保存中...</Text>
                 </View>
               </View>

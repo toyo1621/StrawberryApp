@@ -145,7 +145,7 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
   if (isLoading) {
     return (
       <View style={[styles.loadingScreen, { backgroundColor: theme.background }]}>
-        <ActivityIndicator color={theme.focus} />
+        <ActivityIndicator accessibilityLabel="マイページを読み込み中" color={theme.focus} />
         <Text accessibilityLiveRegion="polite" style={[styles.loadingText, { color: theme.textMuted }]}>読み込み中</Text>
       </View>
     );
