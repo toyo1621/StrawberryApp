@@ -9,8 +9,11 @@ const fetchWithRetry = async (path, attempts = 4) => {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const response = await fetch(`${apiUrl}${path}`, {
-        headers: { accept: 'application/json' },
+      const separator = path.includes('?') ? '&' : '?';
+      const smokePath = `${path}${separator}_smoke=${Date.now()}-${attempt}`;
+      const response = await fetch(`${apiUrl}${smokePath}`, {
+        cache: 'no-store',
+        headers: { accept: 'application/json', 'cache-control': 'no-cache' },
         signal: AbortSignal.timeout(8_000),
       });
       if (!response.ok) {
