@@ -123,7 +123,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
     const isCorrect = index === correctIslandIndex;
 
     if (isCorrect) {
-      let points = RULES.regularPoints;
+      let points: number = RULES.regularPoints;
       // 時間ボーナス（0.3秒 = 3 * 0.1秒）
       setTimeLeft(prevTime => prevTime + RULES.regularTimeBonusTicks);
       

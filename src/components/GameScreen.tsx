@@ -206,7 +206,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
     const isCorrect = index === strawberryIndex;
 
     if (isCorrect) {
-      let points = RULES.regularPoints;
+      let points: number = RULES.regularPoints;
       if (isWholeCake) {
         points = RULES.wholeCake.points;
         // ホールケーキの時間ボーナス（5秒）
