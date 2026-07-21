@@ -18,7 +18,14 @@ export enum GameMode {
   STRAWBERRY = 'strawberry',
   ISLAND = 'island',
   FLAG = 'flag',
-  COLOR = 'color'
+  COLOR = 'color',
+}
+
+export enum RankingPeriod {
+  ALL = 'all',
+  DAILY = 'daily',
+  WEEKLY = 'weekly',
+  MONTHLY = 'monthly',
 }
 
 export interface RankingEntry {
@@ -28,6 +35,8 @@ export interface RankingEntry {
   gameType: string;
   createdAt: string;
 }
+
+export type RankingsByMode = Record<GameMode, RankingEntry[]>;
 
 export interface MemoryGameData {
   lastNonStrawberryFruit: string;

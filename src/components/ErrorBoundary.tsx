@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
+import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD } from '../constants/fonts';
 
 interface Props {
   children: ReactNode;
@@ -42,9 +42,9 @@ class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
-          <View style={styles.errorContainer}>
+          <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.errorContainer}>
             <Text style={styles.emoji}>😅</Text>
-            <Text style={styles.title}>エラーが発生しました</Text>
+            <Text accessibilityRole="header" style={styles.title}>エラーが発生しました</Text>
             <Text style={styles.message}>
               アプリで予期しないエラーが発生しました。
               {'\n'}
@@ -57,6 +57,8 @@ class ErrorBoundary extends Component<Props, State> {
               </View>
             )}
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="画面を再読み込みしてもう一度試す"
               style={styles.resetButton}
               onPress={this.handleReset}
             >
@@ -81,7 +83,7 @@ const styles = StyleSheet.create({
   },
   errorContainer: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 32,
     alignItems: 'center',
     shadowColor: '#000',

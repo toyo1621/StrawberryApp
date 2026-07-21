@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Image, Animated } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Image, Animated, AccessibilityInfo } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { strawberryJuiceImage } from './assets/images/strawberryJuiceAsset';
-import { GameState, RankingEntry, GameMode } from './types';
+import { GameState, GameMode, RankingsByMode } from './types';
 import ErrorBoundary from './components/ErrorBoundary';
 import StartScreen from './components/StartScreen';
 import GameScreen from './components/GameScreen';
@@ -18,9 +18,15 @@ import MyPageScreen from './components/MyPageScreen';
 import PrivacyPolicyScreen from './components/PrivacyPolicyScreen';
 import TermsOfServiceScreen from './components/TermsOfServiceScreen';
 import SettingsScreen from './components/SettingsScreen';
-import { fetchRankings, saveScore, fetchIslandRankings, saveIslandScore, fetchFlagRankings, saveFlagScore, fetchColorRankings, saveColorScore } from './services/rankingService';
+import {
+  fetchAllRankings,
+  fetchRankingsForMode,
+  saveScoreForMode,
+  syncPendingScores,
+} from './services/rankingService';
 import { loadPlayerName } from './services/playerService';
 import { loadSettings, AppSettings } from './services/settingsService';
+import { createEmptyRankings } from './gameConfig';
 
 const prefetchStrawberryJuiceImage = () => {
   try {
@@ -30,15 +36,9 @@ const prefetchStrawberryJuiceImage = () => {
       return;
     }
 
-    Image.prefetch(assetSource.uri)
-      .then(() => {
-        console.log('いちご汁画像のプリロード完了');
-      })
-      .catch((error) => {
-        console.error('いちご汁画像のプリロードエラー:', error);
-      });
+    Image.prefetch(assetSource.uri).catch(() => undefined);
   } catch (error) {
-    console.error('いちご汁画像のプリロードエラー:', error);
+    console.warn('Failed to preload the strawberry effect image.', error);
   }
 };
 
@@ -46,15 +46,13 @@ const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.START);
   const [gameMode, setGameMode] = useState<GameMode>(GameMode.STRAWBERRY);
   const [playerName, setPlayerName] = useState<string>('');
-  const [ranking, setRanking] = useState<RankingEntry[]>([]);
-  const [islandRanking, setIslandRanking] = useState<RankingEntry[]>([]);
-  const [flagRanking, setFlagRanking] = useState<RankingEntry[]>([]);
-  const [colorRanking, setColorRanking] = useState<RankingEntry[]>([]);
+  const [rankingsByMode, setRankingsByMode] = useState<RankingsByMode>(createEmptyRankings);
   const [currentScore, setCurrentScore] = useState<number>(0);
   const [memoryAnswer, setMemoryAnswer] = useState<string>('');
   const [firstDistractor, setFirstDistractor] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [isSavingScore, setIsSavingScore] = useState<boolean>(false);
   const [settings, setSettings] = useState<AppSettings>({
     darkMode: false,
@@ -64,6 +62,18 @@ const App: React.FC = () => {
   const juiceScale = useRef(new Animated.Value(0)).current;
   const juiceOpacity = useRef(new Animated.Value(0)).current;
   const gameStartedAtRef = useRef<number | null>(null);
+  const gameplayDurationMsRef = useRef<number | null>(null);
+  const reduceMotionRef = useRef(false);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      reduceMotionRef.current = enabled;
+    });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
+      reduceMotionRef.current = enabled;
+    });
+    return () => subscription.remove();
+  }, []);
 
   // ランキングとプレイヤー名、設定を読み込み
   useEffect(() => {
@@ -74,23 +84,26 @@ const App: React.FC = () => {
         // いちご汁画像をプリロード
         prefetchStrawberryJuiceImage();
 
-        // loadPlayerNameとloadSettingsを一時的にコメントアウト
-        const [strawberryRankings, islandRankings, flagRankings, colorRankings, savedName, appSettings] = await Promise.all([
-          fetchRankings(),
-          fetchIslandRankings(),
-          fetchFlagRankings(),
-          fetchColorRankings(),
+        const [initialRankings, savedName, appSettings, syncResult] = await Promise.all([
+          fetchAllRankings(),
           loadPlayerName(),
-          loadSettings()
+          loadSettings(),
+          syncPendingScores(),
         ]);
-        setRanking(strawberryRankings);
-        setIslandRanking(islandRankings);
-        setFlagRanking(flagRankings);
-        setColorRanking(colorRankings);
+        const loadedRankings = syncResult.synced > 0
+          ? await fetchAllRankings()
+          : initialRankings;
+        setRankingsByMode(loadedRankings);
         if (savedName) {
           setPlayerName(savedName);
         }
         setSettings(appSettings);
+        if (syncResult.synced > 0) {
+          setNotice(`${syncResult.synced}件のオフラインスコアをランキングへ同期しました。`);
+        }
+        if (syncResult.discarded > 0) {
+          setError(`${syncResult.discarded}件の保存待ちスコアは無効だったため送信できませんでした。`);
+        }
       } catch (error) {
         console.error('Failed to load data:', error);
         setError('ランキングの読み込みに失敗しました。オフラインでプレイできます。');
@@ -109,6 +122,7 @@ const App: React.FC = () => {
     setMemoryAnswer('');
     setFirstDistractor('');
     gameStartedAtRef.current = Date.now();
+    gameplayDurationMsRef.current = null;
     if (mode === GameMode.STRAWBERRY) {
       setGameState(GameState.PLAYING);
     } else if (mode === GameMode.ISLAND) {
@@ -121,6 +135,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleMemoryGame = useCallback((score: number, lastDistractor: string, firstDistractor: string) => {
+    gameplayDurationMsRef.current = Math.max(
+      1_000,
+      Date.now() - (gameStartedAtRef.current ?? Date.now()),
+    );
     setCurrentScore(score);
     setMemoryAnswer(lastDistractor);
     setFirstDistractor(firstDistractor);
@@ -135,41 +153,39 @@ const App: React.FC = () => {
   const handleGameOver = useCallback(async (score: number) => {
     setCurrentScore(score);
     setGameState(GameState.GAME_OVER);
-    const durationMs = gameStartedAtRef.current ? Date.now() - gameStartedAtRef.current : undefined;
-    const scoreMetadata = durationMs ? { durationMs } : undefined;
+    const durationMs = gameplayDurationMsRef.current ?? Math.max(
+      1_000,
+      Date.now() - (gameStartedAtRef.current ?? Date.now()),
+    );
 
     // スコアを保存（モードに応じて）
     if (playerName && score > 0) {
       setIsSavingScore(true);
       setError(null);
       try {
-        if (gameMode === GameMode.STRAWBERRY) {
-          await saveScore(playerName, score, scoreMetadata);
-          const updatedRankings = await fetchRankings();
-          setRanking(updatedRankings);
-        } else if (gameMode === GameMode.ISLAND) {
-          await saveIslandScore(playerName, score, scoreMetadata);
-          const updatedIslandRankings = await fetchIslandRankings();
-          setIslandRanking(updatedIslandRankings);
-        } else if (gameMode === GameMode.COLOR) {
-          await saveColorScore(playerName, score, scoreMetadata);
-          const updatedColorRankings = await fetchColorRankings();
-          setColorRanking(updatedColorRankings);
-        } else {
-          await saveFlagScore(playerName, score, scoreMetadata);
-          const updatedFlagRankings = await fetchFlagRankings();
-          setFlagRanking(updatedFlagRankings);
+        const result = await saveScoreForMode(gameMode, playerName, score, { durationMs });
+        const updatedRankings = await fetchRankingsForMode(gameMode);
+        setRankingsByMode((current) => ({ ...current, [gameMode]: updatedRankings }));
+        if (result.queuedForSync) {
+          setNotice('通信できなかったため端末に保存しました。次回オンライン時に自動で同期します。');
         }
       } catch (error) {
         console.error('Failed to save score:', error);
         setError('スコアの保存に失敗しました。ランキングは更新されませんでした。');
       } finally {
+        gameStartedAtRef.current = null;
+        gameplayDurationMsRef.current = null;
         setIsSavingScore(false);
       }
+    } else {
+      gameStartedAtRef.current = null;
+      gameplayDurationMsRef.current = null;
     }
   }, [playerName, gameMode]);
 
   const handleRestart = useCallback(() => {
+    gameStartedAtRef.current = null;
+    gameplayDurationMsRef.current = null;
     setGameState(GameState.START);
   }, []);
 
@@ -178,6 +194,7 @@ const App: React.FC = () => {
     setMemoryAnswer('');
     setFirstDistractor('');
     gameStartedAtRef.current = Date.now();
+    gameplayDurationMsRef.current = null;
     if (gameMode === GameMode.STRAWBERRY) {
       setGameState(GameState.PLAYING);
     } else if (gameMode === GameMode.ISLAND) {
@@ -240,6 +257,12 @@ const App: React.FC = () => {
   const handleShowJuice = useCallback((show: boolean) => {
     setShowStrawberryJuice(show);
     if (show) {
+      if (reduceMotionRef.current) {
+        juiceScale.setValue(1);
+        juiceOpacity.setValue(0.35);
+        setTimeout(() => setShowStrawberryJuice(false), 250);
+        return;
+      }
       juiceScale.setValue(0);
       juiceOpacity.setValue(1);
       Animated.parallel([
@@ -280,6 +303,7 @@ const App: React.FC = () => {
             currentScore={currentScore}
             correctAnswer={memoryAnswer}
             onComplete={handleMemoryGame2}
+            darkMode={settings.darkMode}
           />
         );
       case GameState.MEMORY_GAME_2:
@@ -288,30 +312,27 @@ const App: React.FC = () => {
             currentScore={currentScore}
             correctAnswer={firstDistractor}
             onComplete={handleGameOver}
+            darkMode={settings.darkMode}
           />
         );
       case GameState.GAME_OVER:
         return (
           <>
           <GameOverScreen 
-            ranking={
-              gameMode === GameMode.STRAWBERRY ? ranking : 
-              gameMode === GameMode.ISLAND ? islandRanking : 
-              gameMode === GameMode.COLOR ? colorRanking :
-              flagRanking
-            }
+            ranking={rankingsByMode[gameMode]}
             gameMode={gameMode}
             currentPlayer={{ name: playerName, score: currentScore }} 
             onPlayAgain={handlePlayAgain}
             onGoHome={handleRestart}
             error={error}
             onDismissError={() => setError(null)}
+            darkMode={settings.darkMode}
             />
             {isSavingScore && (
               <View style={styles.savingOverlay}>
                 <View style={styles.savingContainer}>
-                  <ActivityIndicator size="large" color="#ec4899" />
-                  <Text style={styles.savingText}>スコアを保存中...</Text>
+                  <ActivityIndicator size="large" color="#be185d" />
+                  <Text accessibilityLiveRegion="polite" style={styles.savingText}>スコアを保存中...</Text>
                 </View>
               </View>
             )}
@@ -323,30 +344,30 @@ const App: React.FC = () => {
           <>
             <StartScreen 
               onStart={handleGameStart} 
-              ranking={ranking} 
-              islandRanking={islandRanking} 
-              flagRanking={flagRanking}
-              colorRanking={colorRanking}
+              rankings={rankingsByMode}
               isLoading={isLoading} 
               onShowRules={handleShowRules} 
               onShowMyPage={handleShowMyPage}
               savedPlayerName={playerName}
+              initialMode={gameMode}
               error={error}
               onDismissError={() => setError(null)}
+              notice={notice}
+              onDismissNotice={() => setNotice(null)}
               darkMode={settings.darkMode}
             />
             {isSavingScore && (
               <View style={styles.savingOverlay}>
                 <View style={styles.savingContainer}>
-                  <ActivityIndicator size="large" color="#ec4899" />
-                  <Text style={styles.savingText}>スコアを保存中...</Text>
+                  <ActivityIndicator size="large" color="#be185d" />
+                  <Text accessibilityLiveRegion="polite" style={styles.savingText}>スコアを保存中...</Text>
                 </View>
               </View>
             )}
           </>
         );
       case GameState.RULES:
-        return <RulesScreen onBack={handleBackFromRules} />;
+        return <RulesScreen onBack={handleBackFromRules} darkMode={settings.darkMode} />;
       case GameState.MY_PAGE:
         return (
           <MyPageScreen 
@@ -355,20 +376,21 @@ const App: React.FC = () => {
             onShowSettings={handleShowSettings}
             onShowPrivacyPolicy={handleShowPrivacyPolicy}
             onShowTermsOfService={handleShowTermsOfService}
+            darkMode={settings.darkMode}
           />
         );
       case GameState.SETTINGS:
         return <SettingsScreen onBack={handleBackFromSettings} onSettingsChanged={handleSettingsChanged} darkMode={settings.darkMode} />;
       case GameState.PRIVACY_POLICY:
-        return <PrivacyPolicyScreen onBack={handleBackFromPrivacyPolicy} />;
+        return <PrivacyPolicyScreen onBack={handleBackFromPrivacyPolicy} darkMode={settings.darkMode} />;
       case GameState.TERMS_OF_SERVICE:
-        return <TermsOfServiceScreen onBack={handleBackFromTermsOfService} />;
+        return <TermsOfServiceScreen onBack={handleBackFromTermsOfService} darkMode={settings.darkMode} />;
     }
   };
 
   return (
     <ErrorBoundary>
-      <SafeAreaView style={[styles.container, settings.darkMode && styles.containerDark]} edges={['top', 'bottom']}>
+      <SafeAreaView role="main" style={[styles.container, settings.darkMode && styles.containerDark]} edges={['top', 'bottom']}>
         <StatusBar style={settings.darkMode ? "light" : "dark"} />
         {renderScreen()}
         {/* いちご汁オーバーレイ（画面全体に表示） */}
@@ -386,12 +408,7 @@ const App: React.FC = () => {
               source={strawberryJuiceImage}
               style={styles.juiceImage}
               resizeMode="cover"
-              onError={(error) => {
-                console.error('画像の読み込みエラー:', error);
-              }}
-              onLoad={() => {
-                console.log('画像読み込み成功');
-              }}
+              accessible={false}
             />
           </Animated.View>
         )}
@@ -421,7 +438,7 @@ const styles = StyleSheet.create({
   },
   savingContainer: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 24,
     alignItems: 'center',
     shadowColor: '#000',

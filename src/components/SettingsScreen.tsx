@@ -50,7 +50,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSettingsChang
   if (isLoading) {
     return (
       <View style={[styles.container, darkMode && styles.containerDark]}>
-        <Text style={[styles.loadingText, darkMode && styles.loadingTextDark]}>読み込み中...</Text>
+        <Text accessibilityLiveRegion="polite" style={[styles.loadingText, darkMode && styles.loadingTextDark]}>読み込み中...</Text>
       </View>
     );
   }
@@ -76,6 +76,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSettingsChang
               </Text>
             </View>
             <Switch
+              accessibilityLabel="ダークモード"
+              accessibilityHint="画面の配色を暗いテーマに切り替えます"
               value={settings.darkMode}
               onValueChange={handleToggleDarkMode}
               trackColor={{ false: '#d1d5db', true: '#ec4899' }}
@@ -92,6 +94,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSettingsChang
               </Text>
             </View>
             <Switch
+              accessibilityLabel="振動フィードバック"
+              accessibilityHint="正解と不正解を振動で知らせます"
               value={settings.hapticsEnabled}
               onValueChange={handleToggleHaptics}
               trackColor={{ false: '#d1d5db', true: '#3b82f6' }}
@@ -102,6 +106,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSettingsChang
 
         <View style={styles.backButtonContainer}>
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="前の画面に戻る"
             onPress={onBack}
             style={styles.backButton}
           >
@@ -127,7 +133,7 @@ const styles = StyleSheet.create({
   },
   container: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -198,7 +204,7 @@ const styles = StyleSheet.create({
     color: '#f3f4f6',
   },
   settingDescriptionDark: {
-    color: '#9ca3af',
+    color: '#d1d5db',
   },
   backButtonContainer: {
     marginTop: 24,

@@ -2,6 +2,13 @@ name = "strawberry-rankings-api"
 main = "src/index.ts"
 compatibility_date = "2026-07-05"
 
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[triggers]
+crons = ["*/15 * * * *"]
+
 [vars]
 ALLOWED_ORIGINS = "https://toyo1621.github.io,http://localhost:3000,http://localhost:8081,http://localhost:19006"
 
@@ -9,3 +16,4 @@ ALLOWED_ORIGINS = "https://toyo1621.github.io,http://localhost:3000,http://local
 binding = "DB"
 database_name = "strawberry-rankings"
 database_id = "d0174a55-3491-496b-a9ad-be050121fbb2"
+migrations_dir = "migrations"
