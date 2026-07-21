@@ -2,6 +2,7 @@ import { readFile, stat } from 'node:fs/promises';
 
 const configModule = await import(`../app.config.js?verify=${Date.now()}`);
 const expo = configModule.default?.expo;
+const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const failures = [];
 
 const requireValue = (condition, message) => {
@@ -16,6 +17,7 @@ requireValue(Number.isInteger(expo?.android?.versionCode), 'Android versionCode 
 requireValue(/^\d+$/.test(expo?.ios?.buildNumber || ''), 'iOS buildNumber must be numeric.');
 requireValue(expo?.web?.lang === 'ja', 'The web document language must be Japanese.');
 requireValue(expo?.experiments?.baseUrl, 'A GitHub Pages base URL is required.');
+requireValue(expo?.version === packageJson.version, 'Expo and package versions must match.');
 
 const icon = await readFile(new URL('../assets/app-icon.png', import.meta.url));
 requireValue(icon.toString('ascii', 1, 4) === 'PNG', 'App icon must be a PNG.');
@@ -32,8 +34,26 @@ const wrangler = await readFile(new URL('../worker/wrangler.toml', import.meta.u
 requireValue(wrangler.includes('[observability]') && wrangler.includes('enabled = true'), 'Worker observability must be enabled.');
 requireValue(wrangler.includes('[triggers]') && wrangler.includes('*/15 * * * *'), 'Rate-limit cleanup cron is missing.');
 
+const schema = await readFile(new URL('../worker/schema.sql', import.meta.url), 'utf8');
+requireValue(schema.includes('owner_hash'), 'Private history ownership is missing from the D1 schema.');
+requireValue(schema.includes('score_submission_buckets'), 'Atomic rate-limit buckets are missing from the D1 schema.');
+
+const qualityWorkflow = await readFile(new URL('../.github/workflows/quality.yml', import.meta.url), 'utf8');
+requireValue(qualityWorkflow.includes('pull_request:'), 'The pull request quality workflow is missing.');
+requireValue(qualityWorkflow.includes('build:native-bundles'), 'Native bundle compilation is missing from CI.');
+
+const monitorWorkflow = await readFile(new URL('../.github/workflows/monitor-production.yml', import.meta.url), 'utf8');
+requireValue(monitorWorkflow.includes('issues: write'), 'Production monitor incident permissions are missing.');
+requireValue(monitorWorkflow.includes('production-monitor'), 'Production monitor issue automation is missing.');
+
 await stat(new URL('../eas.json', import.meta.url));
 await stat(new URL('../.env.example', import.meta.url));
+await stat(new URL('../API.md', import.meta.url));
+await stat(new URL('../QUALITY.md', import.meta.url));
+await stat(new URL('../CHANGELOG.md', import.meta.url));
+await stat(new URL('../worker/migrations/0004_private_player_history.sql', import.meta.url));
+await stat(new URL('../worker/migrations/0005_atomic_rate_limits.sql', import.meta.url));
+await stat(new URL('../worker/migrations/0006_align_score_contract.sql', import.meta.url));
 
 if (failures.length > 0) {
   throw new Error(`Project verification failed:\n- ${failures.join('\n- ')}`);

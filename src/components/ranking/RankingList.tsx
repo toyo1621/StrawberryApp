@@ -30,7 +30,7 @@ const RankingList: React.FC<RankingListProps> = ({
   if (loading) {
     return (
       <View style={styles.stateContainer}>
-        <ActivityIndicator color={accent} />
+        <ActivityIndicator accessibilityLabel="ランキングを読み込み中" color={accent} />
         <Text accessibilityLiveRegion="polite" style={[styles.stateText, { color: theme.textMuted }]}>
           ランキングを読み込み中
         </Text>

@@ -5,6 +5,7 @@ import {
   normalizePlayerName,
   parseGameType,
   parseRankingPeriod,
+  validatePlayerToken,
   validateScoreSubmission,
 } from './rankingValidation.js';
 
@@ -70,4 +71,14 @@ test('requires strict numeric fields, duration, and submission ID', () => {
   assert.throws(() => validateScoreSubmission(validScore({ durationMs: undefined })));
   assert.throws(() => validateScoreSubmission(validScore({ score: '10' })));
   assert.throws(() => validateScoreSubmission(validScore({ gameType: undefined })));
+});
+
+test('accepts only version 4 UUID player tokens', () => {
+  const token = '01234567-89ab-4cde-8f01-23456789abcd';
+  assert.equal(validatePlayerToken(token), token);
+  assert.equal(validateScoreSubmission(validScore({ playerToken: token })).playerToken, token);
+  assert.throws(
+    () => validatePlayerToken('predictable-token'),
+    (error) => error instanceof ValidationError && error.status === 401,
+  );
 });

@@ -2,7 +2,7 @@ import {
   ValidationError,
   parseGameType,
   parseRankingPeriod,
-  validatePlayerName,
+  validatePlayerToken,
   validateScoreSubmission,
 } from './rankingValidation';
 
@@ -18,6 +18,7 @@ type RankingRow = {
   score: number;
   game_type: string;
   created_at: string;
+  owner_hash: string | null;
 };
 
 type RankingEntry = {
@@ -57,6 +58,7 @@ const json = (data: unknown, init: ResponseInit = {}, origin?: string, env?: Env
   headers.set('x-content-type-options', 'nosniff');
   headers.set('referrer-policy', 'no-referrer');
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+  headers.set('x-api-version', '2');
   setCorsHeaders(headers, origin, env);
 
   return new Response(JSON.stringify(data), {
@@ -68,8 +70,8 @@ const json = (data: unknown, init: ResponseInit = {}, origin?: string, env?: Env
 const setCorsHeaders = (headers: Headers, origin?: string, env?: Env) => {
   const allowedOrigin = getAllowedOrigin(origin, env);
   headers.set('access-control-allow-origin', allowedOrigin);
-  headers.set('access-control-allow-methods', 'GET,POST,OPTIONS');
-  headers.set('access-control-allow-headers', 'content-type');
+  headers.set('access-control-allow-methods', 'GET,POST,DELETE,OPTIONS');
+  headers.set('access-control-allow-headers', 'authorization,content-type');
   headers.set('access-control-max-age', '86400');
   headers.append('vary', 'Origin');
 };
@@ -102,9 +104,9 @@ const isAllowedOrigin = (origin?: string, env?: Env) => {
   return allowed.includes(origin);
 };
 
-const requireAllowedOrigin = (origin: string | undefined, env: Env) => {
-  if (!isAllowedOrigin(origin, env)) {
-    throw new HttpError(403, 'Score submissions require an allowed origin.');
+const requireAllowedBrowserOrigin = (origin: string | undefined, env: Env) => {
+  if (origin && !isAllowedOrigin(origin, env)) {
+    throw new HttpError(403, 'Browser write requests require an allowed origin.');
   }
 };
 
@@ -156,6 +158,20 @@ const sha256Hex = async (value: string) => {
     .join('');
 };
 
+const getBearerPlayerToken = (request: Request, required = true): string | null => {
+  const authorization = request.headers.get('authorization') ?? '';
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  if (!authorization && !required) {
+    return null;
+  }
+  return validatePlayerToken(match?.[1]);
+};
+
+const getPlayerOwnerHash = async (request: Request) => {
+  const playerToken = getBearerPlayerToken(request);
+  return sha256Hex(`player:${playerToken}`);
+};
+
 const getClientIdentityHash = async (request: Request, env: Env) => {
   const ip =
     request.headers.get('cf-connecting-ip') ??
@@ -176,40 +192,34 @@ const enforceScoreSubmissionRateLimit = async (
 ) => {
   const identityHash = await getClientIdentityHash(request, env);
   const now = Date.now();
-  const windowStart = new Date(now - SCORE_SUBMISSION_WINDOW_MS).toISOString();
-
-  const row = await env.DB.prepare(
+  const windowStart = Math.floor(now / SCORE_SUBMISSION_WINDOW_MS) * SCORE_SUBMISSION_WINDOW_MS;
+  const expiresAt = new Date(now + SCORE_SUBMISSION_RETENTION_MS).toISOString();
+  const result = await env.DB.prepare(
     `
-      SELECT COUNT(*) AS count
-      FROM score_submission_events
-      WHERE identity_hash = ? AND created_at >= ?
+      INSERT INTO score_submission_buckets (identity_hash, window_start, submission_count, expires_at)
+      VALUES (?, ?, 1, ?)
+      ON CONFLICT(identity_hash, window_start) DO UPDATE SET
+        submission_count = submission_count + 1,
+        expires_at = excluded.expires_at
+      WHERE submission_count < ?
     `,
-  ).bind(identityHash, windowStart).first<{ count: number }>();
+  ).bind(identityHash, windowStart, expiresAt, SCORE_SUBMISSION_LIMIT).run();
 
-  if ((row?.count ?? 0) >= SCORE_SUBMISSION_LIMIT) {
+  if ((result.meta.changes ?? 0) === 0) {
     throw new HttpError(429, 'Too many score submissions. Please wait a moment and try again.');
   }
-
-  await env.DB.prepare(
-    `
-      INSERT INTO score_submission_events (id, identity_hash, created_at)
-      VALUES (?, ?, ?)
-    `,
-  ).bind(crypto.randomUUID(), identityHash, new Date(now).toISOString()).run();
-
-  await cleanupRateLimitEvents(env, new Date(now));
 };
 
-export const cleanupRateLimitEvents = async (
+export const cleanupRateLimitBuckets = async (
   env: Env,
   now: Date = new Date(),
 ) => {
   await env.DB.prepare(
     `
-      DELETE FROM score_submission_events
-      WHERE created_at < ?
+      DELETE FROM score_submission_buckets
+      WHERE expires_at < ?
     `,
-  ).bind(new Date(now.getTime() - SCORE_SUBMISSION_RETENTION_MS).toISOString()).run();
+  ).bind(now.toISOString()).run();
 };
 
 const fetchRankings = async (request: Request, env: Env) => {
@@ -283,14 +293,20 @@ const readJsonBody = async (request: Request): Promise<Record<string, unknown> |
 };
 
 const saveScore = async (request: Request, env: Env, origin?: string) => {
-  requireAllowedOrigin(origin, env);
+  requireAllowedBrowserOrigin(origin, env);
 
   const body = await readJsonBody(request);
-  const { submissionId, playerName, score, gameType } = validateScoreSubmission(body);
+  const { submissionId, playerName, score, gameType, playerToken } = validateScoreSubmission(body);
+  const bearerToken = getBearerPlayerToken(request, false);
+  if (bearerToken && playerToken && bearerToken !== playerToken) {
+    throw new HttpError(400, 'Player token credentials do not match.');
+  }
+  const ownerToken = bearerToken ?? playerToken;
+  const ownerHash = ownerToken ? await sha256Hex(`player:${ownerToken}`) : null;
 
   const existing = await env.DB.prepare(
     `
-      SELECT id, player_name, score, game_type, created_at
+      SELECT id, player_name, score, game_type, created_at, owner_hash
       FROM rankings
       WHERE id = ?
       LIMIT 1
@@ -302,6 +318,7 @@ const saveScore = async (request: Request, env: Env, origin?: string) => {
       existing.player_name !== playerName
       || existing.score !== score
       || existing.game_type !== gameType
+      || (existing.owner_hash !== null && existing.owner_hash !== ownerHash)
     ) {
       throw new HttpError(409, 'Submission ID is already in use.');
     }
@@ -320,49 +337,58 @@ const saveScore = async (request: Request, env: Env, origin?: string) => {
 
   await env.DB.prepare(
     `
-      INSERT INTO rankings (id, player_name, score, game_type, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO rankings (id, player_name, score, game_type, created_at, owner_hash)
+      VALUES (?, ?, ?, ?, ?, ?)
     `,
-  ).bind(entry.id, entry.playerName, entry.score, entry.gameType, entry.createdAt).run();
+  ).bind(entry.id, entry.playerName, entry.score, entry.gameType, entry.createdAt, ownerHash).run();
 
   return { entry, created: true };
 };
 
-const getPlayerBestScore = async (request: Request, env: Env, playerName: string) => {
+const getPlayerBestScore = async (request: Request, env: Env) => {
   const url = new URL(request.url);
   const gameType = parseGameType(url.searchParams.get('gameType'));
-  const normalizedPlayerName = validatePlayerName(playerName);
+  const ownerHash = await getPlayerOwnerHash(request);
 
   const row = await env.DB.prepare(
     `
       SELECT score
       FROM rankings
-      WHERE game_type = ? AND lower(trim(player_name)) = lower(trim(?))
+      WHERE game_type = ? AND owner_hash = ?
       ORDER BY score DESC, created_at ASC
       LIMIT 1
     `,
-  ).bind(gameType, normalizedPlayerName).first<{ score: number }>();
+  ).bind(gameType, ownerHash).first<{ score: number }>();
 
   return { score: row?.score ?? 0 };
 };
 
-const getPlayerHistory = async (request: Request, env: Env, playerName: string) => {
+const getPlayerHistory = async (request: Request, env: Env) => {
   const url = new URL(request.url);
   const gameType = parseGameType(url.searchParams.get('gameType'));
   const limit = clampLimit(url.searchParams.get('limit'));
-  const normalizedPlayerName = validatePlayerName(playerName);
+  const ownerHash = await getPlayerOwnerHash(request);
 
   const { results } = await env.DB.prepare(
     `
       SELECT id, player_name, score, game_type, created_at
       FROM rankings
-      WHERE game_type = ? AND lower(trim(player_name)) = lower(trim(?))
+      WHERE game_type = ? AND owner_hash = ?
       ORDER BY created_at DESC
       LIMIT ?
     `,
-  ).bind(gameType, normalizedPlayerName, limit).all<RankingRow>();
+  ).bind(gameType, ownerHash, limit).all<RankingRow>();
 
   return results.map(mapRanking);
+};
+
+const deletePlayerScores = async (request: Request, env: Env, origin?: string) => {
+  requireAllowedBrowserOrigin(origin, env);
+  const ownerHash = await getPlayerOwnerHash(request);
+  const result = await env.DB.prepare(
+    'DELETE FROM rankings WHERE owner_hash = ?',
+  ).bind(ownerHash).run();
+  return { deleted: result.meta.changes ?? 0 };
 };
 
 export default {
@@ -393,7 +419,7 @@ export default {
           throw new Error('Database health check failed.');
         }
         return json(
-          { ok: true, service: 'strawberry-rankings-api' },
+          { ok: true, service: 'strawberry-rankings-api', version: 2 },
           { headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
           origin,
           env,
@@ -422,20 +448,27 @@ export default {
         );
       }
 
-      const bestMatch = url.pathname.match(/^\/players\/([^/]+)\/best$/);
-      if (request.method === 'GET' && bestMatch) {
+      if (request.method === 'GET' && url.pathname === '/players/me/best') {
         return json(
-          await getPlayerBestScore(request, env, decodeURIComponent(bestMatch[1])),
+          await getPlayerBestScore(request, env),
           { headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
           origin,
           env,
         );
       }
 
-      const historyMatch = url.pathname.match(/^\/players\/([^/]+)\/history$/);
-      if (request.method === 'GET' && historyMatch) {
+      if (request.method === 'GET' && url.pathname === '/players/me/history') {
         return json(
-          await getPlayerHistory(request, env, decodeURIComponent(historyMatch[1])),
+          await getPlayerHistory(request, env),
+          { headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
+          origin,
+          env,
+        );
+      }
+
+      if (request.method === 'DELETE' && url.pathname === '/players/me/scores') {
+        return json(
+          await deletePlayerScores(request, env, origin),
           { headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
           origin,
           env,
@@ -474,6 +507,6 @@ export default {
     }
   },
   async scheduled(_controller: unknown, env: Env): Promise<void> {
-    await cleanupRateLimitEvents(env);
+    await cleanupRateLimitBuckets(env);
   },
 };

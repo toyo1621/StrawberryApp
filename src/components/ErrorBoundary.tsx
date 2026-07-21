@@ -44,7 +44,7 @@ class ErrorBoundary extends Component<Props, State> {
         <View style={styles.container}>
           <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.errorContainer}>
             <Text style={styles.emoji}>😅</Text>
-            <Text accessibilityRole="header" style={styles.title}>エラーが発生しました</Text>
+            <Text accessibilityRole="header" aria-level={1} style={styles.title}>エラーが発生しました</Text>
             <Text style={styles.message}>
               アプリで予期しないエラーが発生しました。
               {'\n'}

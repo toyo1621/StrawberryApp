@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch } from 'react-native';
 import { loadSettings, updateSettings, AppSettings } from '../services/settingsService';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
+import StatusBanner from './ui/StatusBanner';
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -15,6 +16,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSettingsChang
     hapticsEnabled: true,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadSettingsData();
@@ -26,24 +28,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSettingsChang
       setSettings(loadedSettings);
     } catch (error) {
       console.error('Failed to load settings:', error);
+      setError('設定を読み込めませんでした。');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleToggleDarkMode = async (value: boolean) => {
-    const newSettings = await updateSettings({ darkMode: value });
-    setSettings(newSettings);
-    if (onSettingsChanged) {
-      onSettingsChanged(newSettings);
+    try {
+      const newSettings = await updateSettings({ darkMode: value });
+      setSettings(newSettings);
+      setError('');
+      onSettingsChanged?.(newSettings);
+    } catch {
+      setError('ダークモード設定を保存できませんでした。');
     }
   };
 
   const handleToggleHaptics = async (value: boolean) => {
-    const newSettings = await updateSettings({ hapticsEnabled: value });
-    setSettings(newSettings);
-    if (onSettingsChanged) {
-      onSettingsChanged(newSettings);
+    try {
+      const newSettings = await updateSettings({ hapticsEnabled: value });
+      setSettings(newSettings);
+      setError('');
+      onSettingsChanged?.(newSettings);
+    } catch {
+      setError('振動設定を保存できませんでした。');
     }
   };
 
@@ -63,8 +72,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onSettingsChang
     >
       <View style={[styles.container, darkMode && styles.containerDark]}>
         <View style={styles.header}>
-          <Text style={[styles.title, darkMode && styles.titleDark]}>設定</Text>
+          <Text accessibilityRole="header" aria-level={1} style={[styles.title, darkMode && styles.titleDark]}>設定</Text>
         </View>
+
+        {error && <StatusBanner message={error} onDismiss={() => setError('')} darkMode={darkMode} />}
 
         <View style={styles.content}>
           {/* ダークモード設定 */}
@@ -150,7 +161,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: FONT_WEIGHT_BOLD,
-    color: '#ec4899',
+    color: '#be185d',
     fontFamily: MARU_GOTHIC_FONT,
   },
   content: {
@@ -195,7 +206,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#374151',
   },
   titleDark: {
-    color: '#ec4899',
+    color: '#f9a8d4',
   },
   settingItemDark: {
     borderBottomColor: '#4b5563',
@@ -211,7 +222,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButton: {
-    backgroundColor: '#ec4899',
+    backgroundColor: '#be185d',
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderRadius: 8,

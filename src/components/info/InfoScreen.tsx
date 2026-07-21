@@ -43,7 +43,7 @@ const InfoScreen: React.FC<InfoScreenProps> = ({
           >
             <Text accessible={false} style={[styles.backIcon, { color: theme.text }]}>‹</Text>
           </TouchableOpacity>
-          <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>{title}</Text>
+          <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: theme.text }]}>{title}</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -52,7 +52,7 @@ const InfoScreen: React.FC<InfoScreenProps> = ({
         <View style={styles.content}>
           {sections.map((section) => (
             <View key={section.title} style={styles.section}>
-              <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.text }]}>{section.title}</Text>
+              <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>{section.title}</Text>
               {section.paragraphs?.map((paragraph) => (
                 <Text key={paragraph} style={[styles.body, { color: theme.textMuted }]}>{paragraph}</Text>
               ))}
@@ -70,7 +70,7 @@ const InfoScreen: React.FC<InfoScreenProps> = ({
           accessibilityRole="button"
           accessibilityLabel="前の画面に戻る"
           onPress={onBack}
-          style={[styles.backButton, { backgroundColor: theme.focus }]}
+          style={[styles.backButton, { backgroundColor: theme.action }]}
         >
           <Text style={styles.backButtonText}>戻る</Text>
         </TouchableOpacity>

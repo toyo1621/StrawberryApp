@@ -11,7 +11,7 @@ export const PERIODS = ['all', 'daily', 'weekly', 'monthly'] as const;
 
 export type RankingPeriod = typeof PERIODS[number];
 
-type GameScoreProfile = {
+export type GameScoreProfile = {
   maxScore: number;
   maxScorePerSecond: number;
 };
@@ -20,26 +20,29 @@ const DEFAULT_GAME_TYPE: GameType = 'strawberry_rush';
 const MAX_PLAYER_NAME_LENGTH = 12;
 const CONTROL_OR_MARKUP_PATTERN = /[\u0000-\u001f\u007f<>]/;
 const SUBMISSION_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/;
+const PLAYER_TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const GAME_TYPE_SET = new Set<string>(GAME_TYPES);
 const PERIOD_SET = new Set<string>(PERIODS);
 
-const SCORE_PROFILES: Record<GameType, GameScoreProfile> = {
+export const MAX_GAME_DURATION_MS = 5 * 60 * 1000;
+
+export const SCORE_PROFILES: Record<GameType, GameScoreProfile> = {
   strawberry_rush: {
-    maxScore: 500,
-    maxScorePerSecond: 20,
+    maxScore: 5_000,
+    maxScorePerSecond: 17,
   },
   island_rush: {
-    maxScore: 150,
-    maxScorePerSecond: 8,
+    maxScore: 3_000,
+    maxScorePerSecond: 10,
   },
   flag_rush: {
-    maxScore: 150,
-    maxScorePerSecond: 8,
+    maxScore: 1_000,
+    maxScorePerSecond: 4,
   },
   color_rush: {
-    maxScore: 200,
-    maxScorePerSecond: 10,
+    maxScore: 1_000,
+    maxScorePerSecond: 4,
   },
 };
 
@@ -58,6 +61,7 @@ export type RawScoreSubmission = {
   score?: unknown;
   gameType?: unknown;
   durationMs?: unknown;
+  playerToken?: unknown;
 };
 
 export type ScoreSubmission = {
@@ -66,6 +70,7 @@ export type ScoreSubmission = {
   score: number;
   gameType: GameType;
   durationMs: number;
+  playerToken?: string;
 };
 
 export const normalizePlayerName = (value: unknown): string => {
@@ -103,6 +108,7 @@ export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreS
   const score = body?.score;
   const gameType = parseGameType(body?.gameType);
   const durationMs = body?.durationMs;
+  const playerToken = body?.playerToken;
 
   if (typeof submissionId !== 'string' || !SUBMISSION_ID_PATTERN.test(submissionId)) {
     throw new ValidationError(400, 'A valid submission ID is required.');
@@ -133,8 +139,12 @@ export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreS
     throw new ValidationError(400, 'Score is outside the accepted range for this game.');
   }
 
-  if (typeof durationMs !== 'number' || !Number.isInteger(durationMs) || durationMs < 1_000 || durationMs > 10 * 60 * 1000) {
+  if (typeof durationMs !== 'number' || !Number.isInteger(durationMs) || durationMs < 1_000 || durationMs > MAX_GAME_DURATION_MS) {
     throw new ValidationError(400, 'Game duration is outside the accepted range.');
+  }
+
+  if (playerToken !== undefined && (typeof playerToken !== 'string' || !PLAYER_TOKEN_PATTERN.test(playerToken))) {
+    throw new ValidationError(400, 'Player token is invalid.');
   }
 
   const maxScoreForDuration = Math.ceil((durationMs / 1000) * profile.maxScorePerSecond);
@@ -148,7 +158,15 @@ export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreS
     score,
     gameType,
     durationMs,
+    ...(playerToken ? { playerToken } : {}),
   };
+};
+
+export const validatePlayerToken = (value: unknown): string => {
+  if (typeof value !== 'string' || !PLAYER_TOKEN_PATTERN.test(value)) {
+    throw new ValidationError(401, 'A valid player token is required.');
+  }
+  return value;
 };
 
 export const validatePlayerName = (value: unknown): string => {

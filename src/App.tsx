@@ -19,13 +19,14 @@ import PrivacyPolicyScreen from './components/PrivacyPolicyScreen';
 import TermsOfServiceScreen from './components/TermsOfServiceScreen';
 import SettingsScreen from './components/SettingsScreen';
 import {
-  fetchAllRankings,
-  fetchRankingsForMode,
+  deletePlayerRankingData,
+  fetchAllRankingsWithStatus,
+  fetchRankingsForModeWithStatus,
   saveScoreForMode,
   syncPendingScores,
 } from './services/rankingService';
-import { loadPlayerName } from './services/playerService';
-import { loadSettings, AppSettings } from './services/settingsService';
+import { clearPlayerName, loadPlayerName } from './services/playerService';
+import { clearSettings, DEFAULT_SETTINGS, loadSettings, AppSettings } from './services/settingsService';
 import { createEmptyRankings } from './gameConfig';
 
 const prefetchStrawberryJuiceImage = () => {
@@ -84,26 +85,64 @@ const App: React.FC = () => {
         // いちご汁画像をプリロード
         prefetchStrawberryJuiceImage();
 
-        const [initialRankings, savedName, appSettings, syncResult] = await Promise.all([
-          fetchAllRankings(),
+        const [rankingsResult, nameResult, settingsResult, syncResult] = await Promise.allSettled([
+          fetchAllRankingsWithStatus(),
           loadPlayerName(),
           loadSettings(),
           syncPendingScores(),
         ]);
-        const loadedRankings = syncResult.synced > 0
-          ? await fetchAllRankings()
-          : initialRankings;
-        setRankingsByMode(loadedRankings);
-        if (savedName) {
-          setPlayerName(savedName);
+        const errors: string[] = [];
+        const notices: string[] = [];
+
+        let rankingState = rankingsResult.status === 'fulfilled'
+          ? rankingsResult.value
+          : { rankings: createEmptyRankings(), staleModes: [], failedModes: [...Object.values(GameMode)] };
+        if (rankingsResult.status === 'rejected') {
+          console.error('Failed to load rankings:', rankingsResult.reason);
+          errors.push('ランキングを読み込めませんでした。オフラインでプレイできます。');
         }
-        setSettings(appSettings);
-        if (syncResult.synced > 0) {
-          setNotice(`${syncResult.synced}件のオフラインスコアをランキングへ同期しました。`);
+
+        if (nameResult.status === 'fulfilled') {
+          setPlayerName(nameResult.value);
+        } else {
+          console.error('Failed to load the player name:', nameResult.reason);
+          errors.push('保存済みのプレイヤー名を読み込めませんでした。');
         }
-        if (syncResult.discarded > 0) {
-          setError(`${syncResult.discarded}件の保存待ちスコアは無効だったため送信できませんでした。`);
+
+        if (settingsResult.status === 'fulfilled') {
+          setSettings(settingsResult.value);
+        } else {
+          console.error('Failed to load settings:', settingsResult.reason);
+          errors.push('設定を読み込めなかったため初期設定を使用します。');
         }
+
+        if (syncResult.status === 'fulfilled') {
+          if (syncResult.value.synced > 0) {
+            notices.push(`${syncResult.value.synced}件のオフラインスコアをランキングへ同期しました。`);
+            try {
+              rankingState = await fetchAllRankingsWithStatus();
+            } catch (refreshError) {
+              console.error('Failed to refresh rankings after sync:', refreshError);
+              errors.push('同期後のランキング更新に失敗しました。');
+            }
+          }
+          if (syncResult.value.discarded > 0) {
+            errors.push(`${syncResult.value.discarded}件の保存待ちスコアは無効だったため送信できませんでした。`);
+          }
+        } else {
+          console.error('Failed to sync pending scores:', syncResult.reason);
+          errors.push('保存待ちスコアを同期できませんでした。次回起動時に再試行します。');
+        }
+
+        setRankingsByMode(rankingState.rankings);
+        if (rankingState.staleModes.length > 0) {
+          notices.push('通信できないモードは端末に保存したランキングを表示しています。');
+        }
+        if (rankingState.failedModes.length > 0) {
+          errors.push('一部モードのランキングを読み込めませんでした。ゲームはプレイできます。');
+        }
+        setNotice(notices.length > 0 ? notices.join('\n') : null);
+        setError(errors.length > 0 ? errors.join('\n') : null);
       } catch (error) {
         console.error('Failed to load data:', error);
         setError('ランキングの読み込みに失敗しました。オフラインでプレイできます。');
@@ -164,10 +203,16 @@ const App: React.FC = () => {
       setError(null);
       try {
         const result = await saveScoreForMode(gameMode, playerName, score, { durationMs });
-        const updatedRankings = await fetchRankingsForMode(gameMode);
-        setRankingsByMode((current) => ({ ...current, [gameMode]: updatedRankings }));
+        const updatedRankings = await fetchRankingsForModeWithStatus(gameMode);
+        setRankingsByMode((current) => ({ ...current, [gameMode]: updatedRankings.entries }));
         if (result.queuedForSync) {
           setNotice('通信できなかったため端末に保存しました。次回オンライン時に自動で同期します。');
+        }
+        if (updatedRankings.stale) {
+          setNotice('通信できないため端末に保存したランキングを表示しています。');
+        }
+        if (result.droppedPendingScores > 0) {
+          setError('端末の保存待ち上限を超えたため、最も古いスコアを送信待ちから除外しました。');
         }
       } catch (error) {
         console.error('Failed to save score:', error);
@@ -254,6 +299,18 @@ const App: React.FC = () => {
     setPlayerName(name);
   }, []);
 
+  const handleDeleteData = useCallback(async () => {
+    const deleted = await deletePlayerRankingData();
+    await Promise.all([clearPlayerName(), clearSettings()]);
+    setPlayerName('');
+    setSettings({ ...DEFAULT_SETTINGS });
+    setRankingsByMode(createEmptyRankings());
+    setError(null);
+    setNotice(`${deleted}件の公開スコアと、この端末に保存したデータを削除しました。`);
+    setGameState(GameState.START);
+    return deleted;
+  }, []);
+
   const handleShowJuice = useCallback((show: boolean) => {
     setShowStrawberryJuice(show);
     if (show) {
@@ -331,7 +388,7 @@ const App: React.FC = () => {
             {isSavingScore && (
               <View style={styles.savingOverlay}>
                 <View style={styles.savingContainer}>
-                  <ActivityIndicator size="large" color="#be185d" />
+                  <ActivityIndicator accessibilityLabel="スコアを保存中" size="large" color="#be185d" />
                   <Text accessibilityLiveRegion="polite" style={styles.savingText}>スコアを保存中...</Text>
                 </View>
               </View>
@@ -359,7 +416,7 @@ const App: React.FC = () => {
             {isSavingScore && (
               <View style={styles.savingOverlay}>
                 <View style={styles.savingContainer}>
-                  <ActivityIndicator size="large" color="#be185d" />
+                  <ActivityIndicator accessibilityLabel="スコアを保存中" size="large" color="#be185d" />
                   <Text accessibilityLiveRegion="polite" style={styles.savingText}>スコアを保存中...</Text>
                 </View>
               </View>
@@ -376,6 +433,7 @@ const App: React.FC = () => {
             onShowSettings={handleShowSettings}
             onShowPrivacyPolicy={handleShowPrivacyPolicy}
             onShowTermsOfService={handleShowTermsOfService}
+            onDeleteData={handleDeleteData}
             darkMode={settings.darkMode}
           />
         );

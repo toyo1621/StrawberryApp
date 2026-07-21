@@ -11,10 +11,10 @@
 
 ## 監視
 
-- `.github/workflows/monitor-production.yml` が毎時、Webシェル、API、D1接続、レスポンス形、主要セキュリティヘッダーを検査します。
+- `.github/workflows/monitor-production.yml` が毎時、Webシェル、ファビコン、全4モード、CORS、API v2、D1接続を検査します。専用トークンのテストスコアを登録し、非公開履歴で確認後に必ず削除します。
 - Pages公開workflowはデプロイ直後に同じ検査を行います。
 - Worker Observabilityは全リクエストを対象に有効化し、5xxをリクエストID付きJSONログで記録します。
-- GitHub Actions失敗通知とCloudflare Observabilityの5xx/レイテンシを運用者が確認します。
+- 失敗時は `production-monitor` ラベルのGitHub Issueを自動作成または追記し、復旧時に自動クローズします。Cloudflare Observabilityでは5xx、リクエストID、レイテンシを確認します。
 
 初動目安:
 
@@ -32,7 +32,7 @@
 3. `/health` は成功し `/rankings` だけ失敗する場合はクエリ、スキーマ、対象モードを確認します。
 4. Pagesだけ失敗する場合は直近artifact、base URL、API環境変数を確認します。
 5. 影響範囲、開始時刻、暫定対応、復旧時刻を記録します。
-6. 復旧後にWeb/APIスモークと全4モードの読込を確認します。
+6. 復旧後にWeb/APIスモークを実行し、4モード読込と登録・履歴・削除の往復確認を行います。
 
 クライアントはAPI障害時に最大50件を端末へ保持し、起動ごとに3件ずつ同期します。同じ投稿IDを再利用するため、タイムアウト後の再送でも二重登録されません。
 
@@ -48,7 +48,7 @@ npx wrangler d1 export strawberry-rankings --remote \
 
 バックアップには公開名が含まれるため、安全なローカル領域に置き、Issue、CI artifact、リポジトリへ添付しません。復元は別の検証用D1でSQLを適用し、モード別件数と上位結果を照合してから本番で実施します。
 
-`score_submission_events` は復元対象ではありません。15分以内に削除する一時データであり、マイグレーション時に再作成できます。
+`score_submission_buckets` は復元対象ではありません。15分以内に削除する一時データであり、マイグレーション時に再作成できます。
 
 ## ロールバック
 
@@ -61,6 +61,6 @@ npx wrangler d1 export strawberry-rankings --remote \
 
 - 毎週: monitor失敗、Worker 5xx、依存監査結果を確認。
 - リリース時: D1バックアップ、変更順序、スモーク、ロールバック対象コミットを記録。
-- 四半期: Cloudflare/GitHubトークン、ストア資格情報、プライバシー記載、依存更新を棚卸し。
+- 四半期: Cloudflare/GitHubトークン、GitHubセキュリティ設定、ストア資格情報、プライバシー記載、依存更新を棚卸し。
 
-専用APMや24時間オンコールはMVPの範囲外です。利用規模や重要度が上がった時点で、外形監視の通知先、エラー率・p95レイテンシのアラート、D1定期バックアップを自動化します。
+専用APMや24時間オンコールはMVPの範囲外です。利用規模や重要度が上がった時点で、外部通知先、エラー率・p95レイテンシの閾値通知、D1定期バックアップを追加します。

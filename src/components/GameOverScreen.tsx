@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { FONT_WEIGHT_BOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
 import { rankingIdentity } from '../domain/rankings';
 import { GAME_MODE_CONFIG } from '../gameConfig';
-import { fetchRankingsForMode } from '../services/rankingService';
+import { fetchRankingsForModeWithStatus } from '../services/rankingService';
 import { getTheme } from '../theme';
 import { GameMode, RankingEntry, RankingPeriod } from '../types';
 import PeriodTabs from './ranking/PeriodTabs';
@@ -38,6 +38,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
   const theme = getTheme(darkMode);
   const config = GAME_MODE_CONFIG[gameMode];
   const accent = darkMode ? config.accentDark : config.accent;
+  const actionAccent = config.accent;
 
   useEffect(() => {
     let active = true;
@@ -52,9 +53,14 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
 
     setIsLoadingPeriod(true);
     setPeriodError('');
-    fetchRankingsForMode(gameMode, selectedPeriod)
-      .then((entries) => {
-        if (active) {setPeriodRanking(entries);}
+    fetchRankingsForModeWithStatus(gameMode, selectedPeriod)
+      .then((result) => {
+        if (active) {
+          setPeriodRanking(result.entries);
+          if (result.stale) {
+            setPeriodError('通信できないため端末に保存したランキングを表示しています。');
+          }
+        }
       })
       .catch(() => {
         if (active) {
@@ -89,7 +95,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
     >
       <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.header}>
-          <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>ゲーム終了</Text>
+          <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: theme.text }]}>ゲーム終了</Text>
           <Text style={[styles.modeLabel, { color: accent }]}>{config.emoji} {config.shortLabel}モード</Text>
           <Text
             accessibilityLiveRegion="polite"
@@ -104,13 +110,13 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
         </View>
 
         <View style={styles.rankingSection}>
-          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.text }]}>
+          <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>
             {config.rankingTitle}ランキング
           </Text>
           <PeriodTabs
             value={selectedPeriod}
             onChange={setSelectedPeriod}
-            accent={accent}
+            accent={actionAccent}
             darkMode={darkMode}
           />
           <RankingList
@@ -133,7 +139,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
             accessibilityRole="button"
             accessibilityLabel={`${config.shortLabel}モードをもう一度遊ぶ`}
             onPress={onPlayAgain}
-            style={[styles.primaryButton, { backgroundColor: accent }]}
+            style={[styles.primaryButton, { backgroundColor: actionAccent }]}
           >
             <Text style={styles.primaryButtonText}>もう一度遊ぶ</Text>
           </TouchableOpacity>

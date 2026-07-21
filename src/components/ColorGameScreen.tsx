@@ -4,8 +4,9 @@ import * as Haptics from 'expo-haptics';
 import { COLORS } from '../constants';
 import { Color, GameMode } from '../types';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
-import { progressPercent, shuffle } from '../domain/game';
-import { GAMEPLAY_RULES } from '../gameRules';
+import { getColorCategory, progressPercent, shuffle } from '../domain/game';
+import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES, ticksToSeconds } from '../gameRules';
+import { useGameTimer } from '../hooks/useGameTimer';
 
 const RULES = GAMEPLAY_RULES[GameMode.COLOR];
 
@@ -19,19 +20,21 @@ interface ColorGameScreenProps {
 const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
-  const [timeLeft, setTimeLeft] = useState(RULES.initialTimeTicks);
   const [colors, setColors] = useState<Color[]>([]);
   const [correctColorIndex, setCorrectColorIndex] = useState(-1);
   const [targetColorName, setTargetColorName] = useState('');
   const [targetColorDescription, setTargetColorDescription] = useState('');
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
-  const [isProcessingClick, setIsProcessingClick] = useState(false);
-  const [gameEnded, setGameEnded] = useState(false);
   const [encouragementMessage, setEncouragementMessage] = useState<string>('');
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const gameEndedRef = useRef(false);
+  const processingClickRef = useRef(false);
+  const handleTimeExpired = useCallback(() => onGameOver(scoreRef.current), [onGameOver]);
+  const { adjustTime, gameEnded, gameEndedRef, timeLeft } = useGameTimer({
+    initialTicks: RULES.initialTimeTicks,
+    maximumDurationTicks: RULES.maxSessionTicks,
+    onExpire: handleTimeExpired,
+  });
 
   // 応援の言葉リスト（色モード用）
   const encouragementMessages = [
@@ -44,24 +47,6 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
     'カラフル',
     '色彩豊か',
   ];
-
-  // 色の系統を判定する関数
-  const getColorCategory = (colorId: string): string => {
-    const id = parseInt(colorId);
-    if (id >= 1 && id <= 20) {return 'red';} // 赤系
-    if (id >= 21 && id <= 32) {return 'yellow-red';} // 黄赤系
-    if (id >= 33 && id <= 40) {return 'yellow';} // 黄系
-    if (id >= 41 && id <= 47) {return 'yellow-green';} // 黄緑系
-    if (id >= 48 && id <= 56) {return 'green';} // 緑系
-    if (id >= 57 && id <= 64) {return 'blue-green';} // 青緑系
-    if (id >= 65 && id <= 77) {return 'blue';} // 青系
-    if (id >= 78 && id <= 83) {return 'blue-violet';} // 青紫系
-    if (id >= 84 && id <= 89) {return 'violet';} // 紫系
-    if (id >= 90 && id <= 95) {return 'red-violet';} // 赤紫系
-    if (id >= 96 && id <= 108) {return 'brown';} // 茶系・アースカラー
-    if (id >= 109 && id <= 120) {return 'grayish';} // グレイッシュカラー
-    return 'achromatic'; // 無彩色系
-  };
 
   const generateNewColors = useCallback(() => {
     if (gameEndedRef.current) {return;}
@@ -94,57 +79,22 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
     setCorrectColorIndex(correctIndex);
     setTargetColorName(correctColor.name);
     setTargetColorDescription(correctColor.description);
-  }, []);
-
-  const startTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prevTime => {
-        const newTime = prevTime - 1;
-        
-        if (newTime <= 0) {
-          if (!gameEndedRef.current) {
-            gameEndedRef.current = true;
-            setGameEnded(true);
-            
-            if (timerRef.current) {
-              clearInterval(timerRef.current);
-              timerRef.current = null;
-            }
-            
-            setTimeout(() => {
-              onGameOver(scoreRef.current);
-            }, 0);
-          }
-          return 0;
-        }
-        
-        return newTime;
-      });
-    }, 100);
-  }, [onGameOver]);
+  }, [gameEndedRef]);
 
   useEffect(() => {
     generateNewColors();
-    startTimer();
     
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
       if (feedbackTimeoutRef.current) {
         clearTimeout(feedbackTimeoutRef.current);
       }
     };
-  }, [generateNewColors, startTimer]);
+  }, [generateNewColors]);
 
   const handleChoice = (index: number) => {
-    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) {return;}
+    if (feedback || processingClickRef.current || gameEnded || gameEndedRef.current) {return;}
     
-    setIsProcessingClick(true);
+    processingClickRef.current = true;
 
     const isCorrect = index === correctColorIndex;
 
@@ -154,8 +104,7 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
         scoreRef.current = newScore;
         return newScore;
       });
-      // 時間ボーナス（1秒 = 10 * 0.1秒）
-      setTimeLeft(prevTime => prevTime + RULES.regularTimeBonusTicks);
+      adjustTime(RULES.regularTimeBonusTicks);
       setFeedback({ index, type: 'correct' });
       // 応援メッセージをランダムに選択
       const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
@@ -165,7 +114,7 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } else {
-      setTimeLeft(prevTime => Math.max(0, prevTime - RULES.penaltyTicks));
+      adjustTime(-RULES.penaltyTicks);
       setFeedback({ index, type: 'incorrect' });
       // ハプティックフィードバック（不正解）
       if (hapticsEnabled) {
@@ -175,10 +124,10 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
     
     feedbackTimeoutRef.current = setTimeout(() => {
       if (!gameEndedRef.current) {
-        setIsProcessingClick(false);
+        processingClickRef.current = false;
         generateNewColors();
       }
-    }, 300);
+    }, ANSWER_FEEDBACK_MS);
   };
 
   const timeBarWidth = progressPercent(timeLeft, RULES.initialTimeTicks);
@@ -243,7 +192,11 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
         </View>
         {/* 応援メッセージ表示（常にスペースを確保） */}
         <View style={styles.encouragementContainer}>
-          {encouragementMessage && feedback && feedback.type === 'correct' ? (
+          {feedback?.type === 'incorrect' ? (
+            <Text accessibilityLiveRegion="assertive" style={[styles.incorrectText, darkMode && styles.incorrectTextDark]}>
+              不正解。残り時間が{ticksToSeconds(RULES.penaltyTicks)}秒減りました。
+            </Text>
+          ) : encouragementMessage && feedback?.type === 'correct' ? (
             <Text accessibilityLiveRegion="polite" style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
               {encouragementMessage}
             </Text>
@@ -423,13 +376,22 @@ const styles = StyleSheet.create({
   encouragementTextDark: {
     color: '#c084fc',
   },
+  incorrectText: {
+    color: '#b91c1c',
+    fontFamily: MARU_GOTHIC_FONT,
+    fontSize: 16,
+    fontWeight: FONT_WEIGHT_BOLD,
+  },
+  incorrectTextDark: {
+    color: '#fecaca',
+  },
   encouragementPlaceholder: {
     height: 20, // テキストと同じ高さのプレースホルダー
   },
   homeButton: {
     alignSelf: 'flex-end',
+    minHeight: 44,
     backgroundColor: 'rgba(236, 72, 153, 0.1)',
-    paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 6,
     marginTop: 0,
@@ -437,14 +399,15 @@ const styles = StyleSheet.create({
     marginRight: 0,
     borderWidth: 1,
     borderColor: 'rgba(236, 72, 153, 0.3)',
+    justifyContent: 'center',
   },
   homeButtonDark: {
     backgroundColor: 'rgba(190, 24, 93, 0.2)',
     borderColor: 'rgba(190, 24, 93, 0.4)',
   },
   homeButtonText: {
-    color: '#ec4899',
-    fontSize: 12,
+    color: '#be185d',
+    fontSize: 14,
     fontWeight: FONT_WEIGHT_SEMIBOLD,
     fontFamily: MARU_GOTHIC_FONT,
   },

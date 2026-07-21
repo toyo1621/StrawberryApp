@@ -48,7 +48,7 @@ const MemoryChallengeScreen: React.FC<MemoryChallengeScreenProps> = ({
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>{title}</Text>
+        <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: theme.text }]}>{title}</Text>
         <Text style={[styles.prompt, { color: theme.textMuted }]}>{prompt}</Text>
         <Text style={[styles.bonus, { color: theme.focus }]}>正解で +{bonusPoints}点</Text>
 

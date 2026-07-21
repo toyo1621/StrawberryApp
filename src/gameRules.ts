@@ -1,9 +1,11 @@
 import { GameMode } from './types';
 
 const SECOND_IN_TICKS = 10;
+export const ANSWER_FEEDBACK_MS = 300;
 
 const BASE_RULES = {
   initialTimeTicks: 30 * SECOND_IN_TICKS,
+  maxSessionTicks: 5 * 60 * SECOND_IN_TICKS,
   dangerThresholdTicks: 10 * SECOND_IN_TICKS,
   penaltyTicks: 3 * SECOND_IN_TICKS,
   regularPoints: 1,
