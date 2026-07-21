@@ -1,6 +1,6 @@
 {
   "name": "strawberry-game",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "src/main.tsx",
   "scripts": {
     "start": "expo start",
@@ -8,16 +8,25 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web --output-dir web-build",
-    "preview": "npx serve web-build",
+    "build:web:e2e": "EXPO_PUBLIC_BASE_URL=/ expo export --platform web --output-dir web-build",
+    "check:web-build": "node scripts/check-web-build.mjs",
+    "preview": "node scripts/serve-web.mjs",
+    "lint": "eslint src worker/src tests e2e scripts app.config.js playwright.config.ts",
     "typecheck": "npm run typecheck:app && npm run typecheck:worker",
     "typecheck:app": "tsc -p tsconfig.app.json --noEmit",
     "typecheck:worker": "tsc -p worker/tsconfig.json --noEmit",
-    "test": "npm run test:worker",
+    "test": "npm run test:app && npm run test:worker",
+    "test:app": "tsc -p tsconfig.test.json && node --test .tmp/app-tests/tests/*.test.js",
     "test:worker": "tsc -p worker/tsconfig.test.json && node --test .tmp/worker-tests/*.test.js",
+    "test:e2e": "playwright test",
+    "check": "npm run lint && npm run typecheck && npm test && npm run verify:config && npm run audit:high",
+    "verify:config": "node --no-warnings scripts/verify-project.mjs",
     "audit:high": "npm audit --audit-level=high",
     "smoke:rankings-api": "node scripts/smoke-rankings-api.mjs",
+    "smoke:web": "node scripts/smoke-web.mjs",
     "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
     "d1:apply-schema": "wrangler d1 execute strawberry-rankings --config worker/wrangler.toml --file worker/schema.sql --remote",
+    "d1:migrate": "wrangler d1 migrations apply strawberry-rankings --config worker/wrangler.toml --remote",
     "d1:import": "wrangler d1 execute strawberry-rankings --config worker/wrangler.toml --file rankings-import.sql --remote",
     "export:supabase": "node scripts/export-supabase-rankings.mjs",
     "write:d1-import": "node scripts/write-d1-import-sql.mjs"
@@ -25,12 +34,11 @@
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "expo": "^54.0.27",
+    "expo": "^54.0.36",
     "expo-font": "^14.0.10",
     "expo-haptics": "^15.0.8",
     "expo-image": "^3.0.11",
     "expo-status-bar": "~3.0.9",
-    "flag-icons": "^7.5.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
@@ -39,12 +47,20 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@babel/core": "^7.25.0",
     "@cloudflare/workers-types": "^4.20260702.1",
+    "@playwright/test": "^1.61.1",
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~54.0.11",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2",
     "wrangler": "^4.107.0"
+  },
+  "overrides": {
+    "postcss": "8.5.21",
+    "uuid": "11.1.1"
   },
   "private": true
 }

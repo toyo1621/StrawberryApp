@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { INITIAL_TIME, PENALTY_SECONDS, DISTRACTOR_EMOJIS, CHOICE_COUNT, GOLD_STRAWBERRY_CHANCE, GOLD_STRAWBERRY_POINTS, GOLD_STRAWBERRY_TIME_BONUS, WHOLE_CAKE_CHANCE, WHOLE_CAKE_POINTS, WHOLE_CAKE_TIME_BONUS, MEMORY_GAME_CHANCE } from '../constants';
+import { DISTRACTOR_EMOJIS, CHOICE_COUNT, MEMORY_GAME_CHANCE } from '../constants';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
+import { describeEmoji, progressPercent, shuffle } from '../domain/game';
+import { GAMEPLAY_RULES } from '../gameRules';
+import { GameMode } from '../types';
+
+const RULES = GAMEPLAY_RULES[GameMode.STRAWBERRY];
 
 interface GameScreenProps {
   onGameOver: (score: number) => void;
@@ -16,14 +21,14 @@ interface GameScreenProps {
 const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapticsEnabled = true, darkMode = false, onShowJuice, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
-  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10); // 0.1秒単位で管理
-  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(RULES.initialTimeTicks); // 0.1秒単位で管理
+  const [, setConsecutiveCorrect] = useState(0);
   const [items, setItems] = useState<string[]>([]);
   const [strawberryIndex, setStrawberryIndex] = useState(-1);
   const [isGoldStrawberry, setIsGoldStrawberry] = useState(false);
   const [isWholeCake, setIsWholeCake] = useState(false);
   const [feedback, setFeedback] = useState<{ index: number; type: 'correct' | 'incorrect' } | null>(null);
-  const [allDistractors, setAllDistractors] = useState<string[]>([]);
+  const [, setAllDistractors] = useState<string[]>([]);
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
   const [currentDistractor, setCurrentDistractor] = useState<string>('');
@@ -34,6 +39,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attackMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gameEndedRef = useRef(false);
+  const timeLeftRef = useRef(RULES.initialTimeTicks);
+
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
   
   // 応援の言葉リスト（通常時）
   const encouragementMessages = [
@@ -67,19 +77,21 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
   ];
 
   const generateNewItems = useCallback(() => {
-    if (gameEndedRef.current) return;
+    if (gameEndedRef.current) {
+      return;
+    }
     
     setFeedback(null);
     setEncouragementMessage(''); // 応援メッセージをリセット
     
     // フィーバーモード判定（残り10秒 = 100 * 0.1秒）
-    const isFeverMode = timeLeft <= 100;
-    const feverMultiplier = isFeverMode ? 10 : 1;
+    const isFeverMode = timeLeftRef.current <= RULES.fever.thresholdTicks;
+    const feverMultiplier = isFeverMode ? RULES.fever.specialChanceMultiplier : 1;
     
     // Check if this should be a whole cake (highest priority)
-    const shouldBeWholeCake = Math.random() < (WHOLE_CAKE_CHANCE * feverMultiplier);
+    const shouldBeWholeCake = Math.random() < (RULES.wholeCake.chance * feverMultiplier);
     // Check if this should be a gold strawberry (if not whole cake)
-    const shouldBeGold = !shouldBeWholeCake && Math.random() < (GOLD_STRAWBERRY_CHANCE * feverMultiplier);
+    const shouldBeGold = !shouldBeWholeCake && Math.random() < (RULES.shortCake.chance * feverMultiplier);
     
     setIsGoldStrawberry(shouldBeGold);
     setIsWholeCake(shouldBeWholeCake);
@@ -95,7 +107,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
       newItems[newStrawberryIndex] = '🍓';
     }
 
-    const distractors = [...DISTRACTOR_EMOJIS].sort(() => 0.5 - Math.random());
+    const distractors = shuffle(DISTRACTOR_EMOJIS);
     let distractorCursor = 0;
 
     for (let i = 0; i < CHOICE_COUNT; i++) {
@@ -187,22 +199,22 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
 
   const handleChoice = (index: number) => {
     // 重複クリック防止の強化
-    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) return;
+    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) {return;}
     
     setIsProcessingClick(true);
 
     const isCorrect = index === strawberryIndex;
 
     if (isCorrect) {
-      let points = 1;
+      let points = RULES.regularPoints;
       if (isWholeCake) {
-        points = WHOLE_CAKE_POINTS;
+        points = RULES.wholeCake.points;
         // ホールケーキの時間ボーナス（5秒）
-        setTimeLeft(prevTime => prevTime + WHOLE_CAKE_TIME_BONUS);
+        setTimeLeft(prevTime => prevTime + RULES.wholeCake.timeBonusTicks);
       } else if (isGoldStrawberry) {
-        points = GOLD_STRAWBERRY_POINTS;
+        points = RULES.shortCake.points;
         // ショートケーキの時間ボーナス（2秒）
-        setTimeLeft(prevTime => prevTime + GOLD_STRAWBERRY_TIME_BONUS);
+        setTimeLeft(prevTime => prevTime + RULES.shortCake.timeBonusTicks);
       }
       setScore(prevScore => {
         const newScore = prevScore + points;
@@ -214,15 +226,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
       setConsecutiveCorrect(prev => {
         const newCount = prev + 1;
         // 連続正解で時間ボーナス（0.5秒 = 5）
-        if (newCount >= 2) {
-          setTimeLeft(prevTime => prevTime + 5);
+        if (newCount >= RULES.streak.startsAt) {
+          setTimeLeft(prevTime => prevTime + RULES.streak.timeBonusTicks);
         }
         return newCount;
       });
       
       setFeedback({ index, type: 'correct' });
       // 応援メッセージをランダムに選択（フィーバーモード時は「ラストスパート」を含む）
-      const isFeverMode = timeLeft <= 100;
+      const isFeverMode = timeLeft <= RULES.fever.thresholdTicks;
       const messages = isFeverMode ? feverEncouragementMessages : encouragementMessages;
       const randomMessage = messages[Math.floor(Math.random() * messages.length)];
       setEncouragementMessage(randomMessage);
@@ -238,13 +250,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
       }
     } else {
       // 時間を減らす（ペナルティ）
-      setTimeLeft(prevTime => Math.max(0, prevTime - (PENALTY_SECONDS * 10))); // ペナルティも0.1秒単位
+      setTimeLeft(prevTime => Math.max(0, prevTime - RULES.penaltyTicks));
       // 連続正解カウントをリセット
       setConsecutiveCorrect(0);
       setFeedback({ index, type: 'incorrect' });
       // いちご汁を表示（イライラ要素）
       if (onShowJuice) {
-        console.log('いちご汁を表示');
         onShowJuice(true);
       }
       // 攻撃メッセージを表示
@@ -270,14 +281,16 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
     }, 300);
   };
 
-  const timeBarWidth = (timeLeft / (INITIAL_TIME * 10)) * 100;
+  const timeBarWidth = progressPercent(timeLeft, RULES.initialTimeTicks);
   const displayTime = (timeLeft / 10).toFixed(1); // 0.1秒単位で表示
-  const isFeverMode = timeLeft <= 100; // 残り10秒以下でフィーバーモード
+  const isFeverMode = timeLeft <= RULES.fever.thresholdTicks;
 
   return (
     <View style={[styles.container, darkMode && styles.containerDark]}>
       {onBackToHome && (
         <TouchableOpacity 
+          accessibilityRole="button"
+          accessibilityLabel="ゲームをやめてホームに戻る"
           onPress={onBackToHome} 
           style={[styles.homeButton, darkMode && styles.homeButtonDark]}
         >
@@ -285,14 +298,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         </TouchableOpacity>
       )}
       <View style={styles.header}>
-        <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
-        <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
+        <Text accessibilityLiveRegion="polite" style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
+        <Text accessibilityLabel={`残り時間${displayTime}秒`} style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
       </View>
-      <View style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}>
+      <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="残り時間"
+        accessibilityValue={{ min: 0, max: RULES.initialTimeTicks, now: Math.min(timeLeft, RULES.initialTimeTicks) }}
+        style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}
+      >
         <View
           style={[
             styles.timeBar,
-            isFeverMode ? styles.timeBarFever : timeLeft <= 100 ? styles.timeBarDanger : styles.timeBarNormal,
+            isFeverMode ? styles.timeBarFever : timeLeft <= RULES.dangerThresholdTicks ? styles.timeBarDanger : styles.timeBarNormal,
             { width: `${timeBarWidth}%` }
           ]}
         />
@@ -324,6 +342,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
           {items.map((item, index) => (
             <TouchableOpacity
               key={index}
+              accessibilityRole="button"
+              accessibilityLabel={`選択肢${index + 1}、${describeEmoji(item)}`}
+              accessibilityState={{ disabled: Boolean(feedback) || gameEnded }}
               onPress={() => handleChoice(index)}
               disabled={!!feedback || gameEnded}
               style={[
@@ -341,7 +362,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         {/* 応援メッセージ表示（常にスペースを確保） */}
         <View style={styles.encouragementContainer}>
           {encouragementMessage && feedback && feedback.type === 'correct' ? (
-            <Text style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
+            <Text accessibilityLiveRegion="polite" style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
               {encouragementMessage}
             </Text>
           ) : (
@@ -362,7 +383,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
       {/* 攻撃メッセージ表示（画面下） */}
       {showAttackMessage && (
         <View style={styles.attackMessageContainer}>
-          <Text style={[styles.attackMessageText, darkMode && styles.attackMessageTextDark]}>
+          <Text accessibilityLiveRegion="assertive" style={[styles.attackMessageText, darkMode && styles.attackMessageTextDark]}>
             怒ったいちごに攻撃された
           </Text>
         </View>
@@ -375,7 +396,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -506,7 +527,7 @@ const styles = StyleSheet.create({
     width: 144,
     height: 144,
     backgroundColor: '#fdf2f8',
-    borderRadius: 16,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },

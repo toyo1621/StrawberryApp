@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "noEmit": false,
+    "outDir": ".tmp/app-tests"
+  },
+  "include": [
+    "tests/**/*.ts",
+    "src/domain/**/*.ts",
+    "src/services/rankingService.ts",
+    "src/gameConfig.ts",
+    "src/gameRules.ts",
+    "src/types.ts"
+  ]
+}

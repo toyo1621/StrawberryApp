@@ -2,35 +2,59 @@ export default {
   expo: {
     name: "いちごつめ！",
     slug: "ichigo-tsume-game-2024",
-    version: "1.0.0",
+    owner: "toyo1621",
+    version: "1.1.0",
+    icon: "./assets/app-icon.png",
     ios: {
-      buildNumber: "1",
+      buildNumber: "2",
       supportsTablet: true,
       bundleIdentifier: "com.strawberrygame.app",
+      privacyManifests: {
+        NSPrivacyAccessedAPITypes: [
+          {
+            NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
+            NSPrivacyAccessedAPITypeReasons: ["CA92.1"]
+          }
+        ]
+      }
     },
     android: {
-      versionCode: 1,
+      versionCode: 2,
       package: "com.strawberrygame.app",
+      adaptiveIcon: {
+        foregroundImage: "./assets/app-icon.png",
+        backgroundColor: "#8b0000"
+      }
     },
     orientation: "portrait",
-    userInterfaceStyle: "light",
+    userInterfaceStyle: "automatic",
     splash: {
+      image: "./assets/app-icon.png",
       resizeMode: "contain",
-      backgroundColor: "#ffffff"
+      backgroundColor: "#fff1f5"
     },
     assetBundlePatterns: [
       "**/*"
     ],
     web: {
-      bundler: "metro"
+      bundler: "metro",
+      favicon: "./assets/app-icon.png",
+      lang: "ja",
+      name: "いちごつめ！",
+      shortName: "いちごつめ",
+      themeColor: "#be185d",
+      backgroundColor: "#fff1f5"
     },
     experiments: {
-      baseUrl: "/StrawberryApp"
+      baseUrl: process.env.EXPO_PUBLIC_BASE_URL || "/StrawberryApp"
     },
     scheme: "ichigo-tsume-game-2024",
     extra: {
       rankingsApiUrl: process.env.EXPO_PUBLIC_RANKINGS_API_URL
     },
-    description: "時間内にいちごや島、国旗をたくさん当てよう！ランキングで競おう！"
+    updates: {
+      fallbackToCacheTimeout: 0
+    },
+    description: "時間内にいちごや島、国旗、色をたくさん当てる2択ゲーム"
   }
 };

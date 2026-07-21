@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { INITIAL_TIME, PENALTY_SECONDS, COUNTRIES } from '../constants';
-import { Country } from '../types';
+import { COUNTRIES } from '../constants';
+import { Country, GameMode } from '../types';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
+import { countryCodeToFlagEmoji, progressPercent, shuffle } from '../domain/game';
+import { GAMEPLAY_RULES } from '../gameRules';
+
+const RULES = GAMEPLAY_RULES[GameMode.FLAG];
 
 interface FlagGameScreenProps {
   onGameOver: (score: number) => void;
@@ -16,7 +19,7 @@ interface FlagGameScreenProps {
 const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
-  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10);
+  const [timeLeft, setTimeLeft] = useState(RULES.initialTimeTicks);
   const [countries, setCountries] = useState<Country[]>([]);
   const [correctCountryIndex, setCorrectCountryIndex] = useState(-1);
   const [targetCountryName, setTargetCountryName] = useState('');
@@ -42,13 +45,13 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
   ];
 
   const generateNewCountries = useCallback(() => {
-    if (gameEndedRef.current) return;
+    if (gameEndedRef.current) {return;}
     
     setFeedback(null);
     setEncouragementMessage(''); // 応援メッセージをリセット
     
     // ランダムに2つの国を選択
-    const shuffledCountries = [...COUNTRIES].sort(() => 0.5 - Math.random());
+    const shuffledCountries = shuffle(COUNTRIES);
     const selectedCountries = shuffledCountries.slice(0, 2);
     
     // どちらが正解かをランダムに決定
@@ -106,7 +109,7 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
   }, [generateNewCountries, startTimer]);
 
   const handleChoice = (index: number) => {
-    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) return;
+    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) {return;}
     
     setIsProcessingClick(true);
 
@@ -114,12 +117,12 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
 
     if (isCorrect) {
       setScore(prevScore => {
-        const newScore = prevScore + 1;
+        const newScore = prevScore + RULES.regularPoints;
         scoreRef.current = newScore;
         return newScore;
       });
       // 時間ボーナス（1秒 = 10 * 0.1秒）
-      setTimeLeft(prevTime => prevTime + 10);
+      setTimeLeft(prevTime => prevTime + RULES.regularTimeBonusTicks);
       setFeedback({ index, type: 'correct' });
       // 応援メッセージをランダムに選択
       const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
@@ -129,7 +132,7 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } else {
-      setTimeLeft(prevTime => Math.max(0, prevTime - (PENALTY_SECONDS * 10)));
+      setTimeLeft(prevTime => Math.max(0, prevTime - RULES.penaltyTicks));
       setFeedback({ index, type: 'incorrect' });
       // ハプティックフィードバック（不正解）
       if (hapticsEnabled) {
@@ -145,13 +148,15 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
     }, 300);
   };
 
-  const timeBarWidth = (timeLeft / (INITIAL_TIME * 10)) * 100;
+  const timeBarWidth = progressPercent(timeLeft, RULES.initialTimeTicks);
   const displayTime = (timeLeft / 10).toFixed(1);
 
   return (
     <View style={[styles.container, darkMode && styles.containerDark]}>
       {onBackToHome && (
         <TouchableOpacity 
+          accessibilityRole="button"
+          accessibilityLabel="ゲームをやめてホームに戻る"
           onPress={onBackToHome} 
           style={[styles.homeButton, darkMode && styles.homeButtonDark]}
         >
@@ -159,14 +164,19 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
         </TouchableOpacity>
       )}
       <View style={styles.header}>
-        <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
-        <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
+        <Text accessibilityLiveRegion="polite" style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
+        <Text accessibilityLabel={`残り時間${displayTime}秒`} style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
       </View>
-      <View style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}>
+      <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="残り時間"
+        accessibilityValue={{ min: 0, max: RULES.initialTimeTicks, now: Math.min(timeLeft, RULES.initialTimeTicks) }}
+        style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}
+      >
         <View
           style={[
             styles.timeBar,
-            timeLeft <= 100 ? styles.timeBarDanger : styles.timeBarNormal,
+            timeLeft <= RULES.dangerThresholdTicks ? styles.timeBarDanger : styles.timeBarNormal,
             { width: `${timeBarWidth}%` }
           ]}
         />
@@ -181,6 +191,9 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
           {countries.map((country, index) => (
             <TouchableOpacity
               key={index}
+              accessibilityRole="button"
+              accessibilityLabel={`選択肢${index + 1}、${country.name}の国旗`}
+              accessibilityState={{ disabled: Boolean(feedback) || gameEnded }}
               onPress={() => handleChoice(index)}
               disabled={!!feedback || gameEnded}
               style={[
@@ -190,18 +203,14 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
                 gameEnded && styles.choiceButtonInactive,
               ]}
             >
-              <Image 
-                source={{ uri: `https://cdn.jsdelivr.net/gh/lipis/flag-icons/flags/4x3/${country.code}.svg` }}
-                style={styles.choiceImage}
-                contentFit="contain"
-              />
+              <Text accessible={false} style={styles.flagEmoji}>{countryCodeToFlagEmoji(country.code)}</Text>
             </TouchableOpacity>
           ))}
         </View>
         {/* 応援メッセージ表示（常にスペースを確保） */}
         <View style={styles.encouragementContainer}>
           {encouragementMessage && feedback && feedback.type === 'correct' ? (
-            <Text style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
+            <Text accessibilityLiveRegion="polite" style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
               {encouragementMessage}
             </Text>
           ) : (
@@ -217,7 +226,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -292,7 +301,7 @@ const styles = StyleSheet.create({
     width: 144,
     height: 144,
     backgroundColor: '#f0fdf4',
-    borderRadius: 16,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
@@ -302,10 +311,9 @@ const styles = StyleSheet.create({
   choiceButtonInactive: {
     opacity: 0.5,
   },
-  choiceImage: {
-    width: '100%',
-    height: '100%',
-    aspectRatio: 4/3,
+  flagEmoji: {
+    fontSize: 72,
+    lineHeight: 88,
   },
   containerDark: {
     backgroundColor: '#1f2937',

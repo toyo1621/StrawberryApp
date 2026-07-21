@@ -2,10 +2,14 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { INITIAL_TIME, PENALTY_SECONDS, ISLAND_NAMES, GOLD_STRAWBERRY_CHANCE, GOLD_STRAWBERRY_TIME_BONUS } from '../constants';
-import { Island } from '../types';
+import { ISLAND_NAMES } from '../constants';
+import { GameMode, Island } from '../types';
 import { islandAssets } from '../assets/islandAssets';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
+import { progressPercent, shuffle } from '../domain/game';
+import { GAMEPLAY_RULES } from '../gameRules';
+
+const RULES = GAMEPLAY_RULES[GameMode.ISLAND];
 
 interface IslandGameScreenProps {
   onGameOver: (score: number) => void;
@@ -17,7 +21,7 @@ interface IslandGameScreenProps {
 const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
-  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10);
+  const [timeLeft, setTimeLeft] = useState(RULES.initialTimeTicks);
   const [islands, setIslands] = useState<Island[]>([]);
   const [correctIslandIndex, setCorrectIslandIndex] = useState(-1);
   const [targetIslandName, setTargetIslandName] = useState('');
@@ -43,17 +47,17 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
   ];
 
   const generateNewIslands = useCallback(() => {
-    if (gameEndedRef.current) return;
+    if (gameEndedRef.current) {return;}
     
     setFeedback(null);
     setEncouragementMessage(''); // 応援メッセージをリセット
     
     // ゴールデン島の判定（3%の確率）
-    const shouldBeGolden = Math.random() < GOLD_STRAWBERRY_CHANCE;
+    const shouldBeGolden = Math.random() < RULES.golden.chance;
     setIsGoldenIsland(shouldBeGolden);
     
     // ランダムに2つの島を選択
-    const shuffledIslands = [...ISLAND_NAMES].sort(() => 0.5 - Math.random());
+    const shuffledIslands = shuffle(ISLAND_NAMES);
     const selectedIslands = shuffledIslands.slice(0, 2);
     
     // どちらが正解かをランダムに決定
@@ -112,21 +116,21 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
   }, [generateNewIslands, startTimer]);
 
   const handleChoice = (index: number) => {
-    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) return;
+    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) {return;}
     
     setIsProcessingClick(true);
 
     const isCorrect = index === correctIslandIndex;
 
     if (isCorrect) {
-      let points = 1;
+      let points = RULES.regularPoints;
       // 時間ボーナス（0.3秒 = 3 * 0.1秒）
-      setTimeLeft(prevTime => prevTime + 3);
+      setTimeLeft(prevTime => prevTime + RULES.regularTimeBonusTicks);
       
       if (isGoldenIsland) {
-        points = 3; // ゴールデン島は3倍
+        points = RULES.golden.points;
         // 追加の時間ボーナス（1秒）
-        setTimeLeft(prevTime => prevTime + GOLD_STRAWBERRY_TIME_BONUS);
+        setTimeLeft(prevTime => prevTime + RULES.golden.timeBonusTicks);
       }
       
       setScore(prevScore => {
@@ -147,7 +151,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
         }
       }
     } else {
-      setTimeLeft(prevTime => Math.max(0, prevTime - (PENALTY_SECONDS * 10)));
+      setTimeLeft(prevTime => Math.max(0, prevTime - RULES.penaltyTicks));
       setFeedback({ index, type: 'incorrect' });
       // ハプティックフィードバック（不正解）
       if (hapticsEnabled) {
@@ -163,13 +167,15 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
     }, 300);
   };
 
-  const timeBarWidth = (timeLeft / (INITIAL_TIME * 10)) * 100;
+  const timeBarWidth = progressPercent(timeLeft, RULES.initialTimeTicks);
   const displayTime = (timeLeft / 10).toFixed(1);
 
   return (
     <View style={[styles.container, darkMode && styles.containerDark]}>
       {onBackToHome && (
         <TouchableOpacity 
+          accessibilityRole="button"
+          accessibilityLabel="ゲームをやめてホームに戻る"
           onPress={onBackToHome} 
           style={[styles.homeButton, darkMode && styles.homeButtonDark]}
         >
@@ -177,14 +183,19 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
         </TouchableOpacity>
       )}
       <View style={styles.header}>
-        <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
-        <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
+        <Text accessibilityLiveRegion="polite" style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
+        <Text accessibilityLabel={`残り時間${displayTime}秒`} style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
       </View>
-      <View style={styles.timeBarContainer}>
+      <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="残り時間"
+        accessibilityValue={{ min: 0, max: RULES.initialTimeTicks, now: Math.min(timeLeft, RULES.initialTimeTicks) }}
+        style={styles.timeBarContainer}
+      >
         <View
           style={[
             styles.timeBar,
-            timeLeft <= 100 ? styles.timeBarDanger : styles.timeBarNormal,
+            timeLeft <= RULES.dangerThresholdTicks ? styles.timeBarDanger : styles.timeBarNormal,
             { width: `${timeBarWidth}%` }
           ]}
         />
@@ -223,6 +234,9 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
             return (
               <TouchableOpacity
                 key={index}
+                accessibilityRole="button"
+                accessibilityLabel={`選択肢${index + 1}、${island.name}の島影`}
+                accessibilityState={{ disabled: Boolean(feedback) || gameEnded }}
                 onPress={() => handleChoice(index)}
                 disabled={!!feedback || gameEnded}
                 style={[
@@ -233,6 +247,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
                 ]}
               >
                 <Image 
+                  accessible={false}
                   source={islandAssets[island.file]}
                   style={styles.choiceImage}
                   contentFit="contain"
@@ -245,7 +260,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({ onGameOver, haptics
         {/* 応援メッセージ表示（常にスペースを確保） */}
         <View style={styles.encouragementContainer}>
           {encouragementMessage && feedback && feedback.type === 'correct' ? (
-            <Text style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
+            <Text accessibilityLiveRegion="polite" style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
               {encouragementMessage}
             </Text>
           ) : (
@@ -261,7 +276,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -350,7 +365,7 @@ const styles = StyleSheet.create({
     width: 144,
     height: 144,
     backgroundColor: '#eff6ff',
-    borderRadius: 16,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,

@@ -2,6 +2,7 @@ import {
   ValidationError,
   parseGameType,
   parseRankingPeriod,
+  validatePlayerName,
   validateScoreSubmission,
 } from './rankingValidation';
 
@@ -31,7 +32,9 @@ const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 100;
 const SCORE_SUBMISSION_LIMIT = 8;
 const SCORE_SUBMISSION_WINDOW_MS = 60 * 1000;
-const SCORE_SUBMISSION_RETENTION_MS = 24 * 60 * 60 * 1000;
+const SCORE_SUBMISSION_RETENTION_MS = 15 * 60 * 1000;
+const MAX_REQUEST_BODY_BYTES = 2_048;
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://toyo1621.github.io',
   'http://localhost:3000',
@@ -51,6 +54,9 @@ class HttpError extends Error {
 const json = (data: unknown, init: ResponseInit = {}, origin?: string, env?: Env) => {
   const headers = new Headers(init.headers);
   headers.set('content-type', 'application/json; charset=utf-8');
+  headers.set('x-content-type-options', 'nosniff');
+  headers.set('referrer-policy', 'no-referrer');
+  headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');
   setCorsHeaders(headers, origin, env);
 
   return new Response(JSON.stringify(data), {
@@ -65,6 +71,7 @@ const setCorsHeaders = (headers: Headers, origin?: string, env?: Env) => {
   headers.set('access-control-allow-methods', 'GET,POST,OPTIONS');
   headers.set('access-control-allow-headers', 'content-type');
   headers.set('access-control-max-age', '86400');
+  headers.append('vary', 'Origin');
 };
 
 const getAllowedOrigin = (origin?: string, env?: Env) => {
@@ -101,31 +108,27 @@ const requireAllowedOrigin = (origin: string | undefined, env: Env) => {
   }
 };
 
-const getPeriodStart = (period: string) => {
+export const getPeriodStart = (period: string, now: Date = new Date()) => {
   if (period === 'all') {
     return null;
   }
 
-  const now = new Date();
-  const start = new Date(now);
-
-  if (period === 'daily') {
-    start.setHours(0, 0, 0, 0);
-  }
+  const jstNow = new Date(now.getTime() + JST_OFFSET_MS);
+  const year = jstNow.getUTCFullYear();
+  const month = jstNow.getUTCMonth();
+  const date = jstNow.getUTCDate();
+  let startDay = date;
 
   if (period === 'weekly') {
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    start.setDate(diff);
-    start.setHours(0, 0, 0, 0);
+    const day = jstNow.getUTCDay();
+    startDay -= day === 0 ? 6 : day - 1;
   }
 
   if (period === 'monthly') {
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
+    startDay = 1;
   }
 
-  return start.toISOString();
+  return new Date(Date.UTC(year, month, startDay) - JST_OFFSET_MS).toISOString();
 };
 
 const mapRanking = (row: RankingRow): RankingEntry => ({
@@ -159,7 +162,10 @@ const getClientIdentityHash = async (request: Request, env: Env) => {
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
     'unknown-ip';
   const userAgent = request.headers.get('user-agent') ?? 'unknown-agent';
-  const salt = env.RATE_LIMIT_SALT ?? 'strawberry-rankings';
+  const salt = env.RATE_LIMIT_SALT;
+  if (!salt || salt.length < 16) {
+    throw new HttpError(503, 'Score submissions are temporarily unavailable.');
+  }
 
   return sha256Hex(`${salt}:${ip}:${userAgent}`);
 };
@@ -167,8 +173,6 @@ const getClientIdentityHash = async (request: Request, env: Env) => {
 const enforceScoreSubmissionRateLimit = async (
   request: Request,
   env: Env,
-  playerName: string,
-  gameType: string,
 ) => {
   const identityHash = await getClientIdentityHash(request, env);
   const now = Date.now();
@@ -188,17 +192,24 @@ const enforceScoreSubmissionRateLimit = async (
 
   await env.DB.prepare(
     `
-      INSERT INTO score_submission_events (id, identity_hash, player_name, game_type, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO score_submission_events (id, identity_hash, created_at)
+      VALUES (?, ?, ?)
     `,
-  ).bind(crypto.randomUUID(), identityHash, playerName, gameType, new Date(now).toISOString()).run();
+  ).bind(crypto.randomUUID(), identityHash, new Date(now).toISOString()).run();
 
+  await cleanupRateLimitEvents(env, new Date(now));
+};
+
+export const cleanupRateLimitEvents = async (
+  env: Env,
+  now: Date = new Date(),
+) => {
   await env.DB.prepare(
     `
       DELETE FROM score_submission_events
       WHERE created_at < ?
     `,
-  ).bind(new Date(now - SCORE_SUBMISSION_RETENTION_MS).toISOString()).run();
+  ).bind(new Date(now.getTime() - SCORE_SUBMISSION_RETENTION_MS).toISOString()).run();
 };
 
 const fetchRankings = async (request: Request, env: Env) => {
@@ -208,7 +219,7 @@ const fetchRankings = async (request: Request, env: Env) => {
   const limit = clampLimit(url.searchParams.get('limit'));
   const start = getPeriodStart(period);
 
-  const params: Array<string | number> = [gameType];
+  const params: (string | number)[] = [gameType];
   let where = 'game_type = ?';
 
   if (start) {
@@ -245,21 +256,62 @@ const fetchRankings = async (request: Request, env: Env) => {
   return results.map(mapRanking);
 };
 
+const readJsonBody = async (request: Request): Promise<Record<string, unknown> | null> => {
+  const contentType = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
+  if (contentType !== 'application/json') {
+    throw new HttpError(415, 'Content-Type must be application/json.');
+  }
+
+  const declaredLength = Number(request.headers.get('content-length') ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BODY_BYTES) {
+    throw new HttpError(413, 'Request body is too large.');
+  }
+
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > MAX_REQUEST_BODY_BYTES) {
+    throw new HttpError(413, 'Request body is too large.');
+  }
+
+  try {
+    const value = JSON.parse(text) as unknown;
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : null;
+  } catch {
+    throw new HttpError(400, 'Request body must be valid JSON.');
+  }
+};
+
 const saveScore = async (request: Request, env: Env, origin?: string) => {
   requireAllowedOrigin(origin, env);
 
-  const body = await request.json().catch(() => null) as {
-    playerName?: unknown;
-    score?: unknown;
-    gameType?: unknown;
-    durationMs?: unknown;
-  } | null;
+  const body = await readJsonBody(request);
+  const { submissionId, playerName, score, gameType } = validateScoreSubmission(body);
 
-  const { playerName, score, gameType } = validateScoreSubmission(body);
-  await enforceScoreSubmissionRateLimit(request, env, playerName, gameType);
+  const existing = await env.DB.prepare(
+    `
+      SELECT id, player_name, score, game_type, created_at
+      FROM rankings
+      WHERE id = ?
+      LIMIT 1
+    `,
+  ).bind(submissionId).first<RankingRow>();
+
+  if (existing) {
+    if (
+      existing.player_name !== playerName
+      || existing.score !== score
+      || existing.game_type !== gameType
+    ) {
+      throw new HttpError(409, 'Submission ID is already in use.');
+    }
+    return { entry: mapRanking(existing), created: false };
+  }
+
+  await enforceScoreSubmissionRateLimit(request, env);
 
   const entry: RankingEntry = {
-    id: crypto.randomUUID(),
+    id: submissionId,
     playerName,
     score,
     gameType,
@@ -273,22 +325,23 @@ const saveScore = async (request: Request, env: Env, origin?: string) => {
     `,
   ).bind(entry.id, entry.playerName, entry.score, entry.gameType, entry.createdAt).run();
 
-  return entry;
+  return { entry, created: true };
 };
 
 const getPlayerBestScore = async (request: Request, env: Env, playerName: string) => {
   const url = new URL(request.url);
   const gameType = parseGameType(url.searchParams.get('gameType'));
+  const normalizedPlayerName = validatePlayerName(playerName);
 
   const row = await env.DB.prepare(
     `
       SELECT score
       FROM rankings
-      WHERE game_type = ? AND player_name = ?
+      WHERE game_type = ? AND lower(trim(player_name)) = lower(trim(?))
       ORDER BY score DESC, created_at ASC
       LIMIT 1
     `,
-  ).bind(gameType, playerName).first<{ score: number }>();
+  ).bind(gameType, normalizedPlayerName).first<{ score: number }>();
 
   return { score: row?.score ?? 0 };
 };
@@ -297,16 +350,17 @@ const getPlayerHistory = async (request: Request, env: Env, playerName: string) 
   const url = new URL(request.url);
   const gameType = parseGameType(url.searchParams.get('gameType'));
   const limit = clampLimit(url.searchParams.get('limit'));
+  const normalizedPlayerName = validatePlayerName(playerName);
 
   const { results } = await env.DB.prepare(
     `
       SELECT id, player_name, score, game_type, created_at
       FROM rankings
-      WHERE game_type = ? AND player_name = ?
+      WHERE game_type = ? AND lower(trim(player_name)) = lower(trim(?))
       ORDER BY created_at DESC
       LIMIT ?
     `,
-  ).bind(gameType, playerName, limit).all<RankingRow>();
+  ).bind(gameType, normalizedPlayerName, limit).all<RankingRow>();
 
   return results.map(mapRanking);
 };
@@ -314,10 +368,19 @@ const getPlayerHistory = async (request: Request, env: Env, playerName: string) 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get('origin') ?? undefined;
+    const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
 
     if (request.method === 'OPTIONS') {
+      if (origin && !isAllowedOrigin(origin, env)) {
+        return new Response(null, {
+          status: 403,
+          headers: { 'x-content-type-options': 'nosniff', 'x-request-id': requestId },
+        });
+      }
       const headers = new Headers();
       setCorsHeaders(headers, origin, env);
+      headers.set('x-content-type-options', 'nosniff');
+      headers.set('x-request-id', requestId);
       return new Response(null, { status: 204, headers });
     }
 
@@ -325,35 +388,92 @@ export default {
 
     try {
       if (request.method === 'GET' && url.pathname === '/health') {
-        return json({ ok: true }, {}, origin, env);
+        const health = await env.DB.prepare('SELECT 1 AS ok').first<{ ok: number }>();
+        if (health?.ok !== 1) {
+          throw new Error('Database health check failed.');
+        }
+        return json(
+          { ok: true, service: 'strawberry-rankings-api' },
+          { headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
+          origin,
+          env,
+        );
       }
 
       if (request.method === 'GET' && url.pathname === '/rankings') {
-        return json(await fetchRankings(request, env), {}, origin, env);
+        return json(
+          await fetchRankings(request, env),
+          { headers: { 'cache-control': 'public, max-age=30, stale-while-revalidate=120', 'x-request-id': requestId } },
+          origin,
+          env,
+        );
       }
 
       if (request.method === 'POST' && url.pathname === '/scores') {
-        return json(await saveScore(request, env, origin), { status: 201 }, origin, env);
+        const result = await saveScore(request, env, origin);
+        return json(
+          result.entry,
+          {
+            status: result.created ? 201 : 200,
+            headers: { 'cache-control': 'no-store', 'x-request-id': requestId },
+          },
+          origin,
+          env,
+        );
       }
 
       const bestMatch = url.pathname.match(/^\/players\/([^/]+)\/best$/);
       if (request.method === 'GET' && bestMatch) {
-        return json(await getPlayerBestScore(request, env, decodeURIComponent(bestMatch[1])), {}, origin, env);
+        return json(
+          await getPlayerBestScore(request, env, decodeURIComponent(bestMatch[1])),
+          { headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
+          origin,
+          env,
+        );
       }
 
       const historyMatch = url.pathname.match(/^\/players\/([^/]+)\/history$/);
       if (request.method === 'GET' && historyMatch) {
-        return json(await getPlayerHistory(request, env, decodeURIComponent(historyMatch[1])), {}, origin, env);
+        return json(
+          await getPlayerHistory(request, env, decodeURIComponent(historyMatch[1])),
+          { headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
+          origin,
+          env,
+        );
       }
 
-      return json({ error: 'Not found' }, { status: 404 }, origin, env);
+      return json(
+        { error: 'Not found' },
+        { status: 404, headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
+        origin,
+        env,
+      );
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Internal server error';
       const status =
         error instanceof HttpError || error instanceof ValidationError
           ? error.status
           : 500;
-      return json({ error: message }, { status }, origin, env);
+      if (status >= 500) {
+        console.error(JSON.stringify({
+          event: 'request_failed',
+          requestId,
+          method: request.method,
+          path: url.pathname,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }));
+      }
+      const message = status >= 500
+        ? 'The service is temporarily unavailable.'
+        : error instanceof Error ? error.message : 'Request failed.';
+      return json(
+        { error: message, requestId },
+        { status, headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
+        origin,
+        env,
+      );
     }
+  },
+  async scheduled(_controller: unknown, env: Env): Promise<void> {
+    await cleanupRateLimitEvents(env);
   },
 };

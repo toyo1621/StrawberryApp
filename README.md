@@ -1,179 +1,85 @@
 # いちごつめ！
 
-時間内に2つの選択肢から正解を選び続ける、瞬発力重視の2択ゲームです。いちご、島、国旗、色の4モードで遊べます。
+30秒間に2択を解き続ける、Expo製の日本語ミニゲームです。いちご、島、国旗、色の4モードと、全体・日別・週別・月別のオンラインランキングを提供します。
 
-## 公開URL
-
-GitHub Pagesで公開中です。
-
-https://toyo1621.github.io/StrawberryApp
-
-GitHub PagesとランキングAPIのデプロイ手順は [DEPLOYMENT.md](./DEPLOYMENT.md) を参照してください。
-
-## ゲーム概要
-
-- 制限時間は30秒
-- 選択肢は常に2択
-- 正解すると1点
-- 間違えると3秒のペナルティ
-- 2連続正解以降は連続正解ボーナスで0.5秒回復
-- 残り10秒はフィーバー状態になり、特別アイテムの出現率が上がります
-
-## ゲームモード
-
-### いちごモード
-
-表示された選択肢から、いちごを素早く選ぶモードです。
-
-- ショートケーキ: 3点 + 2秒回復
-- ホールケーキ: 5点 + 5秒回復
-- ゲーム終了後に記憶チャレンジがあります
-- 間違えると、いちごジュースの演出が画面全体に表示されます
-
-### 島モード
-
-日本の有人離島の形を見て、正しい島を選ぶモードです。
-
-- SVGの島アセットを利用
-- ゴールデン島: 3点 + 1秒回復
-- 島の形を覚えながら遊べます
-
-### 国旗モード
-
-表示された国名に対応する国旗を選ぶモードです。
-
-- `flag-icons` を利用
-- 世界の国旗を覚えながら遊べます
-
-### 色モード
-
-色名と色見本を見て、正しい色を選ぶモードです。
-
-- 色彩検定に出てくる色名を学べます
-- マンセル値、HEX、説明文を持つ色データを利用
-- ゴールデン色: 3点 + 1秒回復
+- Web: https://toyo1621.github.io/StrawberryApp/
+- Rankings API: https://strawberry-rankings-api.toyo1621.workers.dev/health
 
 ## 主な機能
 
-- モード別ランキング
-- 全体、日別、週別、月別ランキング
-- プレイヤーごとのスコア履歴
-- マイページでのプレイヤー名管理
-- ダークモード
-- 振動フィードバックのオン/オフ
-- プライバシーポリシー、利用規約画面
-- ランキングAPI未設定時のローカル保存フォールバック
+- 4種類のゲームモードとモード別ランキング
+- JST基準の全体・日別・週別・月別集計
+- プレイヤーごとの全モードスコア履歴
+- 通信失敗時のローカル保存と、次回起動時の自動同期
+- ダークモード、振動設定、動きを減らすOS設定への対応
+- スクリーンリーダー向けラベル、状態通知、色名・HEX・マンセル値の併記
+- ローカルアセットだけで表示できる国旗と島画像
 
-## 技術スタック
+ゲームの共通ルールは30秒、正解1点、不正解で3秒減少です。モードごとに異なる時間回復があり、いちごと島には追加得点の特別問題があります。いちごモードの終了後には記憶チャレンジがあります。詳細はアプリ内の「ルール」と [ARCHITECTURE.md](./ARCHITECTURE.md) を参照してください。
 
-- Expo 54
-- React 19
-- React Native 0.81
-- React Native Web
+## 技術構成
+
+- Expo 54 / React 19 / React Native 0.81 / React Native Web
 - TypeScript 5.9
-- Cloudflare Workers
-- Cloudflare D1
+- Cloudflare Workers / D1
 - React Native Async Storage
-- flag-icons
+- Node test runner / Playwright / axe-core / ESLint 9
+- GitHub Actions / GitHub Pages / EAS Build
 
 ## セットアップ
 
-### 1. 依存関係をインストール
+Node.js 22を使用します。
 
 ```bash
-npm install
-```
-
-### 2. 環境変数を設定
-
-`.env.example` を参考に `.env` を作成し、ランキングAPIのURLを設定します。
-
-```bash
-EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.dev
-```
-
-ランキングAPIの環境変数がない場合、ランキングとスコア履歴はローカルストレージに保存されます。
-
-### 3. 開発サーバーを起動
-
-```bash
-# Webブラウザで起動
+npm ci
+cp .env.example .env
 npm run web
-
-# Expo Goで起動
-npm start
-
-# iOSシミュレーターで起動
-npm run ios
-
-# Androidエミュレーターで起動
-npm run android
 ```
 
-## Webビルド
+`.env` の `EXPO_PUBLIC_RANKINGS_API_URL` を省略した場合もプレイでき、ランキングは端末内だけに保存されます。
 
 ```bash
-npm run build:web
-```
-
-Webビルドの出力先は `web-build` です。ローカルで確認する場合は次のコマンドを使います。
-
-```bash
-npm run preview
+npm start       # Expo開発サーバー
+npm run ios     # iOSシミュレーター
+npm run android # Androidエミュレーター
 ```
 
 ## 品質チェック
 
 ```bash
-npm run typecheck
-npm test
-npm run audit:high
+npm run check            # lint、型、単体/Workerテスト、設定、依存監査
+npm run test:e2e         # Desktop Chrome + Pixel 7、axe WCAG A/AAを含む
+npm run build:web
+npm run check:web-build  # JS 900 KiB、全体5 MiBの予算と外部国旗CDN不使用
 ```
 
-GitHub Actionsでも、Webデプロイ前に型チェック、Workerテスト、high以上の脆弱性監査を実行します。
-本番APIを確認する場合は、ランキングAPI URLを設定してスモークチェックを実行します。
+CIは同じ検査を通した後だけPagesへ公開し、公開後にWebとD1接続を含むAPIヘルスチェックを実行します。本番は毎時のスモーク監視も行います。
 
-```bash
-EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.dev npm run smoke:rankings-api
-```
-
-## ランキングAPI
-
-ランキングはCloudflare Worker API経由でD1に保存されます。
-
-```bash
-# D1スキーマ適用
-npm run d1:apply-schema
-
-# Workerデプロイ
-npm run worker:deploy
-```
-
-ランキングは `rankings` テーブルに保存され、モードごとに `game_type` で分類されます。
-スコア投稿は許可Origin、プレイヤー名、ゲーム別スコア上限、プレイ時間、短時間連投制限をWorker側で検証します。
-Supabaseからの既存データ移行は [DEPLOYMENT.md](./DEPLOYMENT.md) を参照してください。
-
-## ディレクトリ構成
+## ディレクトリ
 
 ```text
 src/
-  App.tsx
-  components/
-  services/
-  assets/
-  constants.ts
+  components/       画面と共通UI
+  domain/           純粋なゲーム・ランキングロジック
+  services/         端末保存とランキングAPIクライアント
+  gameConfig.ts     4モード共通設定
+  gameRules.ts      4モードの得点・時間ルール
 worker/
-  src/
-  schema.sql
-scripts/
-  export-supabase-rankings.mjs
-  write-d1-import-sql.mjs
+  src/              Worker API、入力検証、テスト
+  migrations/       D1マイグレーション
+  schema.sql         新規D1用スキーマ
+e2e/                Playwright操作・アクセシビリティテスト
+scripts/            検証、スモーク、移行補助
 ```
 
-## デプロイ
+## 文書
 
-本番公開先はGitHub Pagesです。
+- [ARCHITECTURE.md](./ARCHITECTURE.md): 構成、データフロー、業務ルール
+- [SECURITY.md](./SECURITY.md): 脅威モデル、入力防御、秘密情報、報告方法
+- [OPERATIONS.md](./OPERATIONS.md): 監視、障害対応、バックアップ、復旧
+- [DEPLOYMENT.md](./DEPLOYMENT.md): Worker、D1、Pages、EASの公開手順
+- [CONTRIBUTING.md](./CONTRIBUTING.md): 開発・テスト・リリース手順
 
-https://toyo1621.github.io/StrawberryApp
+## データについて
 
-GitHub Actionsでビルドする場合は、`EXPO_PUBLIC_RANKINGS_API_URL` をRepository VariablesまたはSecretsに設定してください。
+公開ランキングには入力したプレイヤー名、スコア、モード、登録日時が表示されます。投稿の短時間連打を抑えるため、IPアドレスとUser-Agentから秘密ソルト付きハッシュを生成し、元データを保存せず15分以内に削除します。詳細はアプリ内のプライバシーポリシーと [SECURITY.md](./SECURITY.md) に記載しています。

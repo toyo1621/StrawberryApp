@@ -1,0 +1,46 @@
+name: Deploy Rankings Worker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rankings-worker-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Worker
+        run: npm run typecheck:worker && npm run test:worker && npx wrangler deploy --dry-run --config worker/wrangler.toml
+
+      - name: Apply D1 migrations
+        run: npm run d1:migrate
+
+      - name: Deploy Worker
+        run: npm run worker:deploy
+
+      - name: Verify production API
+        run: npm run smoke:rankings-api
+        env:
+          EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

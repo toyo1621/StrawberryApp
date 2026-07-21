@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { INITIAL_TIME, PENALTY_SECONDS, COLORS } from '../constants';
-import { Color } from '../types';
+import { COLORS } from '../constants';
+import { Color, GameMode } from '../types';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
+import { progressPercent, shuffle } from '../domain/game';
+import { GAMEPLAY_RULES } from '../gameRules';
+
+const RULES = GAMEPLAY_RULES[GameMode.COLOR];
 
 interface ColorGameScreenProps {
   onGameOver: (score: number) => void;
@@ -15,7 +19,7 @@ interface ColorGameScreenProps {
 const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEnabled = true, darkMode = false, onBackToHome }) => {
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
-  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME * 10);
+  const [timeLeft, setTimeLeft] = useState(RULES.initialTimeTicks);
   const [colors, setColors] = useState<Color[]>([]);
   const [correctColorIndex, setCorrectColorIndex] = useState(-1);
   const [targetColorName, setTargetColorName] = useState('');
@@ -44,29 +48,29 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
   // 色の系統を判定する関数
   const getColorCategory = (colorId: string): string => {
     const id = parseInt(colorId);
-    if (id >= 1 && id <= 20) return 'red'; // 赤系
-    if (id >= 21 && id <= 32) return 'yellow-red'; // 黄赤系
-    if (id >= 33 && id <= 40) return 'yellow'; // 黄系
-    if (id >= 41 && id <= 47) return 'yellow-green'; // 黄緑系
-    if (id >= 48 && id <= 56) return 'green'; // 緑系
-    if (id >= 57 && id <= 64) return 'blue-green'; // 青緑系
-    if (id >= 65 && id <= 77) return 'blue'; // 青系
-    if (id >= 78 && id <= 83) return 'blue-violet'; // 青紫系
-    if (id >= 84 && id <= 89) return 'violet'; // 紫系
-    if (id >= 90 && id <= 95) return 'red-violet'; // 赤紫系
-    if (id >= 96 && id <= 108) return 'brown'; // 茶系・アースカラー
-    if (id >= 109 && id <= 120) return 'grayish'; // グレイッシュカラー
+    if (id >= 1 && id <= 20) {return 'red';} // 赤系
+    if (id >= 21 && id <= 32) {return 'yellow-red';} // 黄赤系
+    if (id >= 33 && id <= 40) {return 'yellow';} // 黄系
+    if (id >= 41 && id <= 47) {return 'yellow-green';} // 黄緑系
+    if (id >= 48 && id <= 56) {return 'green';} // 緑系
+    if (id >= 57 && id <= 64) {return 'blue-green';} // 青緑系
+    if (id >= 65 && id <= 77) {return 'blue';} // 青系
+    if (id >= 78 && id <= 83) {return 'blue-violet';} // 青紫系
+    if (id >= 84 && id <= 89) {return 'violet';} // 紫系
+    if (id >= 90 && id <= 95) {return 'red-violet';} // 赤紫系
+    if (id >= 96 && id <= 108) {return 'brown';} // 茶系・アースカラー
+    if (id >= 109 && id <= 120) {return 'grayish';} // グレイッシュカラー
     return 'achromatic'; // 無彩色系
   };
 
   const generateNewColors = useCallback(() => {
-    if (gameEndedRef.current) return;
+    if (gameEndedRef.current) {return;}
     
     setFeedback(null);
     setEncouragementMessage(''); // 応援メッセージをリセット
     
     // ランダムに1つの色を選ぶ（正解）
-    const shuffledColors = [...COLORS].sort(() => 0.5 - Math.random());
+    const shuffledColors = shuffle(COLORS);
     const correctColor = shuffledColors[0];
     const correctCategory = getColorCategory(correctColor.id);
     
@@ -138,7 +142,7 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
   }, [generateNewColors, startTimer]);
 
   const handleChoice = (index: number) => {
-    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) return;
+    if (feedback || isProcessingClick || gameEnded || gameEndedRef.current) {return;}
     
     setIsProcessingClick(true);
 
@@ -146,12 +150,12 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
 
     if (isCorrect) {
       setScore(prevScore => {
-        const newScore = prevScore + 1;
+        const newScore = prevScore + RULES.regularPoints;
         scoreRef.current = newScore;
         return newScore;
       });
       // 時間ボーナス（1秒 = 10 * 0.1秒）
-      setTimeLeft(prevTime => prevTime + 10);
+      setTimeLeft(prevTime => prevTime + RULES.regularTimeBonusTicks);
       setFeedback({ index, type: 'correct' });
       // 応援メッセージをランダムに選択
       const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
@@ -161,7 +165,7 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } else {
-      setTimeLeft(prevTime => Math.max(0, prevTime - (PENALTY_SECONDS * 10)));
+      setTimeLeft(prevTime => Math.max(0, prevTime - RULES.penaltyTicks));
       setFeedback({ index, type: 'incorrect' });
       // ハプティックフィードバック（不正解）
       if (hapticsEnabled) {
@@ -177,13 +181,15 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
     }, 300);
   };
 
-  const timeBarWidth = (timeLeft / (INITIAL_TIME * 10)) * 100;
+  const timeBarWidth = progressPercent(timeLeft, RULES.initialTimeTicks);
   const displayTime = (timeLeft / 10).toFixed(1);
 
   return (
     <View style={[styles.container, darkMode && styles.containerDark]}>
       {onBackToHome && (
         <TouchableOpacity 
+          accessibilityRole="button"
+          accessibilityLabel="ゲームをやめてホームに戻る"
           onPress={onBackToHome} 
           style={[styles.homeButton, darkMode && styles.homeButtonDark]}
         >
@@ -191,14 +197,19 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
         </TouchableOpacity>
       )}
       <View style={styles.header}>
-        <Text style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
-        <Text style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
+        <Text accessibilityLiveRegion="polite" style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
+        <Text accessibilityLabel={`残り時間${displayTime}秒`} style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
       </View>
-      <View style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}>
+      <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="残り時間"
+        accessibilityValue={{ min: 0, max: RULES.initialTimeTicks, now: Math.min(timeLeft, RULES.initialTimeTicks) }}
+        style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}
+      >
         <View
           style={[
             styles.timeBar,
-            timeLeft <= 100 ? styles.timeBarDanger : styles.timeBarNormal,
+            timeLeft <= RULES.dangerThresholdTicks ? styles.timeBarDanger : styles.timeBarNormal,
             { width: `${timeBarWidth}%` }
           ]}
         />
@@ -213,6 +224,9 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
           {colors.map((color, index) => (
             <TouchableOpacity
               key={index}
+              accessibilityRole="button"
+              accessibilityLabel={`選択肢${index + 1}、マンセル値${color.munsell}、カラーコード${color.hex}`}
+              accessibilityState={{ disabled: Boolean(feedback) || gameEnded }}
               onPress={() => handleChoice(index)}
               disabled={!!feedback || gameEnded}
               style={[
@@ -222,15 +236,15 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
                 gameEnded && styles.choiceButtonInactive,
               ]}
             >
-              <View style={[styles.colorBox, { backgroundColor: color.hex }]} />
-              <Text style={[styles.munsellText, darkMode && styles.munsellTextDark]}>{color.munsell}</Text>
+              <View accessible={false} style={[styles.colorBox, { backgroundColor: color.hex }]} />
+              <Text style={[styles.munsellText, darkMode && styles.munsellTextDark]}>{color.munsell} / {color.hex}</Text>
             </TouchableOpacity>
           ))}
         </View>
         {/* 応援メッセージ表示（常にスペースを確保） */}
         <View style={styles.encouragementContainer}>
           {encouragementMessage && feedback && feedback.type === 'correct' ? (
-            <Text style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
+            <Text accessibilityLiveRegion="polite" style={[styles.encouragementText, darkMode && styles.encouragementTextDark]}>
               {encouragementMessage}
             </Text>
           ) : (
@@ -246,7 +260,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -323,7 +337,7 @@ const styles = StyleSheet.create({
   choiceButton: {
     flex: 1,
     backgroundColor: '#faf5ff',
-    borderRadius: 16,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
@@ -337,7 +351,7 @@ const styles = StyleSheet.create({
   colorBox: {
     width: '100%',
     height: 120,
-    borderRadius: 12,
+    borderRadius: 8,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
@@ -440,4 +454,3 @@ const styles = StyleSheet.create({
 });
 
 export default ColorGameScreen;
-

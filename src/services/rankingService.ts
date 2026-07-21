@@ -1,320 +1,450 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  API_GAME_TYPES,
+  ApiGameType,
+  GAME_MODE_CONFIG,
+  GAME_MODE_ORDER,
+  createEmptyRankings,
+} from '../gameConfig';
+import {
+  filterRankingsByPeriod,
+  getUniquePlayerRankings,
+  normalizePlayerName,
+  rankingIdentity,
+} from '../domain/rankings';
+import { GameMode, RankingEntry, RankingPeriod, RankingsByMode } from '../types';
 
-export interface RankingEntry {
-  id: string;
-  playerName: string;
-  score: number;
-  gameType: string;
-  createdAt: string;
-}
-
-export enum RankingPeriod {
-  ALL = 'all',
-  DAILY = 'daily',
-  WEEKLY = 'weekly',
-  MONTHLY = 'monthly',
-}
+export { RankingPeriod } from '../types';
 
 export interface ScoreMetadata {
-  durationMs?: number;
+  durationMs: number;
 }
 
-const GAME_TYPE = 'strawberry_rush';
-const ISLAND_GAME_TYPE = 'island_rush';
-const FLAG_GAME_TYPE = 'flag_rush';
-const COLOR_GAME_TYPE = 'color_rush';
-const RANKING_LIMIT = 30;
+export type ScoreSaveResult = {
+  entry: RankingEntry;
+  destination: 'remote' | 'local';
+  queuedForSync: boolean;
+};
 
-const STORAGE_KEYS: Record<string, string> = {
-  [GAME_TYPE]: 'strawberry_game_rankings',
-  [ISLAND_GAME_TYPE]: 'island_game_rankings',
-  [FLAG_GAME_TYPE]: 'flag_game_rankings',
-  [COLOR_GAME_TYPE]: 'color_game_rankings',
+export type SyncResult = {
+  synced: number;
+  pending: number;
+  discarded: number;
+};
+
+type PendingScore = {
+  submissionId: string;
+  playerName: string;
+  score: number;
+  gameType: ApiGameType;
+  durationMs: number;
+  createdAt: string;
+};
+
+const RANKING_LIMIT = 30;
+const LOCAL_CACHE_LIMIT = 200;
+const PENDING_SCORE_LIMIT = 50;
+const PENDING_SYNC_BATCH_SIZE = 3;
+const API_TIMEOUT_MS = 6_000;
+const API_ATTEMPTS = 2;
+const PENDING_SCORES_KEY = 'strawberry_pending_scores_v1';
+
+const STORAGE_KEYS: Record<ApiGameType, string> = {
+  strawberry_rush: 'strawberry_game_rankings',
+  island_rush: 'island_game_rankings',
+  flag_rush: 'flag_game_rankings',
+  color_rush: 'color_game_rankings',
 };
 
 const rankingsApiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
 
-const hasRankingsApi = (): boolean => rankingsApiUrl.length > 0;
+export const hasRankingsApi = (): boolean => rankingsApiUrl.length > 0;
 
-const generateId = (): string => {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-};
-
-const storageKeyForGame = (gameType: string): string => {
-  return STORAGE_KEYS[gameType] || STORAGE_KEYS[GAME_TYPE];
-};
-
-const loadLocalRankingsForGame = async (gameType: string): Promise<RankingEntry[]> => {
-  try {
-    const stored = await AsyncStorage.getItem(storageKeyForGame(gameType));
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Failed to load local rankings:', error);
-    return [];
+class RankingsApiError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+  ) {
+    super(message);
   }
+}
+
+const isTemporaryApiFailure = (error: unknown): boolean => {
+  const status = error instanceof RankingsApiError ? error.status : undefined;
+  return status === undefined || status === 408 || status === 429 || (status >= 500 && status <= 599);
 };
 
-const saveLocalRankingsForGame = async (gameType: string, rankings: RankingEntry[]): Promise<void> => {
-  try {
-    await AsyncStorage.setItem(storageKeyForGame(gameType), JSON.stringify(rankings));
-  } catch (error) {
-    console.error('Failed to save local rankings:', error);
-  }
+const isApiGameType = (value: unknown): value is ApiGameType => {
+  return typeof value === 'string' && API_GAME_TYPES.includes(value as ApiGameType);
 };
 
-const getUniquePlayerRankings = (rankings: RankingEntry[]): RankingEntry[] => {
-  const playerBestScores = new Map<string, RankingEntry>();
-
-  rankings.forEach((entry) => {
-    const existing = playerBestScores.get(entry.playerName);
-    if (
-      !existing ||
-      entry.score > existing.score ||
-      (entry.score === existing.score && entry.createdAt < existing.createdAt)
-    ) {
-      playerBestScores.set(entry.playerName, entry);
-    }
-  });
-
-  return Array.from(playerBestScores.values())
-    .sort((a, b) => b.score - a.score || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-    .slice(0, RANKING_LIMIT);
-};
-
-const getPeriodStartDate = (period: RankingPeriod): Date => {
-  const now = new Date();
-  const start = new Date(now);
-
-  switch (period) {
-    case RankingPeriod.DAILY:
-      start.setHours(0, 0, 0, 0);
-      break;
-    case RankingPeriod.WEEKLY: {
-      const dayOfWeek = now.getDay();
-      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-      start.setDate(diff);
-      start.setHours(0, 0, 0, 0);
-      break;
-    }
-    case RankingPeriod.MONTHLY:
-      start.setDate(1);
-      start.setHours(0, 0, 0, 0);
-      break;
-    default:
-      return new Date(0);
+const isRankingEntry = (value: unknown): value is RankingEntry => {
+  if (!value || typeof value !== 'object') {
+    return false;
   }
 
-  return start;
+  const entry = value as Partial<RankingEntry>;
+  return typeof entry.id === 'string'
+    && typeof entry.playerName === 'string'
+    && Number.isInteger(entry.score)
+    && typeof entry.gameType === 'string'
+    && typeof entry.createdAt === 'string'
+    && Number.isFinite(Date.parse(entry.createdAt));
 };
 
-const filterByPeriod = (rankings: RankingEntry[], period: RankingPeriod): RankingEntry[] => {
-  if (period === RankingPeriod.ALL) {
-    return rankings;
+const parseRankingEntries = (value: unknown): RankingEntry[] => {
+  if (!Array.isArray(value) || !value.every(isRankingEntry)) {
+    throw new RankingsApiError('The rankings API returned an invalid response.');
+  }
+  return value;
+};
+
+const parseRankingEntry = (value: unknown): RankingEntry => {
+  if (!isRankingEntry(value)) {
+    throw new RankingsApiError('The rankings API returned an invalid response.');
+  }
+  return value;
+};
+
+const generateSubmissionId = (): string => {
+  const randomUuid = globalThis.crypto?.randomUUID?.();
+  if (randomUuid) {
+    return randomUuid;
   }
 
-  const startDate = getPeriodStartDate(period);
-  return rankings.filter((entry) => new Date(entry.createdAt) >= startDate);
+  return `score_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`;
 };
 
 const buildQuery = (params: Record<string, string | number | undefined>): string => {
   const query = new URLSearchParams();
-
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined) {
       query.set(key, String(value));
     }
   });
-
   const serialized = query.toString();
   return serialized ? `?${serialized}` : '';
 };
 
-const apiRequest = async <T>(path: string, init?: RequestInit): Promise<T> => {
-  if (!hasRankingsApi()) {
-    throw new Error('Rankings API URL is not configured.');
-  }
-
-  const response = await fetch(`${rankingsApiUrl}${path}`, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers || {}),
-    },
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Rankings API error: ${response.status} ${body}`);
-  }
-
-  return response.json();
+const wait = (durationMs: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, durationMs));
 };
 
-const fetchRankingsForGame = async (
-  gameType: string,
+const apiRequest = async <T>(
+  path: string,
+  parse: (value: unknown) => T,
+  init: RequestInit = {},
+): Promise<T> => {
+  if (!hasRankingsApi()) {
+    throw new RankingsApiError('Rankings API URL is not configured.');
+  }
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < API_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${rankingsApiUrl}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          accept: 'application/json',
+          ...(init.body ? { 'content-type': 'application/json' } : {}),
+          ...(init.headers || {}),
+        },
+      });
+
+      const body = await response.json().catch(() => null) as unknown;
+      if (!response.ok) {
+        const message = body && typeof body === 'object' && 'error' in body
+          ? String((body as { error: unknown }).error)
+          : 'Rankings API request failed.';
+        throw new RankingsApiError(message, response.status);
+      }
+
+      return parse(body);
+    } catch (error) {
+      lastError = error;
+      const status = error instanceof RankingsApiError ? error.status : undefined;
+      const retryable = status === undefined || status === 408 || (status >= 500 && status <= 599);
+      if (!retryable || attempt === API_ATTEMPTS - 1) {
+        throw error;
+      }
+      await wait(250 * (attempt + 1));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new RankingsApiError('Rankings API request failed.');
+};
+
+const parseStoredRankings = (stored: string | null): RankingEntry[] => {
+  if (!stored) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as unknown;
+    return Array.isArray(parsed) ? parsed.filter(isRankingEntry) : [];
+  } catch {
+    return [];
+  }
+};
+
+const loadLocalRankingsForGame = async (gameType: ApiGameType): Promise<RankingEntry[]> => {
+  try {
+    return parseStoredRankings(await AsyncStorage.getItem(STORAGE_KEYS[gameType]));
+  } catch (error) {
+    console.warn('Failed to load cached rankings.', error);
+    return [];
+  }
+};
+
+const writeLocalRankingsForGame = async (
+  gameType: ApiGameType,
+  rankings: RankingEntry[],
+): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS[gameType], JSON.stringify(rankings));
+  } catch (error) {
+    console.warn('Failed to cache rankings.', error);
+  }
+};
+
+const mergeIntoLocalCache = async (
+  gameType: ApiGameType,
+  incoming: RankingEntry[],
+): Promise<void> => {
+  const current = await loadLocalRankingsForGame(gameType);
+  const byId = new Map(current.map((entry) => [entry.id, entry]));
+  incoming.forEach((entry) => byId.set(entry.id, entry));
+  const merged = [...byId.values()]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, LOCAL_CACHE_LIMIT);
+  await writeLocalRankingsForGame(gameType, merged);
+};
+
+const parsePendingScores = (stored: string | null): PendingScore[] => {
+  if (!stored) {
+    return [];
+  }
+
+  try {
+    const value = JSON.parse(stored) as unknown;
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.filter((item): item is PendingScore => {
+      if (!item || typeof item !== 'object') {
+        return false;
+      }
+      const score = item as Partial<PendingScore>;
+      return typeof score.submissionId === 'string'
+        && typeof score.playerName === 'string'
+        && Number.isInteger(score.score)
+        && isApiGameType(score.gameType)
+        && Number.isInteger(score.durationMs)
+        && typeof score.createdAt === 'string';
+    });
+  } catch {
+    return [];
+  }
+};
+
+const loadPendingScores = async (): Promise<PendingScore[]> => {
+  try {
+    return parsePendingScores(await AsyncStorage.getItem(PENDING_SCORES_KEY));
+  } catch (error) {
+    console.warn('Failed to load pending scores.', error);
+    return [];
+  }
+};
+
+const writePendingScores = async (scores: PendingScore[]): Promise<void> => {
+  await AsyncStorage.setItem(PENDING_SCORES_KEY, JSON.stringify(scores.slice(-PENDING_SCORE_LIMIT)));
+};
+
+const enqueuePendingScore = async (score: PendingScore): Promise<void> => {
+  const current = await loadPendingScores();
+  const withoutDuplicate = current.filter((item) => item.submissionId !== score.submissionId);
+  await writePendingScores([...withoutDuplicate, score]);
+};
+
+const postScore = async (score: PendingScore): Promise<RankingEntry> => {
+  return apiRequest('/scores', parseRankingEntry, {
+    method: 'POST',
+    body: JSON.stringify({
+      submissionId: score.submissionId,
+      playerName: score.playerName,
+      score: score.score,
+      gameType: score.gameType,
+      durationMs: score.durationMs,
+    }),
+  });
+};
+
+export const syncPendingScores = async (): Promise<SyncResult> => {
+  const pendingScores = await loadPendingScores();
+  if (!hasRankingsApi() || pendingScores.length === 0) {
+    return { synced: 0, pending: pendingScores.length, discarded: 0 };
+  }
+
+  const batch = pendingScores.slice(0, PENDING_SYNC_BATCH_SIZE);
+  let remaining = pendingScores.slice(PENDING_SYNC_BATCH_SIZE);
+  let synced = 0;
+  let discarded = 0;
+
+  for (let index = 0; index < batch.length; index += 1) {
+    const score = batch[index];
+    try {
+      const entry = await postScore(score);
+      await mergeIntoLocalCache(score.gameType, [entry]);
+      synced += 1;
+    } catch (error) {
+      if (!isTemporaryApiFailure(error)) {
+        discarded += 1;
+      } else {
+        remaining = [...batch.slice(index), ...remaining];
+        break;
+      }
+    }
+  }
+
+  await writePendingScores(remaining);
+  return { synced, pending: remaining.length, discarded };
+};
+
+export const fetchRankingsForMode = async (
+  mode: GameMode,
   period: RankingPeriod = RankingPeriod.ALL,
 ): Promise<RankingEntry[]> => {
+  const gameType = GAME_MODE_CONFIG[mode].apiType;
   if (hasRankingsApi()) {
     try {
-      return await apiRequest<RankingEntry[]>(
+      const rankings = await apiRequest(
         `/rankings${buildQuery({ gameType, period, limit: RANKING_LIMIT })}`,
+        parseRankingEntries,
       );
+      if (period === RankingPeriod.ALL) {
+        await mergeIntoLocalCache(gameType, rankings);
+      }
+      return rankings;
     } catch (error) {
-      console.error('Failed to fetch rankings from API:', error);
+      console.warn('Using cached rankings after an API failure.', error);
     }
   }
 
   const localRankings = await loadLocalRankingsForGame(gameType);
-  return getUniquePlayerRankings(filterByPeriod(localRankings, period));
+  return getUniquePlayerRankings(filterRankingsByPeriod(localRankings, period), RANKING_LIMIT);
 };
 
-const saveLocalScore = async (playerName: string, score: number, gameType: string): Promise<RankingEntry> => {
-  const newEntry: RankingEntry = {
-    id: generateId(),
-    playerName: playerName.trim(),
+export const fetchAllRankings = async (): Promise<RankingsByMode> => {
+  const entries = await Promise.all(
+    GAME_MODE_ORDER.map(async (mode) => [mode, await fetchRankingsForMode(mode)] as const),
+  );
+  return entries.reduce<RankingsByMode>((result, [mode, rankings]) => {
+    result[mode] = rankings;
+    return result;
+  }, createEmptyRankings());
+};
+
+const saveLocalScore = async (pending: PendingScore): Promise<RankingEntry> => {
+  const entry: RankingEntry = {
+    id: pending.submissionId,
+    playerName: pending.playerName,
+    score: pending.score,
+    gameType: pending.gameType,
+    createdAt: pending.createdAt,
+  };
+  await mergeIntoLocalCache(pending.gameType, [entry]);
+  return entry;
+};
+
+export const saveScoreForMode = async (
+  mode: GameMode,
+  playerName: string,
+  score: number,
+  metadata: ScoreMetadata,
+): Promise<ScoreSaveResult> => {
+  const durationMs = metadata.durationMs;
+  if (!Number.isInteger(durationMs) || durationMs < 1_000) {
+    throw new Error('A valid game duration is required to save a score.');
+  }
+
+  const pending: PendingScore = {
+    submissionId: generateSubmissionId(),
+    playerName: normalizePlayerName(playerName),
     score,
-    gameType,
+    gameType: GAME_MODE_CONFIG[mode].apiType,
+    durationMs,
     createdAt: new Date().toISOString(),
   };
 
-  const currentRankings = await loadLocalRankingsForGame(gameType);
-  const updatedRankings = [...currentRankings, newEntry]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, RANKING_LIMIT);
-
-  await saveLocalRankingsForGame(gameType, updatedRankings);
-  return newEntry;
-};
-
-const saveScoreForGame = async (
-  playerName: string,
-  score: number,
-  gameType: string,
-  metadata: ScoreMetadata = {},
-): Promise<RankingEntry | null> => {
   if (hasRankingsApi()) {
     try {
-      return await apiRequest<RankingEntry>('/scores', {
-        method: 'POST',
-        body: JSON.stringify({
-          playerName: playerName.trim(),
-          score,
-          gameType,
-          durationMs: metadata.durationMs,
-        }),
-      });
+      const entry = await postScore(pending);
+      await mergeIntoLocalCache(pending.gameType, [entry]);
+      return { entry, destination: 'remote', queuedForSync: false };
     } catch (error) {
-      console.error('Failed to save score to API:', error);
+      if (!isTemporaryApiFailure(error)) {
+        throw error;
+      }
+      console.warn('Queued a score after an API failure.', error);
+      await enqueuePendingScore(pending);
+      const entry = await saveLocalScore(pending);
+      return { entry, destination: 'local', queuedForSync: true };
     }
   }
 
-  return saveLocalScore(playerName, score, gameType);
-};
-
-export const fetchRankings = async (): Promise<RankingEntry[]> => {
-  return fetchRankingsForGame(GAME_TYPE);
-};
-
-export const fetchIslandRankings = async (): Promise<RankingEntry[]> => {
-  return fetchRankingsForGame(ISLAND_GAME_TYPE);
-};
-
-export const fetchFlagRankings = async (): Promise<RankingEntry[]> => {
-  return fetchRankingsForGame(FLAG_GAME_TYPE);
-};
-
-export const fetchColorRankings = async (): Promise<RankingEntry[]> => {
-  return fetchRankingsForGame(COLOR_GAME_TYPE);
-};
-
-export const saveScore = async (
-  playerName: string,
-  score: number,
-  metadata?: ScoreMetadata,
-): Promise<RankingEntry | null> => {
-  return saveScoreForGame(playerName, score, GAME_TYPE, metadata);
-};
-
-export const saveIslandScore = async (
-  playerName: string,
-  score: number,
-  metadata?: ScoreMetadata,
-): Promise<RankingEntry | null> => {
-  return saveScoreForGame(playerName, score, ISLAND_GAME_TYPE, metadata);
-};
-
-export const saveFlagScore = async (
-  playerName: string,
-  score: number,
-  metadata?: ScoreMetadata,
-): Promise<RankingEntry | null> => {
-  return saveScoreForGame(playerName, score, FLAG_GAME_TYPE, metadata);
-};
-
-export const saveColorScore = async (
-  playerName: string,
-  score: number,
-  metadata?: ScoreMetadata,
-): Promise<RankingEntry | null> => {
-  return saveScoreForGame(playerName, score, COLOR_GAME_TYPE, metadata);
-};
-
-export const getPlayerBestScore = async (playerName: string): Promise<number> => {
-  const trimmedName = playerName.trim();
-
-  if (hasRankingsApi()) {
-    try {
-      const response = await apiRequest<{ score: number }>(
-        `/players/${encodeURIComponent(trimmedName)}/best${buildQuery({ gameType: GAME_TYPE })}`,
-      );
-      return response.score || 0;
-    } catch (error) {
-      console.error('Failed to fetch player best score from API:', error);
-    }
-  }
-
-  const rankings = await loadLocalRankingsForGame(GAME_TYPE);
-  const playerScores = rankings
-    .filter((entry) => entry.playerName === trimmedName)
-    .map((entry) => entry.score);
-
-  return playerScores.length > 0 ? Math.max(...playerScores) : 0;
-};
-
-export const fetchRankingsByPeriod = async (period: RankingPeriod): Promise<RankingEntry[]> => {
-  return fetchRankingsForGame(GAME_TYPE, period);
-};
-
-export const fetchIslandRankingsByPeriod = async (period: RankingPeriod): Promise<RankingEntry[]> => {
-  return fetchRankingsForGame(ISLAND_GAME_TYPE, period);
-};
-
-export const fetchFlagRankingsByPeriod = async (period: RankingPeriod): Promise<RankingEntry[]> => {
-  return fetchRankingsForGame(FLAG_GAME_TYPE, period);
-};
-
-export const fetchColorRankingsByPeriod = async (period: RankingPeriod): Promise<RankingEntry[]> => {
-  return fetchRankingsForGame(COLOR_GAME_TYPE, period);
+  return {
+    entry: await saveLocalScore(pending),
+    destination: 'local',
+    queuedForSync: false,
+  };
 };
 
 export const fetchPlayerScoreHistory = async (
   playerName: string,
-  gameType: string = GAME_TYPE,
+  gameType: ApiGameType = 'strawberry_rush',
 ): Promise<RankingEntry[]> => {
-  const trimmedName = playerName.trim();
-
+  const normalizedName = normalizePlayerName(playerName);
   if (hasRankingsApi()) {
     try {
-      return await apiRequest<RankingEntry[]>(
-        `/players/${encodeURIComponent(trimmedName)}/history${buildQuery({ gameType, limit: 100 })}`,
+      const history = await apiRequest(
+        `/players/${encodeURIComponent(normalizedName)}/history${buildQuery({ gameType, limit: 100 })}`,
+        parseRankingEntries,
       );
+      await mergeIntoLocalCache(gameType, history);
+      return history;
     } catch (error) {
-      console.error('Failed to fetch player score history from API:', error);
+      console.warn('Using cached score history after an API failure.', error);
     }
   }
 
+  const identity = rankingIdentity(normalizedName);
   const rankings = await loadLocalRankingsForGame(gameType);
   return rankings
-    .filter((entry) => entry.playerName === trimmedName)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .filter((entry) => rankingIdentity(entry.playerName) === identity)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 };
+
+export const getPlayerBestScore = async (playerName: string): Promise<number> => {
+  const history = await fetchPlayerScoreHistory(playerName, 'strawberry_rush');
+  return history.reduce((best, entry) => Math.max(best, entry.score), 0);
+};
+
+export const fetchRankings = () => fetchRankingsForMode(GameMode.STRAWBERRY);
+export const fetchIslandRankings = () => fetchRankingsForMode(GameMode.ISLAND);
+export const fetchFlagRankings = () => fetchRankingsForMode(GameMode.FLAG);
+export const fetchColorRankings = () => fetchRankingsForMode(GameMode.COLOR);
+export const fetchRankingsByPeriod = (period: RankingPeriod) => fetchRankingsForMode(GameMode.STRAWBERRY, period);
+export const fetchIslandRankingsByPeriod = (period: RankingPeriod) => fetchRankingsForMode(GameMode.ISLAND, period);
+export const fetchFlagRankingsByPeriod = (period: RankingPeriod) => fetchRankingsForMode(GameMode.FLAG, period);
+export const fetchColorRankingsByPeriod = (period: RankingPeriod) => fetchRankingsForMode(GameMode.COLOR, period);
+export const saveScore = (playerName: string, score: number, metadata: ScoreMetadata) => saveScoreForMode(GameMode.STRAWBERRY, playerName, score, metadata);
+export const saveIslandScore = (playerName: string, score: number, metadata: ScoreMetadata) => saveScoreForMode(GameMode.ISLAND, playerName, score, metadata);
+export const saveFlagScore = (playerName: string, score: number, metadata: ScoreMetadata) => saveScoreForMode(GameMode.FLAG, playerName, score, metadata);
+export const saveColorScore = (playerName: string, score: number, metadata: ScoreMetadata) => saveScoreForMode(GameMode.COLOR, playerName, score, metadata);

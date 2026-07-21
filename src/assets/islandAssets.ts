@@ -1,5 +1,6 @@
-// Island SVG assets map
-export const islandAssets: { [key: string]: any } = {
+import type { ImageSource } from 'expo-image';
+
+export const islandAssets: Record<string, ImageSource | number> = {
   '1_hokkaido_rebuntou.svg': require('./islands/1_hokkaido_rebuntou.svg'),
   '2_hokkaido_rishiritou.svg': require('./islands/2_hokkaido_rishiritou.svg'),
   '3_hokkaido_yagishiritou.svg': require('./islands/3_hokkaido_yagishiritou.svg'),
@@ -36,4 +37,3 @@ export const islandAssets: { [key: string]: any } = {
   '34_kanagawa_enoshima.svg': require('./islands/34_kanagawa_enoshima.svg'),
   '40_shizuoka_hatsushima.svg': require('./islands/40_shizuoka_hatsushima.svg'),
 };
-
