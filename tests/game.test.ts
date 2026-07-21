@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   countryCodeToFlagEmoji,
   describeEmoji,
+  getColorCategory,
   progressPercent,
   shuffle,
 } from '../src/domain/game';
@@ -34,4 +35,15 @@ test('choice emoji have spoken labels', () => {
   assert.equal(describeEmoji('🍓'), 'いちご');
   assert.equal(describeEmoji('🍒'), 'さくらんぼ');
   assert.equal(describeEmoji('unknown'), '絵文字の選択肢');
+});
+
+test('color categories preserve every documented boundary', () => {
+  assert.equal(getColorCategory('1'), 'red');
+  assert.equal(getColorCategory('20'), 'red');
+  assert.equal(getColorCategory('21'), 'yellow-red');
+  assert.equal(getColorCategory('64'), 'blue-green');
+  assert.equal(getColorCategory('65'), 'blue');
+  assert.equal(getColorCategory('120'), 'grayish');
+  assert.equal(getColorCategory('121'), 'achromatic');
+  assert.equal(getColorCategory('invalid'), 'achromatic');
 });

@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: production-monitor
@@ -29,3 +30,45 @@ jobs:
         run: node scripts/smoke-rankings-api.mjs
         env:
           EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev
+
+  alert:
+    if: failure()
+    needs: smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open or update production incident
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create production-monitor --repo "$REPOSITORY" --color B91C1C --description "Automated production monitor incident" --force
+          issue_number="$(gh issue list --repo "$REPOSITORY" --label production-monitor --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$issue_number" ]; then
+            gh issue comment "$issue_number" --repo "$REPOSITORY" --body "Production monitoring failed again: $RUN_URL"
+          else
+            gh issue create --repo "$REPOSITORY" --label production-monitor --title "Production monitoring failed" --body "The hourly web/API smoke check failed. Investigate the run: $RUN_URL"
+          fi
+
+  resolve:
+    if: success()
+    needs: smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Close recovered production incident
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          issue_number="$(gh issue list --repo "$REPOSITORY" --label production-monitor --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$issue_number" ]; then
+            gh issue comment "$issue_number" --repo "$REPOSITORY" --body "Production monitoring recovered: $RUN_URL"
+            gh issue close "$issue_number" --repo "$REPOSITORY" --reason completed
+          fi

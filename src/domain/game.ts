@@ -41,3 +41,21 @@ export const progressPercent = (value: number, maximum: number): number => {
   }
   return Math.min(100, Math.max(0, (value / maximum) * 100));
 };
+
+export const getColorCategory = (colorId: string): string => {
+  const id = Number.parseInt(colorId, 10);
+  if (!Number.isInteger(id) || id < 1) {return 'achromatic';}
+  if (id >= 1 && id <= 20) {return 'red';}
+  if (id <= 32) {return 'yellow-red';}
+  if (id <= 40) {return 'yellow';}
+  if (id <= 47) {return 'yellow-green';}
+  if (id <= 56) {return 'green';}
+  if (id <= 64) {return 'blue-green';}
+  if (id <= 77) {return 'blue';}
+  if (id <= 83) {return 'blue-violet';}
+  if (id <= 89) {return 'violet';}
+  if (id <= 95) {return 'red-violet';}
+  if (id <= 108) {return 'brown';}
+  if (id <= 120) {return 'grayish';}
+  return 'achromatic';
+};
