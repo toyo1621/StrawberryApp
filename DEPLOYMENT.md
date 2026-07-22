@@ -1,6 +1,6 @@
 # Deployment
 
-本番はGitHub Pages、Cloudflare Worker、Cloudflare D1で構成します。互換性を保つため、リリース順序は **D1 Time Travel復元点、D1マイグレーション、Worker、API v4確認、Pages** とします。Pages workflowはAPI v4が利用可能になるまで待機します。
+本番はGitHub Pages、Cloudflare Worker、Cloudflare D1で構成します。互換性を保つため、リリース順序は **D1 Time Travel復元点、D1マイグレーション、Worker、API v4とGit SHA確認、Pages** とします。Pages workflowが再利用可能なWorker workflowを呼ぶため、手動の公開順序には依存しません。
 
 ## 事前条件
 
@@ -34,6 +34,7 @@ npm run d1:migrate
 - `0007` は島ランキングの地域列と地域別インデックスを追加し、既存の島ランキングをすべて日本全国へ引き継ぎます。適用前後で総件数と `island_region = 'all'` の件数を照合します。
 - `0008` は地域分割前に日本全国へ引き継いだ島ランキングだけを関東へ再分類します。適用前後で島ランキング総件数が一致し、`all` から `kanto` へ件数が移ったことを照合します。
 - `0009` は所有者・モード・島地域へ結び付いた使い切りゲームセッション表を追加します。ランキング行は変更しません。
+- `0010` は所有者ありの公開順位を所有者ハッシュ単位へ変更する部分インデックスを追加します。所有者なしの移行前行は正規化名単位を維持し、ランキング行は変更しません。
 
 ## Cloudflare Worker
 
@@ -54,17 +55,18 @@ GitHub Actionsから公開する場合は、`production` Environmentに次を登
 - Secret: `CLOUDFLARE_ACCOUNT_ID`
 - Worker secret: `RATE_LIMIT_SALT`（Wranglerで登録）
 
-`Deploy Rankings Worker` workflowは検証、D1 Time Travel bookmark取得、migration、Git SHA tag付きWorker公開、本番のセッション発行・登録・履歴・削除スモーク、release ID照合を順番に実施します。失敗時もStep Summaryに復元コマンドを残します。
+`Deploy Rankings Worker` workflowは手動実行とPagesからの再利用に対応し、検証、D1 Time Travel bookmark取得、migration前後のランキング件数一致、Git SHA tag付きWorker公開、本番のセッション発行・登録・履歴・削除後不在スモーク、release ID照合を順番に実施します。失敗時もStep Summaryに復元コマンドを残します。
 
 ## GitHub Pages
 
 Repository Variable `EXPO_PUBLIC_RANKINGS_API_URL` に本番Worker URLを登録します。`main` へのpushで `Deploy GitHub Pages` workflowが次を実行します。
 
-1. lint、型検査、単体・Workerテスト、空D1への全移行、設定検査、依存監査
-2. Desktop、Pixel 7、320px小型画面E2E、全主要画面のaxe WCAG A/AA、44px操作領域、性能検査
-3. 本番Webビルドと950 KiB/JS・12 MiB/島SVG・14 MiB/全体の容量予算検査
-4. Pages公開
-5. 公開URLとランキングAPIのスモーク検査
+1. D1復元点、migration、同じGit SHAのWorker公開とAPIスモーク
+2. lint、型検査、単体・Workerテスト、空D1への全移行、設定検査、依存監査
+3. Chromium/Firefox/WebKit、Pixel 7、320px E2E、全主要画面のaxe WCAG A/AA、44px操作領域、性能検査
+4. 本番Webビルドと700 KiB/JS・12 MiB/島SVG・14 MiB/全体の容量予算検査
+5. Git SHAが一致するAPIを確認後にPages公開
+6. 公開URLと同じGit SHAのランキングAPIをスモーク検査
 
 公開URL:
 
@@ -77,16 +79,15 @@ https://toyo1621.github.io/StrawberryApp/
 ```bash
 npm ci
 npm run check
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 npm run test:e2e
 EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.dev npm run build:web
 npm run check:web-build
 ```
 
 1. D1 Time Travel bookmarkとモード・地域別件数を記録します。必要なら暗号化SQL exportも取得します。
-2. `npm run d1:migrate`、`npm run worker:deploy`、APIスモークの順で実行します。
-3. 変更をPRで `main` へマージし、Pages workflowの成功を確認します。
-4. WebとAPIのスモーク、D1件数、Workerバージョンを再確認します。
+2. 変更をPRで `main` へマージし、Pages workflowがWorkerからPagesまで直列公開することを確認します。
+3. WebとAPIのスモーク、D1件数、`x-release-id`とマージSHAの一致を再確認します。
 
 ```bash
 WEB_URL=https://toyo1621.github.io/StrawberryApp npm run smoke:web
@@ -109,7 +110,7 @@ npm run d1:import
 
 ## Expo / App Store / Play Store
 
-`app.config.js` にiOS bundle identifier、Android package、ビルド番号、1024px不透明アイコン、iOS Privacy Manifestを定義しています。EAS資格情報を設定後、次でストア用成果物を作成・提出できます。
+`app.config.js` にiOS bundle identifier、Android package、ビルド番号、1024px不透明アイコン、iOS Privacy Manifestを定義し、`eas.json`の本番環境へランキングAPI URLを固定しています。最初に所有者アカウントで `eas init` と各OSの対話的な初回buildを行い、`extra.eas.projectId`と署名資格情報を設定します。
 
 ```bash
 npx eas-cli build --platform ios --profile production
@@ -117,6 +118,8 @@ npx eas-cli submit --platform ios --profile production
 npx eas-cli build --platform android --profile production
 npx eas-cli submit --platform android --profile production
 ```
+
+以降はGitHub Actionsの `Mobile Store Release` を手動実行できます。`mobile-production` Environmentへ `EXPO_TOKEN`を登録し、platformと提出有無を選びます。workflowはEAS CLI 19.1.0、品質検査、Hermes容量検査、署名build、任意のsubmitを直列実行し、project IDや資格情報がなければ提出前に停止します。
 
 公開前には実機で全4モード、振動、ダークモード、VoiceOver/TalkBack、オフライン復帰を確認し、各ストアのプライバシー回答とアプリ内ポリシーを一致させます。
 

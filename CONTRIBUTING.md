@@ -40,7 +40,7 @@ npx wrangler deploy --dry-run --config worker/wrangler.toml
 | `worker/src/*.test.ts` | 入力拒否、Bearer所有権、ゲームセッション、CORS、冪等性、原子的連投、JST、削除 |
 | `test:db` | 空のローカルD1へ全migrationを適用し、地域再分類、所有者・セッション・制限スキーマを照合 |
 | `test:integration` | 実ローカルWorker/D1でセッション、batch登録、再送、順位、履歴、削除をHTTP検査 |
-| `e2e/` | 全モード、主要画面、ダーク、Desktop/Pixel 7/320px、axe、ARIA、削除、性能 |
+| `e2e/` | 全モード、主要画面、ダーク、Chromium/Firefox/WebKit、Pixel 7/320px、axe、ARIA、主操作順序、削除、性能 |
 
 バグ修正には再現テストを追加します。ゲームルールを変える場合は純粋ロジック、Workerの成立性検証、アプリ内ルール、`ARCHITECTURE.md` を同じ変更に含めます。
 
@@ -59,7 +59,7 @@ npx wrangler deploy --dry-run --config worker/wrangler.toml
 1. バージョン、iOS buildNumber、Android versionCodeを更新します。
 2. 必須チェックと実機確認を完了します。
 3. D1変更前にTime Travel bookmarkを取得し、番号付きmigrationを追加します。
-4. D1 migration、Worker、Pagesの順に公開します。
+4. `main`のPages workflowでD1 migration、同一SHA Worker、Pagesを直列公開します。
 5. Web/API smoke、全4モードのランキング、オフライン復帰を確認します。
 6. 問題時に戻すコミットとバックアップを記録します。
 

@@ -2,7 +2,7 @@ name: Monitor Production
 
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "2,17,32,47 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -38,6 +38,8 @@ jobs:
     permissions:
       contents: read
       issues: write
+    env:
+      ALERT_WEBHOOK_URL: ${{ secrets.MONITOR_ALERT_WEBHOOK_URL }}
     steps:
       - name: Open or update production incident
         env:
@@ -50,8 +52,18 @@ jobs:
           if [ -n "$issue_number" ]; then
             gh issue comment "$issue_number" --repo "$REPOSITORY" --body "Production monitoring failed again: $RUN_URL"
           else
-            gh issue create --repo "$REPOSITORY" --label production-monitor --title "Production monitoring failed" --body "The hourly web/API smoke check failed. Investigate the run: $RUN_URL"
+            gh issue create --repo "$REPOSITORY" --label production-monitor --title "Production monitoring failed" --body "The 15-minute web/API smoke check failed. Investigate the run: $RUN_URL"
           fi
+
+      - name: Notify external incident webhook
+        if: env.ALERT_WEBHOOK_URL != ''
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl --fail-with-body --retry 2 --max-time 10 \
+            -H 'content-type: application/json' \
+            --data "$(jq -n --arg status failure --arg runUrl "$RUN_URL" '{service:"StrawberryApp",status:$status,runUrl:$runUrl}')" \
+            "$ALERT_WEBHOOK_URL"
 
   resolve:
     if: success()
@@ -60,6 +72,8 @@ jobs:
     permissions:
       contents: read
       issues: write
+    env:
+      ALERT_WEBHOOK_URL: ${{ secrets.MONITOR_ALERT_WEBHOOK_URL }}
     steps:
       - name: Close recovered production incident
         env:
@@ -72,3 +86,13 @@ jobs:
             gh issue comment "$issue_number" --repo "$REPOSITORY" --body "Production monitoring recovered: $RUN_URL"
             gh issue close "$issue_number" --repo "$REPOSITORY" --reason completed
           fi
+
+      - name: Notify external recovery webhook
+        if: env.ALERT_WEBHOOK_URL != ''
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl --fail-with-body --retry 2 --max-time 10 \
+            -H 'content-type: application/json' \
+            --data "$(jq -n --arg status recovered --arg runUrl "$RUN_URL" '{service:"StrawberryApp",status:$status,runUrl:$runUrl}')" \
+            "$ALERT_WEBHOOK_URL"
