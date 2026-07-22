@@ -58,7 +58,7 @@ GitHub Actionsから公開する場合は、`production` Environmentに次を登
 - Secret: `CLOUDFLARE_ACCOUNT_ID`
 - Worker secret: `RATE_LIMIT_SALT`（Wranglerで登録）
 
-`Deploy Rankings Worker` workflowは手動実行とPagesからの再利用に対応し、検証、D1 Time Travel bookmark取得、migration前後のランキング件数一致、read replication有効化、Git SHA tag付きWorker公開、本番のセッション発行・登録・履歴・削除後不在スモーク、release ID照合を順番に実施します。失敗時もStep Summaryに復元コマンドを残します。
+`Deploy Rankings Worker` workflowは手動実行とPagesからの再利用に対応し、検証、D1 Time Travel bookmark取得、migration前後のランキング件数一致、read replication有効化、Git SHA tag付きWorker公開、エッジへ同じrelease IDが伝播するまでの待機、本番のセッション発行・登録・履歴・削除後不在スモークを順番に実施します。失敗時もStep Summaryに復元コマンドを残します。
 
 ## GitHub Pages
 

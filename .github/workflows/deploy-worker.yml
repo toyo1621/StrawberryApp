@@ -90,6 +90,15 @@ jobs:
       - name: Deploy Worker
         run: npm run worker:deploy -- --tag "$GITHUB_SHA" --message "GitHub Actions run $GITHUB_RUN_ID"
 
+      - name: Wait for deployed API release
+        run: npm run wait:rankings-api
+        env:
+          EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev
+          EXPECTED_API_VERSION: '4'
+          EXPECTED_RELEASE_ID: ${{ github.sha }}
+          API_WAIT_ATTEMPTS: '24'
+          API_WAIT_INTERVAL_MS: '5000'
+
       - name: Verify production API
         run: npm run smoke:rankings-api
         env:
