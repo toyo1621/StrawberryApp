@@ -34,6 +34,7 @@ const MAX_PLAYER_NAME_LENGTH = 12;
 const CONTROL_OR_MARKUP_PATTERN = /[\u0000-\u001f\u007f<>]/;
 const SUBMISSION_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/;
 const PLAYER_TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const GAME_SESSION_ID_PATTERN = PLAYER_TOKEN_PATTERN;
 
 const GAME_TYPE_SET = new Set<string>(GAME_TYPES);
 const PERIOD_SET = new Set<string>(PERIODS);
@@ -71,6 +72,7 @@ export class ValidationError extends Error {
 
 export type RawScoreSubmission = {
   submissionId?: unknown;
+  gameSessionId?: unknown;
   playerName?: unknown;
   score?: unknown;
   gameType?: unknown;
@@ -81,12 +83,18 @@ export type RawScoreSubmission = {
 
 export type ScoreSubmission = {
   submissionId: string;
+  gameSessionId: string;
   playerName: string;
   score: number;
   gameType: GameType;
   islandRegion: IslandRegion;
   durationMs: number;
   playerToken?: string;
+};
+
+export type GameSessionRequest = {
+  gameType: GameType;
+  islandRegion: IslandRegion;
 };
 
 export const normalizePlayerName = (value: unknown): string => {
@@ -136,6 +144,7 @@ export const parseIslandRegion = (
 
 export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreSubmission => {
   const submissionId = body?.submissionId;
+  const gameSessionId = body?.gameSessionId;
   const playerName = normalizePlayerName(body?.playerName);
   const score = body?.score;
   const gameType = parseGameType(body?.gameType);
@@ -145,6 +154,10 @@ export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreS
 
   if (typeof submissionId !== 'string' || !SUBMISSION_ID_PATTERN.test(submissionId)) {
     throw new ValidationError(400, 'A valid submission ID is required.');
+  }
+
+  if (typeof gameSessionId !== 'string' || !GAME_SESSION_ID_PATTERN.test(gameSessionId)) {
+    throw new ValidationError(400, 'A valid game session ID is required.');
   }
 
   if (typeof body?.gameType !== 'string') {
@@ -187,12 +200,26 @@ export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreS
 
   return {
     submissionId,
+    gameSessionId,
     playerName,
     score,
     gameType,
     islandRegion,
     durationMs,
     ...(playerToken ? { playerToken } : {}),
+  };
+};
+
+export const validateGameSessionRequest = (
+  body: Record<string, unknown> | null,
+): GameSessionRequest => {
+  if (typeof body?.gameType !== 'string') {
+    throw new ValidationError(400, 'Game type is required.');
+  }
+  const gameType = parseGameType(body.gameType);
+  return {
+    gameType,
+    islandRegion: parseIslandRegion(body.islandRegion, gameType),
   };
 };
 

@@ -3,6 +3,7 @@ import {
   parseIslandRegion,
   parseGameType,
   parseRankingPeriod,
+  validateGameSessionRequest,
   validatePlayerToken,
   validateScoreSubmission,
 } from './rankingValidation';
@@ -11,6 +12,11 @@ export interface Env {
   DB: D1Database;
   ALLOWED_ORIGINS?: string;
   RATE_LIMIT_SALT?: string;
+  CF_VERSION_METADATA?: {
+    id: string;
+    tag?: string;
+    timestamp: string;
+  };
 }
 
 type RankingRow = {
@@ -32,11 +38,24 @@ type RankingEntry = {
   createdAt: string;
 };
 
+type GameSessionRow = {
+  id: string;
+  owner_hash: string;
+  game_type: string;
+  island_region: string;
+  started_at: string;
+  expires_at: string;
+  consumed_at: string | null;
+  submission_id: string | null;
+};
+
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 100;
 const SCORE_SUBMISSION_LIMIT = 8;
 const SCORE_SUBMISSION_WINDOW_MS = 60 * 1000;
 const SCORE_SUBMISSION_RETENTION_MS = 15 * 60 * 1000;
+const GAME_SESSION_TTL_MS = 15 * 60 * 1000;
+const GAME_SESSION_CLOCK_TOLERANCE_MS = 5_000;
 const MAX_REQUEST_BODY_BYTES = 2_048;
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -45,6 +64,9 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
+
+const getReleaseId = (env?: Env) =>
+  env?.CF_VERSION_METADATA?.tag || env?.CF_VERSION_METADATA?.id || 'development';
 
 class HttpError extends Error {
   constructor(
@@ -61,7 +83,8 @@ const json = (data: unknown, init: ResponseInit = {}, origin?: string, env?: Env
   headers.set('x-content-type-options', 'nosniff');
   headers.set('referrer-policy', 'no-referrer');
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');
-  headers.set('x-api-version', '3');
+  headers.set('x-api-version', '4');
+  headers.set('x-release-id', getReleaseId(env));
   setCorsHeaders(headers, origin, env);
 
   return new Response(JSON.stringify(data), {
@@ -226,6 +249,18 @@ export const cleanupRateLimitBuckets = async (
   ).bind(now.toISOString()).run();
 };
 
+export const cleanupExpiredGameSessions = async (
+  env: Env,
+  now: Date = new Date(),
+) => {
+  await env.DB.prepare(
+    `
+      DELETE FROM game_sessions
+      WHERE expires_at < ?
+    `,
+  ).bind(now.toISOString()).run();
+};
+
 const fetchRankings = async (request: Request, env: Env) => {
   const url = new URL(request.url);
   const gameType = parseGameType(url.searchParams.get('gameType'));
@@ -298,17 +333,58 @@ const readJsonBody = async (request: Request): Promise<Record<string, unknown> |
   }
 };
 
+const createGameSession = async (request: Request, env: Env, origin?: string) => {
+  requireAllowedBrowserOrigin(origin, env);
+  const body = await readJsonBody(request);
+  const { gameType, islandRegion } = validateGameSessionRequest(body);
+  const ownerHash = await getPlayerOwnerHash(request);
+  await enforceScoreSubmissionRateLimit(request, env);
+
+  const id = crypto.randomUUID();
+  const startedAt = new Date();
+  const expiresAt = new Date(startedAt.getTime() + GAME_SESSION_TTL_MS);
+  await env.DB.prepare(
+    `
+      INSERT INTO game_sessions (id, owner_hash, game_type, island_region, started_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `,
+  ).bind(
+    id,
+    ownerHash,
+    gameType,
+    islandRegion,
+    startedAt.toISOString(),
+    expiresAt.toISOString(),
+  ).run();
+
+  return {
+    id,
+    gameType,
+    islandRegion,
+    startedAt: startedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+};
+
 const saveScore = async (request: Request, env: Env, origin?: string) => {
   requireAllowedBrowserOrigin(origin, env);
 
   const body = await readJsonBody(request);
-  const { submissionId, playerName, score, gameType, islandRegion, playerToken } = validateScoreSubmission(body);
-  const bearerToken = getBearerPlayerToken(request, false);
+  const {
+    submissionId,
+    gameSessionId,
+    playerName,
+    score,
+    gameType,
+    islandRegion,
+    durationMs,
+    playerToken,
+  } = validateScoreSubmission(body);
+  const bearerToken = getBearerPlayerToken(request);
   if (bearerToken && playerToken && bearerToken !== playerToken) {
     throw new HttpError(400, 'Player token credentials do not match.');
   }
-  const ownerToken = bearerToken ?? playerToken;
-  const ownerHash = ownerToken ? await sha256Hex(`player:${ownerToken}`) : null;
+  const ownerHash = await sha256Hex(`player:${bearerToken}`);
 
   const existing = await env.DB.prepare(
     `
@@ -332,7 +408,34 @@ const saveScore = async (request: Request, env: Env, origin?: string) => {
     return { entry: mapRanking(existing), created: false };
   }
 
-  await enforceScoreSubmissionRateLimit(request, env);
+  const session = await env.DB.prepare(
+    `
+      SELECT id, owner_hash, game_type, island_region, started_at, expires_at, consumed_at, submission_id
+      FROM game_sessions
+      WHERE id = ?
+      LIMIT 1
+    `,
+  ).bind(gameSessionId).first<GameSessionRow>();
+
+  if (!session) {
+    throw new HttpError(400, 'Game session was not found.');
+  }
+  if (session.owner_hash !== ownerHash || session.game_type !== gameType || session.island_region !== islandRegion) {
+    throw new HttpError(403, 'Game session does not match this score.');
+  }
+  if (session.consumed_at || session.submission_id) {
+    throw new HttpError(409, 'Game session has already been used.');
+  }
+
+  const now = new Date();
+  const startedAtMs = Date.parse(session.started_at);
+  const expiresAtMs = Date.parse(session.expires_at);
+  if (!Number.isFinite(startedAtMs) || !Number.isFinite(expiresAtMs) || now.getTime() > expiresAtMs) {
+    throw new HttpError(409, 'Game session has expired.');
+  }
+  if (durationMs > now.getTime() - startedAtMs + GAME_SESSION_CLOCK_TOLERANCE_MS) {
+    throw new HttpError(400, 'Game duration exceeds the server-observed session time.');
+  }
 
   const entry: RankingEntry = {
     id: submissionId,
@@ -340,23 +443,40 @@ const saveScore = async (request: Request, env: Env, origin?: string) => {
     score,
     gameType,
     islandRegion,
-    createdAt: new Date().toISOString(),
+    createdAt: now.toISOString(),
   };
 
-  await env.DB.prepare(
-    `
-      INSERT INTO rankings (id, player_name, score, game_type, island_region, created_at, owner_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `,
-  ).bind(
-    entry.id,
-    entry.playerName,
-    entry.score,
-    entry.gameType,
-    entry.islandRegion,
-    entry.createdAt,
-    ownerHash,
-  ).run();
+  const [consumeResult, insertResult] = await env.DB.batch([
+    env.DB.prepare(
+      `
+        UPDATE game_sessions
+        SET consumed_at = ?, submission_id = ?
+        WHERE id = ? AND consumed_at IS NULL AND submission_id IS NULL
+      `,
+    ).bind(entry.createdAt, entry.id, gameSessionId),
+    env.DB.prepare(
+      `
+        INSERT INTO rankings (id, player_name, score, game_type, island_region, created_at, owner_hash)
+        SELECT ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM game_sessions WHERE id = ? AND submission_id = ?
+        )
+      `,
+    ).bind(
+      entry.id,
+      entry.playerName,
+      entry.score,
+      entry.gameType,
+      entry.islandRegion,
+      entry.createdAt,
+      ownerHash,
+      gameSessionId,
+      entry.id,
+    ),
+  ]);
+  if ((consumeResult.meta.changes ?? 0) !== 1 || (insertResult.meta.changes ?? 0) !== 1) {
+    throw new HttpError(409, 'Game session has already been used.');
+  }
 
   return { entry, created: true };
 };
@@ -435,8 +555,25 @@ export default {
           throw new Error('Database health check failed.');
         }
         return json(
-          { ok: true, service: 'strawberry-rankings-api', version: 3 },
+          {
+            ok: true,
+            service: 'strawberry-rankings-api',
+            version: 4,
+            release: getReleaseId(env),
+          },
           { headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
+          origin,
+          env,
+        );
+      }
+
+      if (request.method === 'POST' && url.pathname === '/game-sessions') {
+        return json(
+          await createGameSession(request, env, origin),
+          {
+            status: 201,
+            headers: { 'cache-control': 'no-store', 'x-request-id': requestId },
+          },
           origin,
           env,
         );
@@ -523,6 +660,9 @@ export default {
     }
   },
   async scheduled(_controller: unknown, env: Env): Promise<void> {
-    await cleanupRateLimitBuckets(env);
+    await Promise.all([
+      cleanupRateLimitBuckets(env),
+      cleanupExpiredGameSessions(env),
+    ]);
   },
 };

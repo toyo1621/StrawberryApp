@@ -188,7 +188,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({
                 はどっち？ ✨
               </Text>
             </View>
-            <Text style={styles.pointsText}>
+            <Text style={[styles.pointsText, darkMode && styles.pointsTextDark]}>
               🏆 3点ゲット！
             </Text>
           </>
@@ -224,6 +224,8 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({
               >
                 <Image 
                   accessible={false}
+                  alt={`${island.name}の島影`}
+                  accessibilityLabel={`${island.name}の島影`}
                   source={islandAssets[island.file]}
                   style={styles.choiceImage}
                   contentFit="contain"
@@ -343,9 +345,12 @@ const styles = StyleSheet.create({
   pointsText: {
     fontSize: 18,
     fontWeight: FONT_WEIGHT_BOLD,
-    color: '#facc15',
+    color: '#854d0e',
     marginBottom: 16,
     fontFamily: MARU_GOTHIC_FONT,
+  },
+  pointsTextDark: {
+    color: '#fde047',
   },
   choicesContainer: {
     flexDirection: 'row',

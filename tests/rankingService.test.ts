@@ -22,8 +22,81 @@ process.env.EXPO_PUBLIC_RANKINGS_API_URL = 'https://rankings.test';
 
 const rankingServicePromise = import('../src/services/rankingService');
 
+const verifiedSession = (
+  gameType: 'strawberry_rush' | 'island_rush' | 'flag_rush' | 'color_rush',
+  islandRegion: IslandRegion = IslandRegion.ALL,
+) => ({
+  id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+  gameType,
+  islandRegion,
+  startedAt: new Date(Date.now() - 30_000).toISOString(),
+  expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+});
+
 beforeEach(() => {
   values.clear();
+});
+
+test('game sessions are created with the local bearer token and requested scope', async () => {
+  const rankingService = await rankingServicePromise;
+  let requestBody: Record<string, unknown> | undefined;
+  let authorization: string | null = null;
+  globalThis.fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    authorization = new Headers(init?.headers).get('authorization');
+    return Response.json({
+      id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      gameType: requestBody.gameType,
+      islandRegion: requestBody.islandRegion,
+      startedAt: '2026-07-22T00:00:00.000Z',
+      expiresAt: '2026-07-22T00:15:00.000Z',
+    }, { status: 201 });
+  };
+
+  const session = await rankingService.createRankingGameSession(
+    GameMode.ISLAND,
+    IslandRegion.OKINAWA,
+  );
+
+  assert.equal(session?.islandRegion, IslandRegion.OKINAWA);
+  assert.equal(requestBody?.gameType, 'island_rush');
+  assert.match(String(authorization), /^Bearer [0-9a-f-]{36}$/i);
+});
+
+test('game session startup fails fast without retrying', async () => {
+  const rankingService = await rankingServicePromise;
+  let attempts = 0;
+  globalThis.fetch = async () => {
+    attempts += 1;
+    throw new TypeError('offline');
+  };
+
+  await assert.rejects(
+    rankingService.createRankingGameSession(GameMode.STRAWBERRY),
+    /offline/,
+  );
+  assert.equal(attempts, 1);
+});
+
+test('a game without a verified session remains local and is not submitted', async () => {
+  const rankingService = await rankingServicePromise;
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    throw new Error('score submission must not be attempted');
+  };
+
+  const saved = await rankingService.saveScoreForMode(
+    GameMode.COLOR,
+    'オフライン',
+    2,
+    { durationMs: 30_000 },
+  );
+
+  assert.equal(requests, 0);
+  assert.equal(saved.destination, 'local');
+  assert.equal(saved.verifiedForRanking, false);
+  assert.equal(saved.queuedForSync, false);
 });
 
 test('an offline score is queued and synced with the same id', async () => {
@@ -40,7 +113,7 @@ test('an offline score is queued and synced with the same id', async () => {
     GameMode.STRAWBERRY,
     ' テスト ',
     12,
-    { durationMs: 30_000 },
+    { durationMs: 30_000, gameSession: verifiedSession('strawberry_rush') },
   ).finally(() => {
     console.warn = originalWarn;
   });
@@ -66,6 +139,7 @@ test('an offline score is queued and synced with the same id', async () => {
   assert.equal(result.pending, 0);
   assert.equal(syncedBody?.submissionId, saved.entry.id);
   assert.equal(syncedBody?.playerName, 'テスト');
+  assert.equal(syncedBody?.gameSessionId, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
   assert.match(String(syncedAuthorization), /^Bearer [0-9a-f-]{36}$/i);
   assert.equal('playerToken' in (syncedBody ?? {}), false);
 });
@@ -75,7 +149,10 @@ test('a permanent API rejection is surfaced instead of queued', async () => {
   globalThis.fetch = async () => Response.json({ error: 'Rejected.' }, { status: 400 });
 
   await assert.rejects(
-    rankingService.saveScoreForMode(GameMode.FLAG, 'テスト', 3, { durationMs: 30_000 }),
+    rankingService.saveScoreForMode(GameMode.FLAG, 'テスト', 3, {
+      durationMs: 30_000,
+      gameSession: verifiedSession('flag_rush'),
+    }),
     /Rejected/,
   );
 
@@ -102,6 +179,91 @@ test('cached ranking results are explicitly marked stale after an API failure', 
   assert.equal(result.source, 'cache');
   assert.equal(result.stale, true);
   assert.equal(result.entries[0].playerName, 'キャッシュ');
+});
+
+test('a successful empty leaderboard response removes stale cached rankings', async () => {
+  const rankingService = await rankingServicePromise;
+  values.set('strawberry_game_rankings', JSON.stringify([{
+    id: 'stale-remote-score',
+    playerName: '移動済み',
+    score: 99,
+    gameType: 'strawberry_rush',
+    islandRegion: IslandRegion.ALL,
+    createdAt: '2026-07-20T00:00:00.000Z',
+  }]));
+  globalThis.fetch = async () => Response.json([]);
+
+  const result = await rankingService.fetchRankingsForModeWithStatus(GameMode.STRAWBERRY);
+
+  assert.deepEqual(result.entries, []);
+  assert.deepEqual(JSON.parse(values.get('strawberry_game_rankings') ?? 'null'), []);
+});
+
+test('authoritative leaderboard refresh preserves only scores still waiting to sync', async () => {
+  const rankingService = await rankingServicePromise;
+  const pendingEntry = {
+    id: 'pending-score-id',
+    playerName: '未送信',
+    score: 4,
+    gameType: 'strawberry_rush',
+    islandRegion: IslandRegion.ALL,
+    createdAt: '2026-07-22T00:00:00.000Z',
+  };
+  values.set('strawberry_game_rankings', JSON.stringify([
+    pendingEntry,
+    { ...pendingEntry, id: 'stale-score-id', playerName: '削除済み' },
+  ]));
+  values.set('strawberry_pending_scores_v1', JSON.stringify([{
+    submissionId: pendingEntry.id,
+    playerName: pendingEntry.playerName,
+    score: pendingEntry.score,
+    gameType: pendingEntry.gameType,
+    islandRegion: pendingEntry.islandRegion,
+    durationMs: 30_000,
+    createdAt: pendingEntry.createdAt,
+  }]));
+  globalThis.fetch = async () => Response.json([]);
+
+  await rankingService.fetchRankingsForModeWithStatus(GameMode.STRAWBERRY);
+  const cached = JSON.parse(values.get('strawberry_game_rankings') ?? '[]') as { id: string }[];
+
+  assert.deepEqual(cached.map((entry) => entry.id), [pendingEntry.id]);
+});
+
+test('private history survives an authoritative leaderboard refresh', async () => {
+  const rankingService = await rankingServicePromise;
+  let requestCount = 0;
+  globalThis.fetch = async (_input, init) => {
+    requestCount += 1;
+    if (init?.method === 'POST') {
+      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return Response.json({
+        id: body.submissionId,
+        playerName: body.playerName,
+        score: body.score,
+        gameType: body.gameType,
+        islandRegion: body.islandRegion,
+        createdAt: '2026-07-22T00:00:00.000Z',
+      }, { status: 201 });
+    }
+    return Response.json([]);
+  };
+
+  const saved = await rankingService.saveScoreForMode(
+    GameMode.STRAWBERRY,
+    '履歴保持',
+    3,
+    { durationMs: 30_000, gameSession: verifiedSession('strawberry_rush') },
+  );
+  await rankingService.fetchRankingsForModeWithStatus(GameMode.STRAWBERRY);
+  const originalWarn = console.warn;
+  console.warn = () => undefined;
+  globalThis.fetch = async () => { throw new TypeError('offline'); };
+  const history = await rankingService.fetchPlayerScoreHistory('履歴保持')
+    .finally(() => { console.warn = originalWarn; });
+
+  assert.ok(requestCount >= 2);
+  assert.equal(history.some((entry) => entry.id === saved.entry.id), true);
 });
 
 test('island rankings are requested, saved, and cached by region', async () => {
@@ -149,7 +311,11 @@ test('island rankings are requested, saved, and cached by region', async () => {
     GameMode.ISLAND,
     '地域選手',
     5,
-    { durationMs: 30_000, islandRegion: IslandRegion.CHUGOKU },
+    {
+      durationMs: 30_000,
+      islandRegion: IslandRegion.CHUGOKU,
+      gameSession: verifiedSession('island_rush', IslandRegion.CHUGOKU),
+    },
   );
 
   assert.equal(chugoku.entries[0].islandRegion, IslandRegion.CHUGOKU);
@@ -204,7 +370,7 @@ test('queue overflow is reported and retains the newest 50 scores', async () => 
     GameMode.STRAWBERRY,
     '新しいスコア',
     1,
-    { durationMs: 30_000 },
+    { durationMs: 30_000, gameSession: verifiedSession('strawberry_rush') },
   ).finally(() => { console.warn = originalWarn; });
   const retained = JSON.parse(values.get('strawberry_pending_scores_v1') ?? '[]') as { submissionId: string }[];
 

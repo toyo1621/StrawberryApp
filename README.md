@@ -9,8 +9,9 @@
 
 - 4種類のゲームモードと、島の8出題エリアを含むスコープ別ランキング
 - JST基準の全体・日別・週別・月別集計
+- サーバー発行の使い切りゲームセッションで検証したランキング投稿
 - 端末の秘密トークンで保護した全モードのスコア履歴と自己削除
-- 通信失敗時のローカル保存と、次回起動時の自動同期
+- 通信失敗時のローカル保存と、起動・アプリ復帰時の期限内自動同期
 - ダークモード、振動設定、動きを減らすOS設定への対応
 - スクリーンリーダー向けラベル、見出し階層、選択状態、誤答通知、44px操作領域
 - ローカルアセットだけで表示できる国旗と、415の有人離島画像
@@ -24,7 +25,7 @@
 - Expo 54 / React 19 / React Native 0.81 / React Native Web
 - TypeScript 5.9
 - Cloudflare Workers / D1
-- React Native Async Storage / Expo Crypto
+- React Native Async Storage / Expo SecureStore / Expo Crypto
 - Node test runner / Playwright / axe-core / ESLint 9
 - GitHub Actions / GitHub Pages / EAS Build
 
@@ -49,9 +50,11 @@ npm run android # Androidエミュレーター
 ## 品質チェック
 
 ```bash
-npm run check            # lint、型、27+21件以上の単体/Workerテスト、D1移行、設定、依存監査
-npm run test:e2e         # Desktop Chrome + Pixel 7、axe、操作領域、性能を含む15検査
+npm run check            # lint、型、カバレッジ付き単体/Workerテスト、D1移行・統合、全依存監査
+npm run doctor           # 固定バージョンのExpo設定・依存整合性検査
+npm run test:e2e         # Desktop、Pixel 7、320px小型画面、axe、操作領域、性能
 npm run build:native-bundles # iOS/AndroidのMetro本番バンドル
+npm run check:native-build   # Hermes 2.5 MiB、各export 16 MiB、415島の予算
 npm run build:web
 npm run check:web-build  # JS 950 KiB、島SVG 12 MiB、全体14 MiBの予算と415件完全性
 ```
@@ -80,14 +83,15 @@ scripts/            検証、スモーク、移行補助
 ## 文書
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md): 構成、データフロー、業務ルール
-- [API.md](./API.md): API v3のリクエスト、認可、応答、エラー
+- [API.md](./API.md): API v4のセッション、認可、応答、エラー
 - [QUALITY.md](./QUALITY.md): 自動品質ゲート、性能予算、手動確認範囲
 - [SECURITY.md](./SECURITY.md): 脅威モデル、入力防御、秘密情報、報告方法
 - [OPERATIONS.md](./OPERATIONS.md): 監視、障害対応、バックアップ、復旧
 - [DEPLOYMENT.md](./DEPLOYMENT.md): Worker、D1、Pages、EASの公開手順
 - [CONTRIBUTING.md](./CONTRIBUTING.md): 開発・テスト・リリース手順
 - [CHANGELOG.md](./CHANGELOG.md): リリースごとの利用者・運用変更
+- [DATA_SOURCES.md](./DATA_SOURCES.md): 島データの受領経路、変換、確認できていない権利情報
 
 ## データについて
 
-公開ランキングには入力したプレイヤー名、スコア、モード、島の出題地域、登録日時が表示されます。全履歴と削除は端末で生成した秘密トークンで認可し、サーバーにはSHA-256所有者ハッシュだけを保存します。連投対策の接続元ハッシュと回数は15分以内に削除します。詳細はアプリ内のプライバシーポリシーと [SECURITY.md](./SECURITY.md) に記載しています。
+公開ランキングには入力したプレイヤー名、スコア、モード、島の出題地域、登録日時が表示されます。全履歴と削除は端末で生成した秘密トークンで認可し、サーバーにはSHA-256所有者ハッシュだけを保存します。ネイティブのトークンはSecureStore、Webではローカルストレージに保存します。詳細はアプリ内のプライバシーポリシーと [SECURITY.md](./SECURITY.md) に記載しています。

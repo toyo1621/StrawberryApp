@@ -5,7 +5,7 @@
 ```mermaid
 flowchart LR
   U["Web / iOS / Android"] --> A["Expo React Native app"]
-  A --> L["Async Storage"]
+  A --> L["Async Storage / SecureStore"]
   A -->|"HTTPS JSON"| W["Cloudflare Worker"]
   W --> D["Cloudflare D1"]
   G["GitHub Actions"] --> P["GitHub Pages"]
@@ -25,19 +25,19 @@ flowchart LR
 | 島データ | `src/data/islands.ts`, `src/assets/islands/` | 415件の名前、自治体、地域分類、ローカルSVG |
 | 純粋ロジック | `src/domain/` | シャッフル、色分類、締切タイマー、名前正規化、期間、順位 |
 | UI | `src/components/` | ゲーム、履歴、規約、共通UI |
-| 永続化・通信 | `src/services/` | Async Storage、タイムアウト、再試行、オフラインキュー |
+| 永続化・通信 | `src/services/` | Async Storage、ネイティブSecureStore、タイムアウト、再試行、オフラインキュー |
 | API | `worker/src/index.ts` | CORS、ルーティング、レート制限、D1アクセス |
 | 入力境界 | `worker/src/rankingValidation.ts` | 型、文字、時間、得点成立性の検証 |
 
 ## ランキングのデータフロー
 
-1. ゲーム開始時刻を `App.tsx` が保持します。
-2. 初回投稿時にExpo Cryptoでランダムな端末トークンを作り、Async Storageへ保存します。
-3. 終了時に名前、整数スコア、モード、島の出題地域、経過時間、ランダムな投稿IDをBearerトークン付きでWorkerへ送ります。
-4. Workerが入力、ブラウザOrigin、原子的な連投上限、成立可能な得点速度を検証します。Originを持たないiOS/Android通信は同じ入力・頻度検証を受けます。
-5. WorkerはトークンをSHA-256へ一方向変換し、D1には所有者ハッシュだけを保存します。
-6. 投稿IDをD1の主キーに使い、通信再試行による二重登録を防ぎます。
-7. 失敗時は同じ投稿IDのまま端末へ最大50件保存します。上限超過は画面で通知し、次回起動時は最大3件ずつ同期します。
+1. 初回利用時にExpo Cryptoで端末トークンを作り、iOS/AndroidはSecureStore、Webはローカルストレージへ保存します。
+2. ゲーム開始前にBearer付きでWorkerから15分有効なゲームセッションを取得し、`App.tsx` が開始時刻とともに保持します。
+3. 終了時に名前、整数スコア、モード、島地域、経過時間、投稿ID、ゲームセッションIDをWorkerへ送ります。
+4. Workerが所有者・モード・地域・未使用・有効期限・サーバー観測時間、入力、Origin、得点速度を検証します。
+5. WorkerはトークンをSHA-256へ一方向変換し、セッション消費とランキング登録を1つのD1 batchで確定します。
+6. 投稿IDをD1の主キーに使い、同一内容の通信再試行を冪等にします。ゲームセッションは1投稿にしか使えません。
+7. 開始後の通信失敗は同じIDで端末へ最大50件保存し、有効期限内に起動・アプリ復帰時に最大3件ずつ同期します。セッションなし・期限切れは端末履歴だけに残します。
 8. 表示時はプレイヤー名を空白・大文字小文字を無視した単位で重複排除し、最高点、先着順で並べます。
 
 起動時のランキング取得、設定読込、名前読込、保留スコア同期は `Promise.allSettled` で並列実行します。ランキングもモード単位で部分成功させ、キャッシュ表示と失敗を画面で区別します。
@@ -47,6 +47,7 @@ flowchart LR
 | Method | Path | 用途 |
 | --- | --- | --- |
 | GET | `/health` | WorkerとD1の生存確認 |
+| POST | `/game-sessions` | 使い切りランキング用ゲームセッション発行 |
 | GET | `/rankings` | モード・島地域・期間別上位一覧 |
 | POST | `/scores` | 冪等なスコア登録 |
 | GET | `/players/me/best` | Bearer所有者のモード別自己ベスト |
@@ -73,7 +74,9 @@ flowchart LR
 | --- | --- | --- |
 | D1 `rankings` | 投稿ID、公開名、スコア、モード、島地域、日時、所有者ハッシュ | 運営中または本人削除まで |
 | D1 `score_submission_buckets` | ソルト付き接続元ハッシュ、分単位窓、回数 | 15分以内 |
-| Async Storage | 名前、設定、ランキングキャッシュ、保留投稿、秘密トークン | 本人がアプリ内または端末設定で削除するまで |
+| D1 `game_sessions` | 所有者ハッシュ、モード、地域、開始・失効・消費情報 | 失効後、15分ごとのcronまで |
+| Async Storage | 名前、設定、ランキングキャッシュ、端末履歴、保留投稿 | 本人がアプリ内または端末設定で削除するまで |
+| SecureStore | iOS/Androidの端末トークン | 本人がアプリ内または端末設定で削除するまで |
 
 スキーマは `worker/schema.sql`、変更は `worker/migrations/` で管理します。
 

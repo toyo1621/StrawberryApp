@@ -24,7 +24,9 @@ npm run web
 
 ```bash
 npm run check
+npm run doctor
 npm run test:e2e
+npm run build:native-bundles && npm run check:native-build
 EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.dev npm run build:web
 npm run check:web-build
 npx wrangler deploy --dry-run --config worker/wrangler.toml
@@ -35,9 +37,10 @@ npx wrangler deploy --dry-run --config worker/wrangler.toml
 | 種別 | 対象 |
 | --- | --- |
 | `tests/` | シャッフル、色分類、締切タイマー、ゲーム/Worker得点契約、ランキング、キャッシュ/キュー |
-| `worker/src/*.test.ts` | 入力拒否、Bearer所有権、ネイティブ通信、CORS、冪等性、原子的連投、JST、削除 |
-| `test:db` | 空のローカルD1へ全migrationを適用し、所有者インデックスと制限テーブルを照合 |
-| `e2e/` | 全モード、ダーク、Desktop/Mobile、axe、ARIA状態、誤答通知、44px、削除、性能 |
+| `worker/src/*.test.ts` | 入力拒否、Bearer所有権、ゲームセッション、CORS、冪等性、原子的連投、JST、削除 |
+| `test:db` | 空のローカルD1へ全migrationを適用し、地域再分類、所有者・セッション・制限スキーマを照合 |
+| `test:integration` | 実ローカルWorker/D1でセッション、batch登録、再送、順位、履歴、削除をHTTP検査 |
+| `e2e/` | 全モード、主要画面、ダーク、Desktop/Pixel 7/320px、axe、ARIA、削除、性能 |
 
 バグ修正には再現テストを追加します。ゲームルールを変える場合は純粋ロジック、Workerの成立性検証、アプリ内ルール、`ARCHITECTURE.md` を同じ変更に含めます。
 
@@ -55,7 +58,7 @@ npx wrangler deploy --dry-run --config worker/wrangler.toml
 
 1. バージョン、iOS buildNumber、Android versionCodeを更新します。
 2. 必須チェックと実機確認を完了します。
-3. D1変更前にバックアップを取得し、番号付きmigrationを追加します。
+3. D1変更前にTime Travel bookmarkを取得し、番号付きmigrationを追加します。
 4. D1 migration、Worker、Pagesの順に公開します。
 5. Web/API smoke、全4モードのランキング、オフライン復帰を確認します。
 6. 問題時に戻すコミットとバックアップを記録します。

@@ -68,7 +68,6 @@ const InfoScreen: React.FC<InfoScreenProps> = ({
 
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="前の画面に戻る"
           onPress={onBack}
           style={[styles.backButton, { backgroundColor: theme.action }]}
         >
