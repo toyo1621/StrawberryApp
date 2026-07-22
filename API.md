@@ -1,28 +1,60 @@
-# Rankings API v3
+# Rankings API v4
 
 Base URL: `https://strawberry-rankings-api.toyo1621.workers.dev`
 
-成功・エラー応答はJSONです。v3応答には `x-api-version: 3` と `x-request-id` が付きます。内部エラーの詳細や秘密トークンは応答・構造化ログへ出しません。
+全応答はJSONです。`x-api-version: 4`、実行中WorkerのGitタグまたはCloudflare version IDを示す `x-release-id`、追跡用 `x-request-id` が付きます。内部例外、Bearerトークン、接続元の生情報は応答・構造化ログへ出しません。
 
 ## 認可
 
-初回スコア保存時にクライアントが128-bitのUUID v4を生成し、Async Storageへ保存します。投稿、履歴、削除では次のヘッダーを使います。
+クライアントは初回利用時にUUID v4を生成し、次のBearerヘッダーをゲームセッション発行、投稿、本人履歴、削除に使用します。
 
 ```http
 Authorization: Bearer <player-token>
 ```
 
-D1には `SHA-256("player:" + token)` だけを保存します。トークンはアカウント認証ではなく、この端末から登録した履歴の読取・削除権限です。互換期間中はBearerなしの投稿も受理しますが、その記録は非公開履歴と自己削除へ紐付きません。
+iOS/AndroidではExpo SecureStore、Webではブラウザのローカルストレージへ保存します。D1には `SHA-256("player:" + token)` だけを保存します。このトークンはアカウント認証ではなく、その端末が作成したゲームセッションと履歴・削除権限を結び付けるランダムな資格情報です。
 
 ## Endpoints
 
 ### `GET /health`
 
-D1へ `SELECT 1` を実行します。`200` は `{ "ok": true, "service": "strawberry-rankings-api", "version": 3 }`、キャッシュは禁止です。
+D1へ `SELECT 1` を実行します。キャッシュは禁止です。
+
+```json
+{ "ok": true, "service": "strawberry-rankings-api", "version": 4, "release": "<release-id>" }
+```
+
+### `POST /game-sessions`
+
+ランキング対象ゲームの開始前にBearer付きで呼び出します。本文は2 KiB以下のJSONです。
+
+```json
+{ "gameType": "island_rush", "islandRegion": "shikoku" }
+```
+
+`201`でUUID、対象モード・地域、開始・失効日時を返します。セッションは15分で失効し、1件の投稿にだけ使用できます。島以外の `islandRegion` は `all` だけです。接続元ごとの発行上限は8件/分です。
+
+### `POST /scores`
+
+Bearerと、同じ所有者・モード・地域で発行した未使用セッションが必須です。
+
+```json
+{
+  "submissionId": "5bfec55d-73a6-42d4-ae19-71d377736ab8",
+  "gameSessionId": "6f81f492-1d86-45c3-8735-947634d80aad",
+  "playerName": "プレイヤー",
+  "score": 12,
+  "gameType": "island_rush",
+  "islandRegion": "shikoku",
+  "durationMs": 30000
+}
+```
+
+Workerは名前、整数得点、1秒から5分の経過時間、モード別の理論得点速度に加え、サーバーが観測したセッション開始からの時間を検証します。セッション消費とランキング登録は1つのD1 batchで実行します。初回は `201`、同じID・内容・所有者の再送は `200` です。ID競合または使用済みセッションは `409` です。
+
+セッションを取得できずオフラインで開始したゲームは端末履歴だけに保存し、公開ランキングへは送りません。開始後の通信断はセッションの有効期限内だけ同じIDで再送します。
 
 ### `GET /rankings`
-
-Query:
 
 | Name | Values | Default |
 | --- | --- | --- |
@@ -31,51 +63,30 @@ Query:
 | `period` | `all`, `daily`, `weekly`, `monthly` | `all` |
 | `limit` | 1から100 | 30 |
 
-`islandRegion` は `island_rush` だけで地域別集計に使い、他モードでは `all` だけを受理します。JSTの日・月境界、月曜日開始の週境界で集計し、同じゲーム種別・島地域内で正規化した同名ごとに最高点1件を返します。同点は記録日時の早い順です。
+JSTの日・月境界、月曜日開始の週境界で集計します。同じモード・島地域で正規化した同名ごとに最高点1件を返し、同点は記録日時の早い順です。成功応答は30秒キャッシュできます。
 
-### `POST /scores`
+### 本人用Endpoints
 
-`Content-Type: application/json`、本文は2 KiB以下です。Bearerを付けると所有者ハッシュへ紐付きます。
+- `GET /players/me/history?gameType=<type>&limit=<1-100>`: Bearer所有者の新しい順の履歴。島は地域付きです。
+- `GET /players/me/best?gameType=<type>`: Bearer所有者の自己最高点。
+- `DELETE /players/me/scores`: Bearer所有者の全公開スコアを削除し、`{ "deleted": 4 }` を返します。
 
-```json
-{
-  "submissionId": "5bfec55d-73a6-42d4-ae19-71d377736ab8",
-  "playerName": "プレイヤー",
-  "score": 12,
-  "gameType": "island_rush",
-  "islandRegion": "chugoku",
-  "durationMs": 30000
-}
-```
-
-初回は `201`、同じID・内容の再送は `200` です。同じIDの内容、島地域、所有者のいずれかが異なる場合は `409` です。島地域を省略した既存クライアントの投稿は `all` として扱います。ゲームは1秒以上5分以下で、モード別の理論得点速度・最大点を検証します。
-
-### `GET /players/me/history`
-
-Bearer必須です。`gameType` と `limit` を受け取り、その所有者の新しい順の記録だけを返します。島モードでは全地域の履歴を `islandRegion` 付きで返します。プレイヤー名はURLに含めません。
-
-### `GET /players/me/best`
-
-Bearer必須です。`gameType` ごとの自己最高点を `{ "score": 12 }` で返します。
-
-### `DELETE /players/me/scores`
-
-Bearer必須です。その所有者ハッシュに紐づく全モードの記録を削除し、`{ "deleted": 4 }` を返します。
+本人用応答はキャッシュ禁止です。プレイヤー名をURLや認可条件に使いません。
 
 ## Browser And Native
 
-ブラウザの書込とpreflightは `ALLOWED_ORIGINS` の完全一致を要求します。許可メソッドは `GET, POST, DELETE, OPTIONS`、許可ヘッダーは `Authorization, Content-Type` です。React Nativeのように `Origin` がない通信も受理しますが、入力、Bearer、得点、投稿頻度の検証は同じです。CORSは認証ではありません。
+ブラウザの書込とpreflightは `ALLOWED_ORIGINS` の完全一致を要求します。許可メソッドは `GET, POST, DELETE, OPTIONS`、許可ヘッダーは `Authorization, Content-Type` です。Originを持たないReact Native通信にも同じBearer、入力、セッション、頻度検証を適用します。CORSは認証ではありません。
 
 ## Errors And Limits
 
 | Status | Meaning |
 | --- | --- |
-| `400` | 入力、ゲーム種別、得点、時間、資格情報の不整合 |
-| `401` | 履歴・削除のBearerなし、または不正 |
-| `403` | 許可されていないブラウザOrigin |
-| `409` | 投稿ID競合 |
-| `413` / `415` | 本文超過 / JSON以外 |
-| `429` | 接続元ごとの8投稿/分を超過 |
+| `400` | JSON、入力、得点、時間、セッションの不整合 |
+| `401` | Bearerなし、または不正 |
+| `403` | 不許可Origin、または別所有者・別スコープのセッション |
+| `409` | 投稿ID競合、使用済み・失効セッション |
+| `413` / `415` | 2 KiB超過 / JSON以外 |
+| `429` | 接続元ごとの8セッション/分を超過 |
 | `500` / `503` | 内部障害、D1障害、必須secret不備 |
 
-レート制限は秘密ソルト付き接続元ハッシュと分単位のD1一意キーを原子的にUPSERTします。バケットは最大15分で削除します。
+連投識別子はIPとUser-Agentを秘密ソルト付きSHA-256へ変換し、元データを保存しません。分単位バケットは15分以内、失効ゲームセッションは15分ごとのcronで削除します。

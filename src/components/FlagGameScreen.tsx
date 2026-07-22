@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   scoreText: {
     fontSize: 24,
     fontWeight: FONT_WEIGHT_BOLD,
-    color: '#10b981',
+    color: '#047857',
     fontFamily: MARU_GOTHIC_FONT,
   },
   timeText: {
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   encouragementText: {
     fontSize: 20,
     fontWeight: FONT_WEIGHT_BOLD,
-    color: '#10b981',
+    color: '#047857',
     fontFamily: MARU_GOTHIC_FONT,
   },
   encouragementTextDark: {

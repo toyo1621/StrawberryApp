@@ -11,4 +11,5 @@ interface D1PreparedStatement {
 
 interface D1Database {
   prepare(query: string): D1PreparedStatement;
+  batch(statements: D1PreparedStatement[]): Promise<{ success: boolean; meta: { changes?: number } }[]>;
 }

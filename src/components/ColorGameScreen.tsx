@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { COLORS } from '../constants';
 import { Color, GameMode } from '../types';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
-import { getColorCategory, progressPercent, shuffle } from '../domain/game';
+import { createColorRound, progressPercent } from '../domain/game';
 import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES, ticksToSeconds } from '../gameRules';
 import { useGameTimer } from '../hooks/useGameTimer';
 
@@ -54,31 +54,11 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
     setFeedback(null);
     setEncouragementMessage(''); // 応援メッセージをリセット
     
-    // ランダムに1つの色を選ぶ（正解）
-    const shuffledColors = shuffle(COLORS);
-    const correctColor = shuffledColors[0];
-    const correctCategory = getColorCategory(correctColor.id);
-    
-    // 同じ系統の色をフィルタリング
-    const sameCategoryColors = COLORS.filter(color => 
-      getColorCategory(color.id) === correctCategory && color.id !== correctColor.id
-    );
-    
-    // 同じ系統の色からランダムに1つ選ぶ（選択肢）
-    const wrongColor = sameCategoryColors.length > 0
-      ? sameCategoryColors[Math.floor(Math.random() * sameCategoryColors.length)]
-      : shuffledColors[1]; // 同じ系統がない場合はランダムに選ぶ（フォールバック）
-    
-    // どちらが正解かをランダムに決定
-    const correctIndex = Math.floor(Math.random() * 2);
-    const selectedColors = correctIndex === 0 
-      ? [correctColor, wrongColor]
-      : [wrongColor, correctColor];
-    
-    setColors(selectedColors);
-    setCorrectColorIndex(correctIndex);
-    setTargetColorName(correctColor.name);
-    setTargetColorDescription(correctColor.description);
+    const round = createColorRound(COLORS);
+    setColors(round.choices);
+    setCorrectColorIndex(round.correctIndex);
+    setTargetColorName(round.target.name);
+    setTargetColorDescription(round.target.description);
   }, [gameEndedRef]);
 
   useEffect(() => {

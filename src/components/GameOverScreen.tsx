@@ -21,6 +21,7 @@ type GameOverScreenProps = {
   error?: string | null;
   onDismissError?: () => void;
   darkMode?: boolean;
+  isPreparingGame?: boolean;
 };
 
 const GameOverScreen: React.FC<GameOverScreenProps> = ({
@@ -33,6 +34,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
   error,
   onDismissError,
   darkMode = false,
+  isPreparingGame = false,
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState(RankingPeriod.ALL);
   const [periodRanking, setPeriodRanking] = useState<RankingEntry[]>([]);
@@ -146,10 +148,12 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel={`${config.shortLabel}モードをもう一度遊ぶ`}
+            accessibilityState={{ disabled: isPreparingGame, busy: isPreparingGame }}
+            disabled={isPreparingGame}
             onPress={onPlayAgain}
-            style={[styles.primaryButton, { backgroundColor: actionAccent }]}
+            style={[styles.primaryButton, { backgroundColor: actionAccent, opacity: isPreparingGame ? 0.65 : 1 }]}
           >
-            <Text style={styles.primaryButtonText}>もう一度遊ぶ</Text>
+            <Text style={styles.primaryButtonText}>{isPreparingGame ? '準備中...' : 'もう一度遊ぶ'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             accessibilityRole="button"

@@ -1,3 +1,5 @@
+import { Color } from '../types';
+
 const EMOJI_LABELS: Record<string, string> = {
   '🍓': 'いちご',
   '🍰': 'ショートケーキ',
@@ -58,4 +60,53 @@ export const getColorCategory = (colorId: string): string => {
   if (id <= 108) {return 'brown';}
   if (id <= 120) {return 'grayish';}
   return 'achromatic';
+};
+
+export type ColorRound = {
+  choices: [Color, Color];
+  correctIndex: 0 | 1;
+  target: Color;
+};
+
+const randomIndex = (length: number, random: () => number): number => {
+  const value = random();
+  const normalized = Number.isFinite(value) ? Math.min(Math.max(value, 0), 0.9999999999999999) : 0;
+  return Math.floor(normalized * length);
+};
+
+const normalizedHex = (color: Color): string => color.hex.trim().toUpperCase();
+
+export const getDistinctColorCandidates = (
+  colors: readonly Color[],
+  target: Color,
+): Color[] => {
+  const distinctColors = colors.filter((color) => (
+    color.id !== target.id && normalizedHex(color) !== normalizedHex(target)
+  ));
+  const category = getColorCategory(target.id);
+  const sameCategory = distinctColors.filter((color) => getColorCategory(color.id) === category);
+  return sameCategory.length > 0 ? sameCategory : distinctColors;
+};
+
+export const createColorRound = (
+  colors: readonly Color[],
+  random: () => number = Math.random,
+): ColorRound => {
+  if (colors.length < 2) {
+    throw new Error('At least two colors are required to create a round.');
+  }
+
+  const target = colors[randomIndex(colors.length, random)];
+  const candidates = getDistinctColorCandidates(colors, target);
+  if (candidates.length === 0) {
+    throw new Error('At least two visually distinct colors are required to create a round.');
+  }
+
+  const distractor = candidates[randomIndex(candidates.length, random)];
+  const correctIndex: 0 | 1 = random() < 0.5 ? 0 : 1;
+  return {
+    choices: correctIndex === 0 ? [target, distractor] : [distractor, target],
+    correctIndex,
+    target,
+  };
 };

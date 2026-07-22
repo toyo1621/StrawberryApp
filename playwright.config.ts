@@ -16,11 +16,21 @@ export default defineConfig({
   projects: [
     { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } },
+    {
+      name: 'compact-mobile-chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 320, height: 568 },
+        deviceScaleFactor: 2,
+        hasTouch: true,
+        isMobile: true,
+      },
+    },
   ],
   webServer: {
     command: 'npm run build:web:e2e && PORT=4173 npm run preview',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
+    url: 'http://127.0.0.1:4173/__strawberry_preview_health',
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

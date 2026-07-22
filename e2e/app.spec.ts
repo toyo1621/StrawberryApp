@@ -1,5 +1,12 @@
 import { AxeBuilder } from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+const expectNoAccessibilityViolations = async (page: Page) => {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+};
 
 test('home and policy screens have no detectable accessibility violations', async ({ page }) => {
   await page.addInitScript(() => {
@@ -19,19 +26,24 @@ test('home and policy screens have no detectable accessibility violations', asyn
   await expect(page.getByRole('main')).toBeVisible();
   await expect(page.getByRole('tab', { name: '全体ランキング' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('button', { name: 'いちごモードを選択' })).toHaveAttribute('aria-pressed', 'true');
-  const homeResults = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  expect(homeResults.violations).toEqual([]);
+  await expectNoAccessibilityViolations(page);
+
+  await page.getByRole('button', { name: 'ルールを開く' }).click();
+  await expect(page.getByRole('heading', { name: 'ゲームルール' })).toBeVisible();
+  await expectNoAccessibilityViolations(page);
+  await page.getByRole('button', { name: '前の画面に戻る' }).click();
 
   await page.getByRole('button', { name: 'マイページを開く' }).click();
   await page.getByRole('button', { name: 'プライバシーポリシーを開く' }).click();
   await expect(page.getByRole('heading', { name: 'プライバシーポリシー' })).toBeVisible();
 
-  const policyResults = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  expect(policyResults.violations).toEqual([]);
+  await expectNoAccessibilityViolations(page);
+
+  await page.getByRole('button', { name: '前の画面に戻る' }).click();
+  await page.getByRole('button', { name: 'マイページを開く' }).click();
+  await page.getByRole('button', { name: '利用規約を開く' }).click();
+  await expect(page.getByRole('heading', { name: '利用規約' })).toBeVisible();
+  await expectNoAccessibilityViolations(page);
 });
 
 test('a player can start and answer every mode without page errors or external flag requests', async ({ page }) => {
@@ -60,6 +72,10 @@ test('a player can start and answer every mode without page errors or external f
 
     const choices = page.getByRole('button', { name: /選択肢[12]、/ });
     await expect(choices).toHaveCount(2);
+    await expectNoAccessibilityViolations(page);
+    expect(await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    )).toBe(false);
     await choices.first().click();
     const exitButton = page.getByRole('button', { name: 'ゲームをやめてホームに戻る' });
     const exitBox = await exitButton.boundingBox();
@@ -161,19 +177,13 @@ test('settings and all-mode score history are reachable', async ({ page }) => {
   const darkMode = page.getByLabel('ダークモード');
   await darkMode.click();
   await expect(darkMode).toBeChecked();
-  const darkResults = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  expect(darkResults.violations).toEqual([]);
+  await expectNoAccessibilityViolations(page);
   await page.getByRole('button', { name: '前の画面に戻る' }).click();
 
   await page.getByRole('button', { name: 'マイページを開く' }).click();
   await page.getByRole('button', { name: '色モードを選択' }).click();
   await expect(page.getByRole('button', { name: '色モードのスコア履歴を表示' })).toBeVisible();
-  const darkMyPageResults = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  expect(darkMyPageResults.violations).toEqual([]);
+  await expectNoAccessibilityViolations(page);
 
   await page.getByRole('button', { name: 'プレイヤーデータの削除確認を開く' }).click();
   await expect(page.getByRole('alert')).toContainText('この操作は元に戻せません');
@@ -186,10 +196,7 @@ test('settings and all-mode score history are reachable', async ({ page }) => {
   await page.getByLabel('プレイヤー名').fill('ダークテスト');
   await page.getByRole('button', { name: '色モードを選択' }).click();
   await page.getByRole('button', { name: '色モードでゲームを開始' }).click();
-  const darkGameResults = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  expect(darkGameResults.violations).toEqual([]);
+  await expectNoAccessibilityViolations(page);
 });
 
 test('incorrect answers provide visible and assertive text feedback', async ({ page }) => {

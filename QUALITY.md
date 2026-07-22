@@ -4,25 +4,27 @@
 
 `.github/workflows/quality.yml` はPull RequestごとにNode.js 22で次を実行します。
 
-1. `npm ci` とhigh/critical依存監査
+1. `npm ci` と本番・開発依存を含むhigh/critical監査、Action SHA固定検査
 2. ESLint、アプリ/Workerのstrict TypeScript
-3. アプリ純粋ロジック、通信・保存、Worker境界の単体テスト
-4. 空のローカルD1への全migration適用とスキーマ照合
-5. Expo Doctor 18項目、iOS/Android本番Metroバンドル
-6. Desktop ChromeとPixel 7相当のPlaywright E2E
-7. axe WCAG A/AA、ライト/ダーク、見出し、ARIA状態、live region、44px操作領域
-8. Web本番ビルド、950 KiB/JS・12 MiB/島SVG・14 MiB/全体の静的予算、415 SVG完全性、Worker dry-run
+3. アプリ純粋ロジック、通信・保存、Worker境界の単体テストと最低カバレッジ
+4. 空のローカルD1への全migration適用、スキーマ照合、実Worker/D1のHTTP統合試験
+5. Expo Doctor、iOS/Android本番Hermesバンドルと2.5 MiB/bytecode・16 MiB/export予算
+6. Desktop Chrome、Pixel 7、320 x 568小型画面のPlaywright E2E
+7. 全4ゲーム・主要情報画面のaxe WCAG A/AA、ライト/ダーク、ARIA状態、live region、44px操作領域
+8. Web本番ビルド、CSP/Referrer Policy、950 KiB/JS・12 MiB/島SVG・14 MiB/全体の静的予算、415 SVG完全性、Worker dry-run
+
+カバレッジ下限はアプリソースが行90%・分岐78%・関数78%、Worker本体が行85%・分岐78%・関数90%です。閾値未満はNode test runnerが失敗させます。
 
 失敗時のPlaywright trace、スクリーンショット、HTML reportは7日間だけCI artifactへ保存します。
 
 ## Release Gate
 
-`main` のPages workflowは品質チェック後にだけartifactを公開し、WebとAPIの本番スモークを行います。Worker workflowはD1 migration、Worker公開、API v3の地域別取得・登録・履歴・削除スモークを直列化します。
+`main` のPages workflowはAPI v4互換性と品質チェック後にだけartifactを公開し、WebとAPIの本番スモークを行います。Worker workflowはTime Travel復元点、D1 migration、Git SHA release、API v4のセッション発行・地域別取得・登録・履歴・削除スモークを直列化します。
 
 毎時監視は次を外形確認します。
 
-- Web HTML、言語、ファビコン、応答時間
-- API/D1 health、バージョン、security/cache headers
+- Web HTML、言語、実JS bundle、ファビコン、5秒の応答閾値
+- API/D1 health、v4、release ID、security/cache headers、4秒の要求閾値
 - 全4モードと島8地域のランキング応答形
 - 許可/拒否CORS preflight
 - 専用トークンによるテスト投稿、非公開履歴、削除

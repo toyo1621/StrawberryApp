@@ -1,4 +1,6 @@
 const apiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
+const expectedReleaseId = process.env.EXPECTED_RELEASE_ID;
+const maximumRequestDurationMs = Number(process.env.MAX_API_REQUEST_DURATION_MS || 4_000);
 const allowedOrigin = 'https://toyo1621.github.io';
 const gameTypes = ['strawberry_rush', 'island_rush', 'flag_rush', 'color_rush'];
 const islandRegions = [
@@ -53,8 +55,11 @@ const assertOk = async (path, init) => {
   if (response.headers.get('x-content-type-options') !== 'nosniff') {
     throw new Error(`${path} is missing the nosniff security header.`);
   }
-  if (response.headers.get('x-api-version') !== '3') {
-    throw new Error(`${path} is not serving API version 3.`);
+  if (response.headers.get('x-api-version') !== '4') {
+    throw new Error(`${path} is not serving API version 4.`);
+  }
+  if (durationMs > maximumRequestDurationMs) {
+    throw new Error(`${path} exceeded the ${maximumRequestDurationMs} ms latency budget.`);
   }
   return { body: await response.json(), headers: response.headers, durationMs };
 };
@@ -62,8 +67,21 @@ const assertOk = async (path, init) => {
 const durations = [];
 const healthResult = await assertOk('/health');
 durations.push(healthResult.durationMs);
-if (healthResult.body.ok !== true || healthResult.body.version !== 3) {
+if (
+  healthResult.body.ok !== true
+  || healthResult.body.version !== 4
+  || typeof healthResult.body.release !== 'string'
+) {
   throw new Error('/health did not return the expected versioned status.');
+}
+if (
+  expectedReleaseId
+  && (
+    healthResult.body.release !== expectedReleaseId
+    || healthResult.headers.get('x-release-id') !== expectedReleaseId
+  )
+) {
+  throw new Error(`/health is serving release ${healthResult.body.release}, expected ${expectedReleaseId}.`);
 }
 if (healthResult.headers.get('cache-control') !== 'no-store') {
   throw new Error('/health must not be cached.');
@@ -130,15 +148,31 @@ const submissionId = crypto.randomUUID();
 const authorization = `Bearer ${playerToken}`;
 
 try {
+  const session = await assertOk('/game-sessions', {
+    method: 'POST',
+    headers: { authorization, origin: allowedOrigin, 'content-type': 'application/json' },
+    body: JSON.stringify({ gameType: 'strawberry_rush', islandRegion: 'all' }),
+  });
+  durations.push(session.durationMs);
+  if (
+    typeof session.body.id !== 'string'
+    || session.body.gameType !== 'strawberry_rush'
+    || session.body.islandRegion !== 'all'
+    || typeof session.body.expiresAt !== 'string'
+  ) {
+    throw new Error('Verified game session returned an invalid result.');
+  }
+
   const created = await assertOk('/scores', {
     method: 'POST',
     headers: { authorization, origin: allowedOrigin, 'content-type': 'application/json' },
     body: JSON.stringify({
       submissionId,
+      gameSessionId: session.body.id,
       playerName: '監視チェック',
       score: 1,
       gameType: 'strawberry_rush',
-      durationMs: 30_000,
+      durationMs: 1_000,
     }),
   });
   durations.push(created.durationMs);
@@ -165,5 +199,6 @@ try {
 }
 
 console.log(
-  `Rankings API smoke check passed (${gameTypes.length} modes, write/read/delete, max ${Math.max(...durations)} ms).`,
+  `Rankings API smoke check passed (release ${healthResult.body.release}, ${gameTypes.length} modes, `
+  + `verified session/write/read/delete, max ${Math.max(...durations)} ms).`,
 );

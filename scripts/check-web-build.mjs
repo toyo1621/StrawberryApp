@@ -85,6 +85,14 @@ if (!indexHtml.includes('<html lang="ja">') || !indexHtml.includes(PRODUCTION_BA
 if (!expectedApiUrl || !textAssets.some((text) => text.includes(expectedApiUrl))) {
   throw new Error('The production rankings API URL is missing from the web build.');
 }
+if (
+  !indexHtml.includes('http-equiv="Content-Security-Policy"')
+  || !indexHtml.includes("script-src 'self'")
+  || !indexHtml.includes(`connect-src 'self' ${new URL(expectedApiUrl).origin}`)
+  || !indexHtml.includes('<meta name="referrer" content="no-referrer" />')
+) {
+  throw new Error('The production Content Security Policy or referrer policy is missing.');
+}
 
 console.log(
   `Web build budget passed: ${(largestJs.size / 1024).toFixed(1)} KiB largest JS, `

@@ -1,5 +1,14 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, Image, Animated, AccessibilityInfo } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Text,
+  Image,
+  Animated,
+  AccessibilityInfo,
+  AppState,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { strawberryJuiceImage } from './assets/images/strawberryJuiceAsset';
@@ -20,13 +29,16 @@ import TermsOfServiceScreen from './components/TermsOfServiceScreen';
 import SettingsScreen from './components/SettingsScreen';
 import {
   deletePlayerRankingData,
+  createRankingGameSession,
   fetchAllRankingsWithStatus,
   fetchRankingsForModeWithStatus,
   saveScoreForMode,
   syncPendingScores,
 } from './services/rankingService';
+import type { RankingGameSession } from './services/rankingService';
 import { clearPlayerName, loadPlayerName } from './services/playerService';
-import { clearSettings, DEFAULT_SETTINGS, loadSettings, AppSettings } from './services/settingsService';
+import { clearSettings, DEFAULT_SETTINGS, loadSettings } from './services/settingsService';
+import type { AppSettings } from './services/settingsService';
 import { createEmptyRankings } from './gameConfig';
 
 const prefetchStrawberryJuiceImage = () => {
@@ -56,6 +68,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSavingScore, setIsSavingScore] = useState<boolean>(false);
+  const [isPreparingGame, setIsPreparingGame] = useState<boolean>(false);
   const [settings, setSettings] = useState<AppSettings>({
     darkMode: false,
     hapticsEnabled: true,
@@ -65,7 +78,9 @@ const App: React.FC = () => {
   const juiceOpacity = useRef(new Animated.Value(0)).current;
   const gameStartedAtRef = useRef<number | null>(null);
   const gameplayDurationMsRef = useRef<number | null>(null);
+  const gameSessionRef = useRef<RankingGameSession | null>(null);
   const reduceMotionRef = useRef(false);
+  const resumeSyncInFlightRef = useRef(false);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
@@ -155,13 +170,34 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
-  const handleGameStart = useCallback((name: string, mode: GameMode, selectedIslandRegion: IslandRegion) => {
-    setPlayerName(name);
-    setGameMode(mode);
-    setIslandRegion(selectedIslandRegion);
-    setCurrentScore(0);
-    setMemoryAnswer('');
-    setFirstDistractor('');
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      if (nextState !== 'active' || resumeSyncInFlightRef.current) {
+        return;
+      }
+
+      resumeSyncInFlightRef.current = true;
+      try {
+        const result = await syncPendingScores();
+        if (result.synced > 0) {
+          const refreshed = await fetchAllRankingsWithStatus();
+          setRankingsByMode(refreshed.rankings);
+          setNotice(`${result.synced}件の保存待ちスコアをランキングへ同期しました。`);
+        }
+        if (result.discarded > 0) {
+          setError(`${result.discarded}件の期限切れスコアを送信待ちから除外しました。`);
+        }
+      } catch (resumeError) {
+        console.warn('Failed to sync pending scores after returning to the app.', resumeError);
+      } finally {
+        resumeSyncInFlightRef.current = false;
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  const enterGame = useCallback((mode: GameMode) => {
     gameStartedAtRef.current = Date.now();
     gameplayDurationMsRef.current = null;
     if (mode === GameMode.STRAWBERRY) {
@@ -174,6 +210,36 @@ const App: React.FC = () => {
       setGameState(GameState.FLAG_PLAYING);
     }
   }, []);
+
+  const prepareGameSession = useCallback(async (mode: GameMode, selectedIslandRegion: IslandRegion) => {
+    try {
+      return await createRankingGameSession(mode, selectedIslandRegion);
+    } catch (sessionError) {
+      console.warn('Starting an offline-only game after session creation failed.', sessionError);
+      return null;
+    }
+  }, []);
+
+  const handleGameStart = useCallback(async (name: string, mode: GameMode, selectedIslandRegion: IslandRegion) => {
+    if (isPreparingGame) {return;}
+    setIsPreparingGame(true);
+    setPlayerName(name);
+    setGameMode(mode);
+    setIslandRegion(selectedIslandRegion);
+    setCurrentScore(0);
+    setMemoryAnswer('');
+    setFirstDistractor('');
+    const rankingRegion = mode === GameMode.ISLAND ? selectedIslandRegion : IslandRegion.ALL;
+    try {
+      gameSessionRef.current = await prepareGameSession(mode, rankingRegion);
+      if (!gameSessionRef.current) {
+        setNotice('オフラインで開始しました。このゲームのスコアは端末だけに保存されます。');
+      }
+      enterGame(mode);
+    } finally {
+      setIsPreparingGame(false);
+    }
+  }, [enterGame, isPreparingGame, prepareGameSession]);
 
   const handleMemoryGame = useCallback((score: number, lastDistractor: string, firstDistractor: string) => {
     gameplayDurationMsRef.current = Math.max(
@@ -208,6 +274,7 @@ const App: React.FC = () => {
         const result = await saveScoreForMode(gameMode, playerName, score, {
           durationMs,
           islandRegion: rankingRegion,
+          gameSession: gameSessionRef.current,
         });
         const updatedRankings = await fetchRankingsForModeWithStatus(
           gameMode,
@@ -217,6 +284,8 @@ const App: React.FC = () => {
         setRankingsByMode((current) => ({ ...current, [gameMode]: updatedRankings.entries }));
         if (result.queuedForSync) {
           setNotice('通信できなかったため端末に保存しました。次回オンライン時に自動で同期します。');
+        } else if (!result.verifiedForRanking) {
+          setNotice('オフラインで開始したため、スコアは端末履歴だけに保存しました。');
         }
         if (updatedRankings.stale) {
           setNotice('通信できないため端末に保存したランキングを表示しています。');
@@ -228,38 +297,42 @@ const App: React.FC = () => {
         console.error('Failed to save score:', error);
         setError('スコアの保存に失敗しました。ランキングは更新されませんでした。');
       } finally {
+        gameSessionRef.current = null;
         gameStartedAtRef.current = null;
         gameplayDurationMsRef.current = null;
         setIsSavingScore(false);
       }
     } else {
+      gameSessionRef.current = null;
       gameStartedAtRef.current = null;
       gameplayDurationMsRef.current = null;
     }
   }, [playerName, gameMode, islandRegion]);
 
   const handleRestart = useCallback(() => {
+    gameSessionRef.current = null;
     gameStartedAtRef.current = null;
     gameplayDurationMsRef.current = null;
     setGameState(GameState.START);
   }, []);
 
-  const handlePlayAgain = useCallback(() => {
+  const handlePlayAgain = useCallback(async () => {
+    if (isPreparingGame) {return;}
+    setIsPreparingGame(true);
     setCurrentScore(0);
     setMemoryAnswer('');
     setFirstDistractor('');
-    gameStartedAtRef.current = Date.now();
-    gameplayDurationMsRef.current = null;
-    if (gameMode === GameMode.STRAWBERRY) {
-      setGameState(GameState.PLAYING);
-    } else if (gameMode === GameMode.ISLAND) {
-      setGameState(GameState.ISLAND_PLAYING);
-    } else if (gameMode === GameMode.COLOR) {
-      setGameState(GameState.COLOR_PLAYING);
-    } else {
-      setGameState(GameState.FLAG_PLAYING);
+    const rankingRegion = gameMode === GameMode.ISLAND ? islandRegion : IslandRegion.ALL;
+    try {
+      gameSessionRef.current = await prepareGameSession(gameMode, rankingRegion);
+      if (!gameSessionRef.current) {
+        setNotice('オフラインで開始しました。このゲームのスコアは端末だけに保存されます。');
+      }
+      enterGame(gameMode);
+    } finally {
+      setIsPreparingGame(false);
     }
-  }, [gameMode]);
+  }, [enterGame, gameMode, islandRegion, isPreparingGame, prepareGameSession]);
 
   const handleShowRules = useCallback(() => {
     setGameState(GameState.RULES);
@@ -395,6 +468,7 @@ const App: React.FC = () => {
             error={error}
             onDismissError={() => setError(null)}
             darkMode={settings.darkMode}
+            isPreparingGame={isPreparingGame}
             />
             {isSavingScore && (
               <View style={styles.savingOverlay}>
@@ -424,6 +498,7 @@ const App: React.FC = () => {
               notice={notice}
               onDismissNotice={() => setNotice(null)}
               darkMode={settings.darkMode}
+              isPreparingGame={isPreparingGame}
             />
             {isSavingScore && (
               <View style={styles.savingOverlay}>

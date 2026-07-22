@@ -7,11 +7,15 @@ import {
   parseIslandRegion,
   parseRankingPeriod,
   validatePlayerToken,
+  validateGameSessionRequest,
   validateScoreSubmission,
 } from './rankingValidation.js';
 
+const GAME_SESSION_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
 const validScore = (overrides: Record<string, unknown> = {}) => ({
   submissionId: 'validation_test_000001',
+  gameSessionId: GAME_SESSION_ID,
   playerName: 'ぱん',
   score: 10,
   gameType: 'strawberry_rush',
@@ -27,6 +31,7 @@ test('accepts a plausible score submission', () => {
   assert.deepEqual(
     validateScoreSubmission({
       submissionId: 'validation_test_000002',
+      gameSessionId: GAME_SESSION_ID,
       playerName: 'ぱん',
       score: 194,
       gameType: 'strawberry_rush',
@@ -35,6 +40,7 @@ test('accepts a plausible score submission', () => {
     }),
     {
       submissionId: 'validation_test_000002',
+      gameSessionId: GAME_SESSION_ID,
       playerName: 'ぱん',
       score: 194,
       gameType: 'strawberry_rush',
@@ -53,6 +59,15 @@ test('validates island ranking regions without changing existing nationwide subm
   );
   assert.throws(() => parseIslandRegion('unknown', 'island_rush'));
   assert.throws(() => parseIslandRegion('chugoku', 'strawberry_rush'));
+});
+
+test('validates game session requests and binds regions to island mode', () => {
+  assert.deepEqual(
+    validateGameSessionRequest({ gameType: 'island_rush', islandRegion: 'okinawa' }),
+    { gameType: 'island_rush', islandRegion: 'okinawa' },
+  );
+  assert.throws(() => validateGameSessionRequest({ gameType: 'flag_rush', islandRegion: 'okinawa' }));
+  assert.throws(() => validateGameSessionRequest(null));
 });
 
 test('rejects unsupported game types and periods', () => {
@@ -82,6 +97,7 @@ test('rejects impossible scores', () => {
 
 test('requires strict numeric fields, duration, and submission ID', () => {
   assert.throws(() => validateScoreSubmission(validScore({ submissionId: undefined })));
+  assert.throws(() => validateScoreSubmission(validScore({ gameSessionId: undefined })));
   assert.throws(() => validateScoreSubmission(validScore({ durationMs: undefined })));
   assert.throws(() => validateScoreSubmission(validScore({ score: '10' })));
   assert.throws(() => validateScoreSubmission(validScore({ gameType: undefined })));
