@@ -107,6 +107,15 @@ requireValue(
     && workerWorkflow.includes('d1:enable-read-replication'),
   'The Worker release workflow must enable D1 read replication before deployment.',
 );
+const workerReleaseWaitIndex = workerWorkflow.indexOf('- name: Wait for deployed API release');
+const workerSmokeIndex = workerWorkflow.indexOf('- name: Verify production API');
+requireValue(
+  workerReleaseWaitIndex > -1
+    && workerSmokeIndex > workerReleaseWaitIndex
+    && workerWorkflow.includes('run: npm run wait:rankings-api')
+    && workerWorkflow.includes('API_WAIT_INTERVAL_MS'),
+  'The Worker release workflow must wait for edge propagation before its production smoke test.',
+);
 
 const dataSources = await readFile(new URL('../DATA_SOURCES.md', import.meta.url), 'utf8');
 requireValue(
