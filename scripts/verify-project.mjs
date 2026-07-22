@@ -56,6 +56,7 @@ await stat(new URL('../worker/migrations/0004_private_player_history.sql', impor
 await stat(new URL('../worker/migrations/0005_atomic_rate_limits.sql', import.meta.url));
 await stat(new URL('../worker/migrations/0006_align_score_contract.sql', import.meta.url));
 await stat(new URL('../worker/migrations/0007_split_island_rankings_by_region.sql', import.meta.url));
+await stat(new URL('../worker/migrations/0008_move_legacy_island_rankings_to_kanto.sql', import.meta.url));
 
 if (failures.length > 0) {
   throw new Error(`Project verification failed:\n- ${failures.join('\n- ')}`);
