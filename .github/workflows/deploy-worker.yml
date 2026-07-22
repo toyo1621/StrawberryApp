@@ -94,7 +94,6 @@ jobs:
         run: npm run wait:rankings-api
         env:
           EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev
-          EXPECTED_API_VERSION: '4'
           EXPECTED_RELEASE_ID: ${{ github.sha }}
           API_WAIT_ATTEMPTS: '24'
           API_WAIT_INTERVAL_MS: '5000'

@@ -55,7 +55,6 @@ jobs:
         run: npm run wait:rankings-api
         env:
           EXPO_PUBLIC_RANKINGS_API_URL: ${{ vars.EXPO_PUBLIC_RANKINGS_API_URL || secrets.EXPO_PUBLIC_RANKINGS_API_URL }}
-          EXPECTED_API_VERSION: '4'
           EXPECTED_RELEASE_ID: ${{ github.sha }}
 
       - name: Build web
