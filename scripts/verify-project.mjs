@@ -59,7 +59,7 @@ const sourceFiles = [
   await readFile(new URL('../src/components/FlagGameScreen.tsx', import.meta.url), 'utf8'),
   await readFile(new URL('../src/services/rankingService.ts', import.meta.url), 'utf8'),
 ].join('\n');
-requireValue(!sourceFiles.includes('cdn.jsdelivr.net'), 'Runtime source must not load flag assets from a CDN.');
+requireValue(!/\bcdn[.]jsdelivr[.]net\b/u.test(sourceFiles), 'Runtime source must not load flag assets from a CDN.');
 
 const leaderboardSource = await readFile(new URL('../worker/src/leaderboards.ts', import.meta.url), 'utf8');
 requireValue(
@@ -143,10 +143,14 @@ requireValue(
 );
 
 const dataSources = await readFile(new URL('../DATA_SOURCES.md', import.meta.url), 'utf8');
+const dataSourceUrls = [...dataSources.matchAll(/https:\/\/[^\s)]+/gu)]
+  .map(([url]) => new URL(url));
 requireValue(
   dataSources.includes('国土地理院「地理院地図」')
     && dataSources.includes('toyo1621')
-    && dataSources.includes('https://maps.gsi.go.jp/'),
+    && dataSourceUrls.some((url) => (
+      url.protocol === 'https:' && url.hostname === 'maps.gsi.go.jp'
+    )),
   'Island attribution must identify GSI Maps and the original editor.',
 );
 
