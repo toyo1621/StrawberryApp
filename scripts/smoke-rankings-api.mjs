@@ -1,6 +1,16 @@
 const apiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
 const allowedOrigin = 'https://toyo1621.github.io';
 const gameTypes = ['strawberry_rush', 'island_rush', 'flag_rush', 'color_rush'];
+const islandRegions = [
+  'all',
+  'hokkaido_tohoku',
+  'kanto',
+  'chubu_kinki',
+  'chugoku',
+  'shikoku',
+  'kyushu',
+  'okinawa',
+];
 
 if (!apiUrl) {
   console.error('EXPO_PUBLIC_RANKINGS_API_URL is required.');
@@ -43,8 +53,8 @@ const assertOk = async (path, init) => {
   if (response.headers.get('x-content-type-options') !== 'nosniff') {
     throw new Error(`${path} is missing the nosniff security header.`);
   }
-  if (response.headers.get('x-api-version') !== '2') {
-    throw new Error(`${path} is not serving API version 2.`);
+  if (response.headers.get('x-api-version') !== '3') {
+    throw new Error(`${path} is not serving API version 3.`);
   }
   return { body: await response.json(), headers: response.headers, durationMs };
 };
@@ -52,15 +62,25 @@ const assertOk = async (path, init) => {
 const durations = [];
 const healthResult = await assertOk('/health');
 durations.push(healthResult.durationMs);
-if (healthResult.body.ok !== true || healthResult.body.version !== 2) {
+if (healthResult.body.ok !== true || healthResult.body.version !== 3) {
   throw new Error('/health did not return the expected versioned status.');
 }
 if (healthResult.headers.get('cache-control') !== 'no-store') {
   throw new Error('/health must not be cached.');
 }
 
-for (const gameType of gameTypes) {
-  const result = await assertOk(`/rankings?gameType=${gameType}&period=all&limit=3`);
+const rankingScopes = [
+  ...gameTypes.filter((gameType) => gameType !== 'island_rush').map((gameType) => ({
+    gameType,
+    islandRegion: 'all',
+  })),
+  ...islandRegions.map((islandRegion) => ({ gameType: 'island_rush', islandRegion })),
+];
+
+for (const { gameType, islandRegion } of rankingScopes) {
+  const result = await assertOk(
+    `/rankings?gameType=${gameType}&islandRegion=${islandRegion}&period=all&limit=3`,
+  );
   durations.push(result.durationMs);
   if (!Array.isArray(result.body)) {
     throw new Error(`/rankings did not return an array for ${gameType}.`);
@@ -71,6 +91,7 @@ for (const gameType of gameTypes) {
       || typeof entry.playerName !== 'string'
       || typeof entry.score !== 'number'
       || entry.gameType !== gameType
+      || entry.islandRegion !== islandRegion
       || typeof entry.createdAt !== 'string'
     ) {
       throw new Error(`Ranking response includes an invalid ${gameType} entry.`);

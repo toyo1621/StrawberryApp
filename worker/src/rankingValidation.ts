@@ -11,6 +11,19 @@ export const PERIODS = ['all', 'daily', 'weekly', 'monthly'] as const;
 
 export type RankingPeriod = typeof PERIODS[number];
 
+export const ISLAND_REGIONS = [
+  'all',
+  'hokkaido_tohoku',
+  'kanto',
+  'chubu_kinki',
+  'chugoku',
+  'shikoku',
+  'kyushu',
+  'okinawa',
+] as const;
+
+export type IslandRegion = typeof ISLAND_REGIONS[number];
+
 export type GameScoreProfile = {
   maxScore: number;
   maxScorePerSecond: number;
@@ -24,6 +37,7 @@ const PLAYER_TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-
 
 const GAME_TYPE_SET = new Set<string>(GAME_TYPES);
 const PERIOD_SET = new Set<string>(PERIODS);
+const ISLAND_REGION_SET = new Set<string>(ISLAND_REGIONS);
 
 export const MAX_GAME_DURATION_MS = 5 * 60 * 1000;
 
@@ -60,6 +74,7 @@ export type RawScoreSubmission = {
   playerName?: unknown;
   score?: unknown;
   gameType?: unknown;
+  islandRegion?: unknown;
   durationMs?: unknown;
   playerToken?: unknown;
 };
@@ -69,6 +84,7 @@ export type ScoreSubmission = {
   playerName: string;
   score: number;
   gameType: GameType;
+  islandRegion: IslandRegion;
   durationMs: number;
   playerToken?: string;
 };
@@ -102,11 +118,28 @@ export const parseRankingPeriod = (value: string | null): RankingPeriod => {
   return period as RankingPeriod;
 };
 
+export const parseIslandRegion = (
+  value: unknown,
+  gameType: GameType,
+): IslandRegion => {
+  const region = value === undefined || value === null || value === '' ? 'all' : value;
+  if (typeof region !== 'string' || !ISLAND_REGION_SET.has(region)) {
+    throw new ValidationError(400, 'Unsupported island region.');
+  }
+
+  if (gameType !== 'island_rush' && region !== 'all') {
+    throw new ValidationError(400, 'Island region is only supported for island rankings.');
+  }
+
+  return region as IslandRegion;
+};
+
 export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreSubmission => {
   const submissionId = body?.submissionId;
   const playerName = normalizePlayerName(body?.playerName);
   const score = body?.score;
   const gameType = parseGameType(body?.gameType);
+  const islandRegion = parseIslandRegion(body?.islandRegion, gameType);
   const durationMs = body?.durationMs;
   const playerToken = body?.playerToken;
 
@@ -157,6 +190,7 @@ export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreS
     playerName,
     score,
     gameType,
+    islandRegion,
     durationMs,
     ...(playerToken ? { playerToken } : {}),
   };

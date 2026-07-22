@@ -31,6 +31,7 @@ npm run d1:migrate
 - `0004` は所有者ハッシュと履歴用インデックスを追加します。既存行は `NULL` のまま公開順位を維持します。
 - `0005` は短期保持の連投イベントを原子的な分単位バケットへ置き換えます。
 - `0006` は5分のゲーム契約に合わせてスコア制約を拡張し、全ランキング行とインデックスを引き継ぎます。適用前バックアップが必須です。
+- `0007` は島ランキングの地域列と地域別インデックスを追加し、既存の島ランキングをすべて日本全国へ引き継ぎます。適用前後で総件数と `island_region = 'all'` の件数を照合します。
 
 ## Cloudflare Worker
 
@@ -43,7 +44,7 @@ npm run worker:deploy
 EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.dev npm run smoke:rankings-api
 ```
 
-WorkerはブラウザOrigin、Bearer所有者、JSON Content-Type、2 KiB上限、名前、モード、整数スコア、5分上限、成立可能な得点速度を検証します。投稿IDの冪等化、原子的な連投制限、D1接続を確認する `/health` を備えます。Worker Observabilityと15分ごとの一時ハッシュ削除は `worker/wrangler.toml` で有効です。
+WorkerはブラウザOrigin、Bearer所有者、JSON Content-Type、2 KiB上限、名前、モード、島地域、整数スコア、5分上限、成立可能な得点速度を検証します。投稿IDの冪等化、原子的な連投制限、D1接続を確認する `/health` を備えます。Worker Observabilityと15分ごとの一時ハッシュ削除は `worker/wrangler.toml` で有効です。
 
 GitHub Actionsから公開する場合は、`production` Environmentに次を登録します。
 

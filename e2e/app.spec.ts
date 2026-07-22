@@ -112,6 +112,46 @@ test('island mode filters all 415 islands by the selected area', async ({ page }
   expect(hasHorizontalOverflow).toBe(false);
 });
 
+test('island rankings follow the selected nationwide, Chugoku, and Shikoku scope', async ({ page }) => {
+  await page.addInitScript(() => {
+    const entry = (id: string, playerName: string, score: number, islandRegion: string) => ({
+      id,
+      playerName,
+      score,
+      gameType: 'island_rush',
+      islandRegion,
+      createdAt: '2026-07-21T00:00:00.000Z',
+    });
+    window.localStorage.setItem(
+      'island_game_rankings',
+      JSON.stringify([entry('island-all', '全国ランキング選手', 10, 'all')]),
+    );
+    window.localStorage.setItem(
+      'island_game_rankings_chugoku',
+      JSON.stringify([entry('island-chugoku', '中国ランキング選手', 8, 'chugoku')]),
+    );
+    window.localStorage.setItem(
+      'island_game_rankings_shikoku',
+      JSON.stringify([entry('island-shikoku', '四国ランキング選手', 6, 'shikoku')]),
+    );
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: '島モードを選択' }).click();
+  await expect(page.getByRole('heading', { name: '日本全国ランキング' })).toBeVisible();
+  await expect(page.getByText('全国ランキング選手')).toBeVisible();
+
+  await page.getByRole('button', { name: '中国を出題エリアに選択、89島' }).click();
+  await expect(page.getByRole('heading', { name: '中国ランキング' })).toBeVisible();
+  await expect(page.getByText('中国ランキング選手')).toBeVisible();
+  await expect(page.getByText('全国ランキング選手')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '四国を出題エリアに選択、72島' }).click();
+  await expect(page.getByRole('heading', { name: '四国ランキング' })).toBeVisible();
+  await expect(page.getByText('四国ランキング選手')).toBeVisible();
+  await expect(page.getByText('中国ランキング選手')).toHaveCount(0);
+});
+
 test('settings and all-mode score history are reachable', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('プレイヤー名').fill('設定テスト');

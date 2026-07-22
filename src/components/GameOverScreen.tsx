@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { FONT_WEIGHT_BOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
+import { getIslandRegionLabel } from '../domain/islands';
 import { rankingIdentity } from '../domain/rankings';
 import { GAME_MODE_CONFIG } from '../gameConfig';
 import { fetchRankingsForModeWithStatus } from '../services/rankingService';
 import { getTheme } from '../theme';
-import { GameMode, RankingEntry, RankingPeriod } from '../types';
+import { GameMode, IslandRegion, RankingEntry, RankingPeriod } from '../types';
 import PeriodTabs from './ranking/PeriodTabs';
 import RankingList from './ranking/RankingList';
 import StatusBanner from './ui/StatusBanner';
@@ -13,6 +14,7 @@ import StatusBanner from './ui/StatusBanner';
 type GameOverScreenProps = {
   ranking: RankingEntry[];
   gameMode: GameMode;
+  islandRegion: IslandRegion;
   currentPlayer: { name: string; score: number };
   onPlayAgain: () => void;
   onGoHome: () => void;
@@ -24,6 +26,7 @@ type GameOverScreenProps = {
 const GameOverScreen: React.FC<GameOverScreenProps> = ({
   ranking,
   gameMode,
+  islandRegion,
   currentPlayer,
   onPlayAgain,
   onGoHome,
@@ -39,6 +42,8 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
   const config = GAME_MODE_CONFIG[gameMode];
   const accent = darkMode ? config.accentDark : config.accent;
   const actionAccent = config.accent;
+  const rankingRegion = gameMode === GameMode.ISLAND ? islandRegion : IslandRegion.ALL;
+  const islandRegionLabel = getIslandRegionLabel(rankingRegion);
 
   useEffect(() => {
     let active = true;
@@ -53,7 +58,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
 
     setIsLoadingPeriod(true);
     setPeriodError('');
-    fetchRankingsForModeWithStatus(gameMode, selectedPeriod)
+    fetchRankingsForModeWithStatus(gameMode, selectedPeriod, rankingRegion)
       .then((result) => {
         if (active) {
           setPeriodRanking(result.entries);
@@ -75,7 +80,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
     return () => {
       active = false;
     };
-  }, [gameMode, selectedPeriod]);
+  }, [gameMode, rankingRegion, selectedPeriod]);
 
   const currentRanking = selectedPeriod === RankingPeriod.ALL ? ranking : periodRanking;
   const rank = useMemo(() => {
@@ -96,7 +101,10 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
       <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.header}>
           <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: theme.text }]}>ゲーム終了</Text>
-          <Text style={[styles.modeLabel, { color: accent }]}>{config.emoji} {config.shortLabel}モード</Text>
+          <Text style={[styles.modeLabel, { color: accent }]}>
+            {config.emoji} {config.shortLabel}モード
+            {gameMode === GameMode.ISLAND ? `・${islandRegionLabel}` : ''}
+          </Text>
           <Text
             accessibilityLiveRegion="polite"
             accessibilityLabel={`今回のスコアは${currentPlayer.score}${config.unit}です`}
@@ -111,7 +119,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
 
         <View style={styles.rankingSection}>
           <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>
-            {config.rankingTitle}ランキング
+            {gameMode === GameMode.ISLAND ? `${islandRegionLabel}ランキング` : `${config.rankingTitle}ランキング`}
           </Text>
           <PeriodTabs
             value={selectedPeriod}

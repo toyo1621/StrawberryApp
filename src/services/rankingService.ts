@@ -12,7 +12,13 @@ import {
   normalizePlayerName,
   rankingIdentity,
 } from '../domain/rankings';
-import { GameMode, RankingEntry, RankingPeriod, RankingsByMode } from '../types';
+import {
+  GameMode,
+  IslandRegion,
+  RankingEntry,
+  RankingPeriod,
+  RankingsByMode,
+} from '../types';
 import {
   clearPlayerIdentity,
   getPlayerToken,
@@ -23,6 +29,7 @@ export { RankingPeriod } from '../types';
 
 export interface ScoreMetadata {
   durationMs: number;
+  islandRegion?: IslandRegion;
 }
 
 export type ScoreSaveResult = {
@@ -55,6 +62,7 @@ type PendingScore = {
   playerName: string;
   score: number;
   gameType: ApiGameType;
+  islandRegion: IslandRegion;
   durationMs: number;
   createdAt: string;
   playerToken?: string;
@@ -68,12 +76,45 @@ const API_TIMEOUT_MS = 6_000;
 const API_ATTEMPTS = 2;
 const PENDING_SCORES_KEY = 'strawberry_pending_scores_v1';
 
-const STORAGE_KEYS: Record<ApiGameType, string> = {
+const BASE_STORAGE_KEYS: Record<ApiGameType, string> = {
   strawberry_rush: 'strawberry_game_rankings',
   island_rush: 'island_game_rankings',
   flag_rush: 'flag_game_rankings',
   color_rush: 'color_game_rankings',
 };
+
+const ISLAND_REGION_SET = new Set<string>(Object.values(IslandRegion));
+
+const normalizeIslandRegion = (
+  gameType: ApiGameType,
+  value: unknown,
+): IslandRegion => {
+  if (
+    gameType === 'island_rush'
+    && typeof value === 'string'
+    && ISLAND_REGION_SET.has(value)
+  ) {
+    return value as IslandRegion;
+  }
+  return IslandRegion.ALL;
+};
+
+const getStorageKey = (
+  gameType: ApiGameType,
+  islandRegion: IslandRegion = IslandRegion.ALL,
+): string => {
+  if (gameType === 'island_rush' && islandRegion !== IslandRegion.ALL) {
+    return `${BASE_STORAGE_KEYS.island_rush}_${islandRegion}`;
+  }
+  return BASE_STORAGE_KEYS[gameType];
+};
+
+const ALL_STORAGE_KEYS = [
+  ...Object.values(BASE_STORAGE_KEYS),
+  ...Object.values(IslandRegion)
+    .filter((region) => region !== IslandRegion.ALL)
+    .map((region) => getStorageKey('island_rush', region)),
+];
 
 const rankingsApiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
 
@@ -97,32 +138,48 @@ const isApiGameType = (value: unknown): value is ApiGameType => {
   return typeof value === 'string' && API_GAME_TYPES.includes(value as ApiGameType);
 };
 
-const isRankingEntry = (value: unknown): value is RankingEntry => {
+const toRankingEntry = (value: unknown): RankingEntry | null => {
   if (!value || typeof value !== 'object') {
-    return false;
+    return null;
   }
 
   const entry = value as Partial<RankingEntry>;
-  return typeof entry.id === 'string'
+  if (!(typeof entry.id === 'string'
     && typeof entry.playerName === 'string'
     && Number.isInteger(entry.score)
-    && typeof entry.gameType === 'string'
+    && isApiGameType(entry.gameType)
     && typeof entry.createdAt === 'string'
-    && Number.isFinite(Date.parse(entry.createdAt));
+    && Number.isFinite(Date.parse(entry.createdAt)))) {
+    return null;
+  }
+
+  return {
+    id: entry.id,
+    playerName: entry.playerName,
+    score: entry.score as number,
+    gameType: entry.gameType,
+    islandRegion: normalizeIslandRegion(entry.gameType, entry.islandRegion),
+    createdAt: entry.createdAt,
+  };
 };
 
 const parseRankingEntries = (value: unknown): RankingEntry[] => {
-  if (!Array.isArray(value) || !value.every(isRankingEntry)) {
+  if (!Array.isArray(value)) {
     throw new RankingsApiError('The rankings API returned an invalid response.');
   }
-  return value;
+  const entries = value.map(toRankingEntry);
+  if (entries.some((entry) => entry === null)) {
+    throw new RankingsApiError('The rankings API returned an invalid response.');
+  }
+  return entries as RankingEntry[];
 };
 
 const parseRankingEntry = (value: unknown): RankingEntry => {
-  if (!isRankingEntry(value)) {
+  const entry = toRankingEntry(value);
+  if (!entry) {
     throw new RankingsApiError('The rankings API returned an invalid response.');
   }
-  return value;
+  return entry;
 };
 
 const parseDeleteResult = (value: unknown): { deleted: number } => {
@@ -214,22 +271,28 @@ const parseStoredRankings = (stored: string | null): RankingEntry[] => {
 
   try {
     const parsed = JSON.parse(stored) as unknown;
-    return Array.isArray(parsed) ? parsed.filter(isRankingEntry) : [];
+    return Array.isArray(parsed)
+      ? parsed.map(toRankingEntry).filter((entry): entry is RankingEntry => entry !== null)
+      : [];
   } catch {
     return [];
   }
 };
 
-const loadLocalRankingsForGame = async (gameType: ApiGameType): Promise<RankingEntry[]> => {
-  return parseStoredRankings(await AsyncStorage.getItem(STORAGE_KEYS[gameType]));
+const loadLocalRankingsForGame = async (
+  gameType: ApiGameType,
+  islandRegion: IslandRegion = IslandRegion.ALL,
+): Promise<RankingEntry[]> => {
+  return parseStoredRankings(await AsyncStorage.getItem(getStorageKey(gameType, islandRegion)));
 };
 
 const writeLocalRankingsForGame = async (
   gameType: ApiGameType,
+  islandRegion: IslandRegion,
   rankings: RankingEntry[],
 ): Promise<void> => {
   try {
-    await AsyncStorage.setItem(STORAGE_KEYS[gameType], JSON.stringify(rankings));
+    await AsyncStorage.setItem(getStorageKey(gameType, islandRegion), JSON.stringify(rankings));
   } catch (error) {
     console.warn('Failed to cache rankings.', error);
   }
@@ -237,15 +300,33 @@ const writeLocalRankingsForGame = async (
 
 const mergeIntoLocalCache = async (
   gameType: ApiGameType,
+  islandRegion: IslandRegion,
   incoming: RankingEntry[],
 ): Promise<void> => {
-  const current = await loadLocalRankingsForGame(gameType);
+  const current = await loadLocalRankingsForGame(gameType, islandRegion);
   const byId = new Map(current.map((entry) => [entry.id, entry]));
   incoming.forEach((entry) => byId.set(entry.id, entry));
   const merged = [...byId.values()]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, LOCAL_CACHE_LIMIT);
-  await writeLocalRankingsForGame(gameType, merged);
+  await writeLocalRankingsForGame(gameType, islandRegion, merged);
+};
+
+const mergeEntriesIntoLocalCaches = async (
+  gameType: ApiGameType,
+  entries: RankingEntry[],
+): Promise<void> => {
+  if (gameType !== 'island_rush') {
+    await mergeIntoLocalCache(gameType, IslandRegion.ALL, entries);
+    return;
+  }
+
+  await Promise.all(Object.values(IslandRegion).map(async (region) => {
+    const regionalEntries = entries.filter((entry) => entry.islandRegion === region);
+    if (regionalEntries.length > 0) {
+      await mergeIntoLocalCache(gameType, region, regionalEntries);
+    }
+  }));
 };
 
 const parsePendingScores = (stored: string | null): PendingScore[] => {
@@ -259,18 +340,31 @@ const parsePendingScores = (stored: string | null): PendingScore[] => {
       return [];
     }
 
-    return value.filter((item): item is PendingScore => {
+    return value.flatMap((item): PendingScore[] => {
       if (!item || typeof item !== 'object') {
-        return false;
+        return [];
       }
       const score = item as Partial<PendingScore>;
-      return typeof score.submissionId === 'string'
+      if (!(typeof score.submissionId === 'string'
         && typeof score.playerName === 'string'
         && Number.isInteger(score.score)
         && isApiGameType(score.gameType)
         && Number.isInteger(score.durationMs)
         && typeof score.createdAt === 'string'
-        && (score.playerToken === undefined || typeof score.playerToken === 'string');
+        && (score.playerToken === undefined || typeof score.playerToken === 'string'))) {
+        return [];
+      }
+
+      return [{
+        submissionId: score.submissionId,
+        playerName: score.playerName,
+        score: score.score as number,
+        gameType: score.gameType,
+        islandRegion: normalizeIslandRegion(score.gameType, score.islandRegion),
+        durationMs: score.durationMs as number,
+        createdAt: score.createdAt,
+        ...(score.playerToken ? { playerToken: score.playerToken } : {}),
+      }];
     });
   } catch {
     return [];
@@ -304,6 +398,7 @@ const postScore = async (score: PendingScore): Promise<RankingEntry> => {
       playerName: score.playerName,
       score: score.score,
       gameType: score.gameType,
+      islandRegion: score.islandRegion,
       durationMs: score.durationMs,
     }),
   });
@@ -324,7 +419,7 @@ export const syncPendingScores = async (): Promise<SyncResult> => {
     const score = batch[index];
     try {
       const entry = await postScore(score);
-      await mergeIntoLocalCache(score.gameType, [entry]);
+      await mergeIntoLocalCache(score.gameType, score.islandRegion, [entry]);
       synced += 1;
     } catch (error) {
       if (!isTemporaryApiFailure(error)) {
@@ -343,16 +438,23 @@ export const syncPendingScores = async (): Promise<SyncResult> => {
 export const fetchRankingsForModeWithStatus = async (
   mode: GameMode,
   period: RankingPeriod = RankingPeriod.ALL,
+  islandRegion: IslandRegion = IslandRegion.ALL,
 ): Promise<RankingFetchResult> => {
   const gameType = GAME_MODE_CONFIG[mode].apiType;
+  const rankingRegion = normalizeIslandRegion(gameType, islandRegion);
   if (hasRankingsApi()) {
     try {
       const rankings = await apiRequest(
-        `/rankings${buildQuery({ gameType, period, limit: RANKING_LIMIT })}`,
+        `/rankings${buildQuery({
+          gameType,
+          period,
+          islandRegion: rankingRegion,
+          limit: RANKING_LIMIT,
+        })}`,
         parseRankingEntries,
       );
       if (period === RankingPeriod.ALL) {
-        await mergeIntoLocalCache(gameType, rankings);
+        await mergeIntoLocalCache(gameType, rankingRegion, rankings);
       }
       return { entries: rankings, source: 'remote', stale: false };
     } catch (error) {
@@ -360,7 +462,7 @@ export const fetchRankingsForModeWithStatus = async (
     }
   }
 
-  const localRankings = await loadLocalRankingsForGame(gameType);
+  const localRankings = await loadLocalRankingsForGame(gameType, rankingRegion);
   return {
     entries: getUniquePlayerRankings(filterRankingsByPeriod(localRankings, period), RANKING_LIMIT),
     source: hasRankingsApi() ? 'cache' : 'local',
@@ -371,8 +473,9 @@ export const fetchRankingsForModeWithStatus = async (
 export const fetchRankingsForMode = async (
   mode: GameMode,
   period: RankingPeriod = RankingPeriod.ALL,
+  islandRegion: IslandRegion = IslandRegion.ALL,
 ): Promise<RankingEntry[]> => {
-  return (await fetchRankingsForModeWithStatus(mode, period)).entries;
+  return (await fetchRankingsForModeWithStatus(mode, period, islandRegion)).entries;
 };
 
 export const fetchAllRankingsWithStatus = async (): Promise<AllRankingsFetchResult> => {
@@ -414,9 +517,10 @@ const saveLocalScore = async (pending: PendingScore): Promise<RankingEntry> => {
     playerName: pending.playerName,
     score: pending.score,
     gameType: pending.gameType,
+    islandRegion: pending.islandRegion,
     createdAt: pending.createdAt,
   };
-  await mergeIntoLocalCache(pending.gameType, [entry]);
+  await mergeIntoLocalCache(pending.gameType, pending.islandRegion, [entry]);
   return entry;
 };
 
@@ -431,11 +535,13 @@ export const saveScoreForMode = async (
     throw new Error('A valid game duration is required to save a score.');
   }
 
+  const gameType = GAME_MODE_CONFIG[mode].apiType;
   const pending: PendingScore = {
     submissionId: generateSubmissionId(),
     playerName: normalizePlayerName(playerName),
     score,
-    gameType: GAME_MODE_CONFIG[mode].apiType,
+    gameType,
+    islandRegion: normalizeIslandRegion(gameType, metadata.islandRegion),
     durationMs,
     createdAt: new Date().toISOString(),
     playerToken: await getPlayerToken(),
@@ -444,7 +550,7 @@ export const saveScoreForMode = async (
   if (hasRankingsApi()) {
     try {
       const entry = await postScore(pending);
-      await mergeIntoLocalCache(pending.gameType, [entry]);
+      await mergeIntoLocalCache(pending.gameType, pending.islandRegion, [entry]);
       return { entry, destination: 'remote', queuedForSync: false, droppedPendingScores: 0 };
     } catch (error) {
       if (!isTemporaryApiFailure(error)) {
@@ -478,7 +584,7 @@ export const fetchPlayerScoreHistory = async (
         parseRankingEntries,
         { headers: { authorization: `Bearer ${playerToken}` } },
       );
-      await mergeIntoLocalCache(gameType, history);
+      await mergeEntriesIntoLocalCaches(gameType, history);
       return history;
     } catch (error) {
       console.warn('Using cached score history after an API failure.', error);
@@ -486,7 +592,11 @@ export const fetchPlayerScoreHistory = async (
   }
 
   const identity = rankingIdentity(normalizedName);
-  const rankings = await loadLocalRankingsForGame(gameType);
+  const rankings = gameType === 'island_rush'
+    ? (await Promise.all(
+        Object.values(IslandRegion).map((region) => loadLocalRankingsForGame(gameType, region)),
+      )).flat()
+    : await loadLocalRankingsForGame(gameType);
   return rankings
     .filter((entry) => rankingIdentity(entry.playerName) === identity)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -498,7 +608,7 @@ export const getPlayerBestScore = async (playerName: string): Promise<number> =>
 };
 
 export const clearRankingData = async (): Promise<void> => {
-  await AsyncStorage.multiRemove([...Object.values(STORAGE_KEYS), PENDING_SCORES_KEY]);
+  await AsyncStorage.multiRemove([...ALL_STORAGE_KEYS, PENDING_SCORES_KEY]);
 };
 
 export const deletePlayerRankingData = async (): Promise<number> => {
@@ -519,11 +629,16 @@ export const deletePlayerRankingData = async (): Promise<number> => {
 };
 
 export const fetchRankings = () => fetchRankingsForMode(GameMode.STRAWBERRY);
-export const fetchIslandRankings = () => fetchRankingsForMode(GameMode.ISLAND);
+export const fetchIslandRankings = (islandRegion: IslandRegion = IslandRegion.ALL) => (
+  fetchRankingsForMode(GameMode.ISLAND, RankingPeriod.ALL, islandRegion)
+);
 export const fetchFlagRankings = () => fetchRankingsForMode(GameMode.FLAG);
 export const fetchColorRankings = () => fetchRankingsForMode(GameMode.COLOR);
 export const fetchRankingsByPeriod = (period: RankingPeriod) => fetchRankingsForMode(GameMode.STRAWBERRY, period);
-export const fetchIslandRankingsByPeriod = (period: RankingPeriod) => fetchRankingsForMode(GameMode.ISLAND, period);
+export const fetchIslandRankingsByPeriod = (
+  period: RankingPeriod,
+  islandRegion: IslandRegion = IslandRegion.ALL,
+) => fetchRankingsForMode(GameMode.ISLAND, period, islandRegion);
 export const fetchFlagRankingsByPeriod = (period: RankingPeriod) => fetchRankingsForMode(GameMode.FLAG, period);
 export const fetchColorRankingsByPeriod = (period: RankingPeriod) => fetchRankingsForMode(GameMode.COLOR, period);
 export const saveScore = (playerName: string, score: number, metadata: ScoreMetadata) => saveScoreForMode(GameMode.STRAWBERRY, playerName, score, metadata);

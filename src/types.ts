@@ -46,6 +46,7 @@ export interface RankingEntry {
   playerName: string;
   score: number;
   gameType: string;
+  islandRegion: IslandRegion;
   createdAt: string;
 }
 
