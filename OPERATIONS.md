@@ -11,7 +11,7 @@
 
 ## 監視
 
-- `.github/workflows/monitor-production.yml` が毎時、Webシェル、ファビコン、全4モード、CORS、API v2、D1接続を検査します。専用トークンのテストスコアを登録し、非公開履歴で確認後に必ず削除します。
+- `.github/workflows/monitor-production.yml` が毎時、Webシェル、ファビコン、全4モードと島8地域、CORS、API v3、D1接続を検査します。専用トークンのテストスコアを登録し、非公開履歴で確認後に必ず削除します。
 - Pages公開workflowはデプロイ直後に同じ検査を行います。
 - Worker Observabilityは全リクエストを対象に有効化し、5xxをリクエストID付きJSONログで記録します。
 - 失敗時は `production-monitor` ラベルのGitHub Issueを自動作成または追記し、復旧時に自動クローズします。Cloudflare Observabilityでは5xx、リクエストID、レイテンシを確認します。

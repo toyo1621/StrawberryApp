@@ -36,6 +36,7 @@ requireValue(wrangler.includes('[triggers]') && wrangler.includes('*/15 * * * *'
 
 const schema = await readFile(new URL('../worker/schema.sql', import.meta.url), 'utf8');
 requireValue(schema.includes('owner_hash'), 'Private history ownership is missing from the D1 schema.');
+requireValue(schema.includes('island_region'), 'Island ranking regions are missing from the D1 schema.');
 requireValue(schema.includes('score_submission_buckets'), 'Atomic rate-limit buckets are missing from the D1 schema.');
 
 const qualityWorkflow = await readFile(new URL('../.github/workflows/quality.yml', import.meta.url), 'utf8');
@@ -54,6 +55,7 @@ await stat(new URL('../CHANGELOG.md', import.meta.url));
 await stat(new URL('../worker/migrations/0004_private_player_history.sql', import.meta.url));
 await stat(new URL('../worker/migrations/0005_atomic_rate_limits.sql', import.meta.url));
 await stat(new URL('../worker/migrations/0006_align_score_contract.sql', import.meta.url));
+await stat(new URL('../worker/migrations/0007_split_island_rankings_by_region.sql', import.meta.url));
 
 if (failures.length > 0) {
   throw new Error(`Project verification failed:\n- ${failures.join('\n- ')}`);

@@ -7,13 +7,14 @@ import {
   normalizePlayerName,
   rankingIdentity,
 } from '../src/domain/rankings';
-import { RankingEntry, RankingPeriod } from '../src/types';
+import { IslandRegion, RankingEntry, RankingPeriod } from '../src/types';
 
 const entry = (id: string, playerName: string, score: number, createdAt: string): RankingEntry => ({
   id,
   playerName,
   score,
   gameType: 'strawberry_rush',
+  islandRegion: IslandRegion.ALL,
   createdAt,
 });
 

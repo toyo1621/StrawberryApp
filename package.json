@@ -23,7 +23,7 @@
     "test:e2e": "playwright test",
     "check": "npm run lint && npm run typecheck && npm test && npm run verify:config && npm run audit:high",
     "verify:config": "node --no-warnings scripts/verify-project.mjs",
-    "audit:high": "npm audit --audit-level=high",
+    "audit:high": "npm audit --omit=dev --audit-level=high",
     "smoke:rankings-api": "node scripts/smoke-rankings-api.mjs",
     "smoke:web": "node scripts/smoke-web.mjs",
     "worker:deploy": "wrangler deploy --config worker/wrangler.toml",

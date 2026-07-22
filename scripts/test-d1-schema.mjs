@@ -30,13 +30,14 @@ const output = run([
   'execute',
   ...commonArgs,
   '--command',
-  "SELECT name, type FROM sqlite_master WHERE name IN ('idx_rankings_owner_game_created', 'score_submission_buckets') ORDER BY name",
+  "SELECT name, type FROM sqlite_master WHERE name IN ('idx_rankings_game_region_score_created', 'idx_rankings_owner_game_created', 'score_submission_buckets') ORDER BY name",
   '--json',
 ]);
 const response = JSON.parse(output);
 const rows = response[0]?.results ?? [];
 
 assert.deepEqual(rows, [
+  { name: 'idx_rankings_game_region_score_created', type: 'index' },
   { name: 'idx_rankings_owner_game_created', type: 'index' },
   { name: 'score_submission_buckets', type: 'table' },
 ]);
@@ -46,10 +47,78 @@ const columnsOutput = run([
   'execute',
   ...commonArgs,
   '--command',
-  "SELECT name FROM pragma_table_info('rankings') WHERE name = 'owner_hash'",
+  "SELECT name FROM pragma_table_info('rankings') WHERE name IN ('island_region', 'owner_hash') ORDER BY name",
   '--json',
 ]);
 const columns = JSON.parse(columnsOutput)[0]?.results ?? [];
-assert.deepEqual(columns, [{ name: 'owner_hash' }]);
+assert.deepEqual(columns, [{ name: 'island_region' }, { name: 'owner_hash' }]);
 
-console.log('D1 migrations and privacy/rate-limit schema verified.');
+const upgradePersistPath = resolve(root, '.tmp/d1-region-upgrade-test');
+const upgradeArgs = [
+  'strawberry-rankings',
+  '--config',
+  resolve(root, 'worker/wrangler.toml'),
+  '--local',
+  `--persist-to=${upgradePersistPath}`,
+];
+const runUpgrade = (args) => execFileSync(wrangler, args, {
+  cwd: root,
+  encoding: 'utf8',
+  env: { ...process.env, WRANGLER_LOG_PATH: resolve(root, '.tmp/wrangler-region-upgrade.log') },
+  stdio: ['ignore', 'pipe', 'pipe'],
+});
+
+rmSync(upgradePersistPath, { recursive: true, force: true });
+for (const migration of [
+  '0001_initial.sql',
+  '0002_minimize_rate_limit_data.sql',
+  '0003_player_identity_index.sql',
+  '0004_private_player_history.sql',
+  '0005_atomic_rate_limits.sql',
+  '0006_align_score_contract.sql',
+]) {
+  runUpgrade([
+    'd1',
+    'execute',
+    ...upgradeArgs,
+    '--file',
+    resolve(root, 'worker/migrations', migration),
+  ]);
+}
+
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  `INSERT INTO rankings (id, player_name, score, game_type, created_at, owner_hash)
+   VALUES ('existing-island-score', '既存選手', 12, 'island_rush', '2026-07-21T00:00:00.000Z', '${'a'.repeat(64)}')`,
+]);
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--file',
+  resolve(root, 'worker/migrations/0007_split_island_rankings_by_region.sql'),
+]);
+
+const preservedOutput = runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  "SELECT id, player_name, score, game_type, island_region, created_at, owner_hash FROM rankings WHERE id = 'existing-island-score'",
+  '--json',
+]);
+const preserved = JSON.parse(preservedOutput)[0]?.results ?? [];
+assert.deepEqual(preserved, [{
+  id: 'existing-island-score',
+  player_name: '既存選手',
+  score: 12,
+  game_type: 'island_rush',
+  island_region: 'all',
+  created_at: '2026-07-21T00:00:00.000Z',
+  owner_hash: 'a'.repeat(64),
+}]);
+
+console.log('D1 migrations, existing-score preservation, and ranking-region/privacy/rate-limit schema verified.');

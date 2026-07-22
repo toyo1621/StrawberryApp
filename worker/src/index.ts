@@ -1,5 +1,6 @@
 import {
   ValidationError,
+  parseIslandRegion,
   parseGameType,
   parseRankingPeriod,
   validatePlayerToken,
@@ -17,6 +18,7 @@ type RankingRow = {
   player_name: string;
   score: number;
   game_type: string;
+  island_region: string;
   created_at: string;
   owner_hash: string | null;
 };
@@ -26,6 +28,7 @@ type RankingEntry = {
   playerName: string;
   score: number;
   gameType: string;
+  islandRegion: string;
   createdAt: string;
 };
 
@@ -58,7 +61,7 @@ const json = (data: unknown, init: ResponseInit = {}, origin?: string, env?: Env
   headers.set('x-content-type-options', 'nosniff');
   headers.set('referrer-policy', 'no-referrer');
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');
-  headers.set('x-api-version', '2');
+  headers.set('x-api-version', '3');
   setCorsHeaders(headers, origin, env);
 
   return new Response(JSON.stringify(data), {
@@ -138,6 +141,7 @@ const mapRanking = (row: RankingRow): RankingEntry => ({
   playerName: row.player_name,
   score: row.score,
   gameType: row.game_type,
+  islandRegion: row.island_region,
   createdAt: row.created_at,
 });
 
@@ -225,12 +229,13 @@ export const cleanupRateLimitBuckets = async (
 const fetchRankings = async (request: Request, env: Env) => {
   const url = new URL(request.url);
   const gameType = parseGameType(url.searchParams.get('gameType'));
+  const islandRegion = parseIslandRegion(url.searchParams.get('islandRegion'), gameType);
   const period = parseRankingPeriod(url.searchParams.get('period'));
   const limit = clampLimit(url.searchParams.get('limit'));
   const start = getPeriodStart(period);
 
-  const params: (string | number)[] = [gameType];
-  let where = 'game_type = ?';
+  const params: (string | number)[] = [gameType, islandRegion];
+  let where = 'game_type = ? AND island_region = ?';
 
   if (start) {
     where += ' AND created_at >= ?';
@@ -247,6 +252,7 @@ const fetchRankings = async (request: Request, env: Env) => {
           player_name,
           score,
           game_type,
+          island_region,
           created_at,
           ROW_NUMBER() OVER (
             PARTITION BY lower(trim(player_name))
@@ -255,7 +261,7 @@ const fetchRankings = async (request: Request, env: Env) => {
         FROM rankings
         WHERE ${where}
       )
-      SELECT id, player_name, score, game_type, created_at
+      SELECT id, player_name, score, game_type, island_region, created_at
       FROM ranked_scores
       WHERE rn = 1
       ORDER BY score DESC, created_at ASC
@@ -296,7 +302,7 @@ const saveScore = async (request: Request, env: Env, origin?: string) => {
   requireAllowedBrowserOrigin(origin, env);
 
   const body = await readJsonBody(request);
-  const { submissionId, playerName, score, gameType, playerToken } = validateScoreSubmission(body);
+  const { submissionId, playerName, score, gameType, islandRegion, playerToken } = validateScoreSubmission(body);
   const bearerToken = getBearerPlayerToken(request, false);
   if (bearerToken && playerToken && bearerToken !== playerToken) {
     throw new HttpError(400, 'Player token credentials do not match.');
@@ -306,7 +312,7 @@ const saveScore = async (request: Request, env: Env, origin?: string) => {
 
   const existing = await env.DB.prepare(
     `
-      SELECT id, player_name, score, game_type, created_at, owner_hash
+      SELECT id, player_name, score, game_type, island_region, created_at, owner_hash
       FROM rankings
       WHERE id = ?
       LIMIT 1
@@ -318,6 +324,7 @@ const saveScore = async (request: Request, env: Env, origin?: string) => {
       existing.player_name !== playerName
       || existing.score !== score
       || existing.game_type !== gameType
+      || existing.island_region !== islandRegion
       || (existing.owner_hash !== null && existing.owner_hash !== ownerHash)
     ) {
       throw new HttpError(409, 'Submission ID is already in use.');
@@ -332,15 +339,24 @@ const saveScore = async (request: Request, env: Env, origin?: string) => {
     playerName,
     score,
     gameType,
+    islandRegion,
     createdAt: new Date().toISOString(),
   };
 
   await env.DB.prepare(
     `
-      INSERT INTO rankings (id, player_name, score, game_type, created_at, owner_hash)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO rankings (id, player_name, score, game_type, island_region, created_at, owner_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `,
-  ).bind(entry.id, entry.playerName, entry.score, entry.gameType, entry.createdAt, ownerHash).run();
+  ).bind(
+    entry.id,
+    entry.playerName,
+    entry.score,
+    entry.gameType,
+    entry.islandRegion,
+    entry.createdAt,
+    ownerHash,
+  ).run();
 
   return { entry, created: true };
 };
@@ -371,7 +387,7 @@ const getPlayerHistory = async (request: Request, env: Env) => {
 
   const { results } = await env.DB.prepare(
     `
-      SELECT id, player_name, score, game_type, created_at
+      SELECT id, player_name, score, game_type, island_region, created_at
       FROM rankings
       WHERE game_type = ? AND owner_hash = ?
       ORDER BY created_at DESC
@@ -419,7 +435,7 @@ export default {
           throw new Error('Database health check failed.');
         }
         return json(
-          { ok: true, service: 'strawberry-rankings-api', version: 2 },
+          { ok: true, service: 'strawberry-rankings-api', version: 3 },
           { headers: { 'cache-control': 'no-store', 'x-request-id': requestId } },
           origin,
           env,

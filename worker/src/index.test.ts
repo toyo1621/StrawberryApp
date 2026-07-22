@@ -7,6 +7,7 @@ type RankingRecord = {
   playerName: string;
   score: number;
   gameType: string;
+  islandRegion: string;
   createdAt: string;
   ownerHash: string | null;
 };
@@ -40,6 +41,7 @@ class FakeStatement {
         player_name: ranking.playerName,
         score: ranking.score,
         game_type: ranking.gameType,
+        island_region: ranking.islandRegion,
         created_at: ranking.createdAt,
         owner_hash: ranking.ownerHash,
       } as T : null;
@@ -72,6 +74,47 @@ class FakeStatement {
           player_name: ranking.playerName,
           score: ranking.score,
           game_type: ranking.gameType,
+          island_region: ranking.islandRegion,
+          created_at: ranking.createdAt,
+          owner_hash: ranking.ownerHash,
+        })) as T[];
+      return { results };
+    }
+
+    if (this.sql.includes('WITH ranked_scores')) {
+      const [gameType, islandRegion] = this.params as [string, string];
+      const hasPeriodStart = this.sql.includes('created_at >= ?');
+      const periodStart = hasPeriodStart ? this.params[2] as string : null;
+      const limit = this.params[hasPeriodStart ? 3 : 2] as number;
+      const bestByPlayer = new Map<string, RankingRecord>();
+
+      this.db.rankings
+        .filter((entry) => (
+          entry.gameType === gameType
+          && entry.islandRegion === islandRegion
+          && (!periodStart || entry.createdAt >= periodStart)
+        ))
+        .forEach((entry) => {
+          const identity = entry.playerName.trim().toLocaleLowerCase();
+          const current = bestByPlayer.get(identity);
+          if (
+            !current
+            || entry.score > current.score
+            || (entry.score === current.score && entry.createdAt < current.createdAt)
+          ) {
+            bestByPlayer.set(identity, entry);
+          }
+        });
+
+      const results = [...bestByPlayer.values()]
+        .sort((a, b) => b.score - a.score || a.createdAt.localeCompare(b.createdAt))
+        .slice(0, limit)
+        .map((ranking) => ({
+          id: ranking.id,
+          player_name: ranking.playerName,
+          score: ranking.score,
+          game_type: ranking.gameType,
+          island_region: ranking.islandRegion,
           created_at: ranking.createdAt,
           owner_hash: ranking.ownerHash,
         })) as T[];
@@ -98,15 +141,16 @@ class FakeStatement {
     }
 
     if (this.sql.includes('INSERT INTO rankings')) {
-      const [id, playerName, score, gameType, createdAt, ownerHash] = this.params as [
+      const [id, playerName, score, gameType, islandRegion, createdAt, ownerHash] = this.params as [
         string,
         string,
         number,
         string,
         string,
+        string,
         string | null,
       ];
-      this.db.rankings.push({ id, playerName, score, gameType, createdAt, ownerHash });
+      this.db.rankings.push({ id, playerName, score, gameType, islandRegion, createdAt, ownerHash });
       changes = 1;
     }
 
@@ -229,9 +273,54 @@ test('saves plausible score submissions', async () => {
 
   assert.equal(response.status, 201);
   assert.equal(body.playerName, 'ぱん');
+  assert.equal(body.islandRegion, 'all');
   assert.equal(db.rankings.length, 1);
   assert.equal(db.submissionBuckets.length, 1);
   assert.equal(db.submissionBuckets[0].submissionCount, 1);
+});
+
+test('keeps nationwide, Chugoku, and Shikoku island rankings separate', async () => {
+  const env = createEnv();
+  const submissions = [
+    { playerName: '全国選手', score: 3, islandRegion: undefined },
+    { playerName: '中国選手', score: 8, islandRegion: 'chugoku' },
+    { playerName: '四国選手', score: 6, islandRegion: 'shikoku' },
+  ];
+
+  for (const submission of submissions) {
+    const response = await worker.fetch(scoreRequest({
+      ...submission,
+      gameType: 'island_rush',
+      durationMs: 30_000,
+    }), env);
+    assert.equal(response.status, 201);
+  }
+
+  const nationwide = await worker.fetch(
+    new Request('https://api.test/rankings?gameType=island_rush&period=all'),
+    env,
+  );
+  const chugoku = await worker.fetch(
+    new Request('https://api.test/rankings?gameType=island_rush&islandRegion=chugoku&period=all'),
+    env,
+  );
+  const shikoku = await worker.fetch(
+    new Request('https://api.test/rankings?gameType=island_rush&islandRegion=shikoku&period=all'),
+    env,
+  );
+
+  assert.deepEqual(
+    (await nationwide.json() as RankingRecord[]).map((entry) => [entry.playerName, entry.islandRegion]),
+    [['全国選手', 'all']],
+  );
+  assert.deepEqual(
+    (await chugoku.json() as RankingRecord[]).map((entry) => [entry.playerName, entry.islandRegion]),
+    [['中国選手', 'chugoku']],
+  );
+  assert.deepEqual(
+    (await shikoku.json() as RankingRecord[]).map((entry) => [entry.playerName, entry.islandRegion]),
+    [['四国選手', 'shikoku']],
+  );
 });
 
 test('treats a retried submission as idempotent', async () => {
@@ -279,7 +368,7 @@ test('health check verifies the database and returns security headers', async ()
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(response.headers.get('vary'), 'Origin');
-  assert.equal(response.headers.get('x-api-version'), '2');
+  assert.equal(response.headers.get('x-api-version'), '3');
 });
 
 test('private history requires its bearer token and can be deleted by its owner', async () => {

@@ -4,6 +4,7 @@ import {
   ValidationError,
   normalizePlayerName,
   parseGameType,
+  parseIslandRegion,
   parseRankingPeriod,
   validatePlayerToken,
   validateScoreSubmission,
@@ -29,6 +30,7 @@ test('accepts a plausible score submission', () => {
       playerName: 'ぱん',
       score: 194,
       gameType: 'strawberry_rush',
+      islandRegion: 'all',
       durationMs: 30_000,
     }),
     {
@@ -36,9 +38,21 @@ test('accepts a plausible score submission', () => {
       playerName: 'ぱん',
       score: 194,
       gameType: 'strawberry_rush',
+      islandRegion: 'all',
       durationMs: 30_000,
     },
   );
+});
+
+test('validates island ranking regions without changing existing nationwide submissions', () => {
+  assert.equal(parseIslandRegion(undefined, 'island_rush'), 'all');
+  assert.equal(parseIslandRegion('chugoku', 'island_rush'), 'chugoku');
+  assert.equal(
+    validateScoreSubmission(validScore({ gameType: 'island_rush', islandRegion: 'shikoku' })).islandRegion,
+    'shikoku',
+  );
+  assert.throws(() => parseIslandRegion('unknown', 'island_rush'));
+  assert.throws(() => parseIslandRegion('chugoku', 'strawberry_rush'));
 });
 
 test('rejects unsupported game types and periods', () => {

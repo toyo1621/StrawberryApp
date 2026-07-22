@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { FONT_WEIGHT_BOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
+import { getIslandRegionLabel } from '../domain/islands';
 import { normalizePlayerName } from '../domain/rankings';
 import { GAME_MODE_CONFIG } from '../gameConfig';
 import { loadPlayerName, savePlayerName } from '../services/playerService';
@@ -279,17 +280,27 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
             <View style={[styles.history, { borderColor: theme.border }]}>
               {scoreHistory.length === 0 ? (
                 <Text style={[styles.emptyText, { color: theme.textMuted }]}>このモードの履歴はありません。</Text>
-              ) : scoreHistory.slice(0, 10).map((entry) => (
-                <View
-                  key={entry.id}
-                  accessible
-                  accessibilityLabel={`${entry.score}${historyConfig.unit}、${formatDate(entry.createdAt)}`}
-                  style={[styles.historyRow, { borderBottomColor: theme.border }]}
-                >
-                  <Text style={[styles.historyScore, { color: accent }]}>{entry.score} {historyConfig.unit}</Text>
-                  <Text style={[styles.historyDate, { color: theme.textMuted }]}>{formatDate(entry.createdAt)}</Text>
-                </View>
-              ))}
+              ) : scoreHistory.slice(0, 10).map((entry) => {
+                const regionLabel = historyMode === GameMode.ISLAND
+                  ? getIslandRegionLabel(entry.islandRegion)
+                  : null;
+                return (
+                  <View
+                    key={entry.id}
+                    accessible
+                    accessibilityLabel={`${entry.score}${historyConfig.unit}${regionLabel ? `、${regionLabel}` : ''}、${formatDate(entry.createdAt)}`}
+                    style={[styles.historyRow, { borderBottomColor: theme.border }]}
+                  >
+                    <View style={styles.historyScoreGroup}>
+                      <Text style={[styles.historyScore, { color: accent }]}>{entry.score} {historyConfig.unit}</Text>
+                      {regionLabel && (
+                        <Text style={[styles.historyRegion, { color: theme.textMuted }]}>{regionLabel}</Text>
+                      )}
+                    </View>
+                    <Text style={[styles.historyDate, { color: theme.textMuted }]}>{formatDate(entry.createdAt)}</Text>
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>
@@ -411,7 +422,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  historyScoreGroup: { flexShrink: 1 },
   historyScore: { fontFamily: MARU_GOTHIC_FONT, fontSize: 15, fontWeight: FONT_WEIGHT_BOLD },
+  historyRegion: { marginTop: 2, fontFamily: MARU_GOTHIC_FONT, fontSize: 12 },
   historyDate: { marginLeft: 10, fontFamily: MARU_GOTHIC_FONT, fontSize: 12 },
   emptyText: { padding: 20, fontFamily: MARU_GOTHIC_FONT, fontSize: 14, textAlign: 'center' },
   menuButton: {

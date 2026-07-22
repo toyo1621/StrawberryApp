@@ -17,13 +17,13 @@
 
 ## Release Gate
 
-`main` のPages workflowは品質チェック後にだけartifactを公開し、WebとAPIの本番スモークを行います。Worker workflowはD1 migration、Worker公開、API v2の登録・履歴・削除スモークを直列化します。
+`main` のPages workflowは品質チェック後にだけartifactを公開し、WebとAPIの本番スモークを行います。Worker workflowはD1 migration、Worker公開、API v3の地域別取得・登録・履歴・削除スモークを直列化します。
 
 毎時監視は次を外形確認します。
 
 - Web HTML、言語、ファビコン、応答時間
 - API/D1 health、バージョン、security/cache headers
-- 全4モードのランキング応答形
+- 全4モードと島8地域のランキング応答形
 - 許可/拒否CORS preflight
 - 専用トークンによるテスト投稿、非公開履歴、削除
 - 失敗Issueの作成・追記、復旧時の自動クローズ

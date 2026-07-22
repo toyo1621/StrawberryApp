@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
 import { normalizePlayerName } from '../domain/rankings';
+import { getIslandRegionLabel } from '../domain/islands';
 import { GAME_MODE_CONFIG } from '../gameConfig';
 import { savePlayerName } from '../services/playerService';
 import { fetchRankingsForModeWithStatus } from '../services/rankingService';
@@ -63,6 +64,9 @@ const StartScreen: React.FC<StartScreenProps> = ({
   const config = GAME_MODE_CONFIG[selectedMode];
   const accent = darkMode ? config.accentDark : config.accent;
   const actionAccent = config.accent;
+  const islandRegionLabel = getIslandRegionLabel(selectedIslandRegion);
+  const usesFetchedRanking = selectedMode === GameMode.ISLAND
+    || selectedPeriod !== RankingPeriod.ALL;
 
   useEffect(() => {
     if (savedPlayerName) {
@@ -72,7 +76,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
 
   useEffect(() => {
     let active = true;
-    if (selectedPeriod === RankingPeriod.ALL) {
+    if (!usesFetchedRanking) {
       setPeriodRanking([]);
       setPeriodError('');
       setIsLoadingPeriod(false);
@@ -83,7 +87,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
 
     setIsLoadingPeriod(true);
     setPeriodError('');
-    fetchRankingsForModeWithStatus(selectedMode, selectedPeriod)
+    fetchRankingsForModeWithStatus(selectedMode, selectedPeriod, selectedIslandRegion)
       .then((result) => {
         if (active) {
           setPeriodRanking(result.entries);
@@ -95,7 +99,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
       .catch(() => {
         if (active) {
           setPeriodRanking([]);
-          setPeriodError('期間別ランキングを取得できませんでした。');
+          setPeriodError('ランキングを取得できませんでした。');
         }
       })
       .finally(() => {
@@ -107,11 +111,11 @@ const StartScreen: React.FC<StartScreenProps> = ({
     return () => {
       active = false;
     };
-  }, [selectedMode, selectedPeriod]);
+  }, [selectedIslandRegion, selectedMode, selectedPeriod, usesFetchedRanking]);
 
   const currentRanking = useMemo(
-    () => selectedPeriod === RankingPeriod.ALL ? rankings[selectedMode] : periodRanking,
-    [periodRanking, rankings, selectedMode, selectedPeriod],
+    () => usesFetchedRanking ? periodRanking : rankings[selectedMode],
+    [periodRanking, rankings, selectedMode, usesFetchedRanking],
   );
 
   const handleSubmit = async () => {
@@ -184,8 +188,12 @@ const StartScreen: React.FC<StartScreenProps> = ({
         <View style={styles.rankingSection}>
           <View style={styles.sectionHeader}>
             <View>
-              <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>ランキング</Text>
-              <Text style={[styles.sectionCaption, { color: theme.textMuted }]}>{config.shortLabel}モード</Text>
+              <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>
+                {selectedMode === GameMode.ISLAND ? `${islandRegionLabel}ランキング` : 'ランキング'}
+              </Text>
+              <Text style={[styles.sectionCaption, { color: theme.textMuted }]}>
+                {config.shortLabel}モード{selectedMode === GameMode.ISLAND ? `・${islandRegionLabel}` : ''}
+              </Text>
             </View>
             <Text style={[styles.rankingMark, { color: accent }]}>{config.rankingTitle}</Text>
           </View>

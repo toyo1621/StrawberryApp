@@ -1,6 +1,6 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { GameMode } from '../src/types';
+import { GameMode, IslandRegion } from '../src/types';
 
 const values = new Map<string, string>();
 const localStorage = {
@@ -102,6 +102,64 @@ test('cached ranking results are explicitly marked stale after an API failure', 
   assert.equal(result.source, 'cache');
   assert.equal(result.stale, true);
   assert.equal(result.entries[0].playerName, 'キャッシュ');
+});
+
+test('island rankings are requested, saved, and cached by region', async () => {
+  const rankingService = await rankingServicePromise;
+  const requests: string[] = [];
+  let postedBody: Record<string, unknown> | undefined;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    requests.push(url);
+    if (init?.method === 'POST') {
+      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      postedBody = body;
+      return Response.json({
+        id: body.submissionId,
+        playerName: body.playerName,
+        score: body.score,
+        gameType: body.gameType,
+        islandRegion: body.islandRegion,
+        createdAt: '2026-07-21T00:00:00.000Z',
+      }, { status: 201 });
+    }
+
+    const region = new URL(url).searchParams.get('islandRegion') ?? IslandRegion.ALL;
+    return Response.json([{
+      id: `ranking-${region}`,
+      playerName: `${region}選手`,
+      score: region === IslandRegion.CHUGOKU ? 8 : 6,
+      gameType: 'island_rush',
+      islandRegion: region,
+      createdAt: '2026-07-21T00:00:00.000Z',
+    }]);
+  };
+
+  const chugoku = await rankingService.fetchRankingsForModeWithStatus(
+    GameMode.ISLAND,
+    undefined,
+    IslandRegion.CHUGOKU,
+  );
+  const shikoku = await rankingService.fetchRankingsForModeWithStatus(
+    GameMode.ISLAND,
+    undefined,
+    IslandRegion.SHIKOKU,
+  );
+  await rankingService.saveScoreForMode(
+    GameMode.ISLAND,
+    '地域選手',
+    5,
+    { durationMs: 30_000, islandRegion: IslandRegion.CHUGOKU },
+  );
+
+  assert.equal(chugoku.entries[0].islandRegion, IslandRegion.CHUGOKU);
+  assert.equal(shikoku.entries[0].islandRegion, IslandRegion.SHIKOKU);
+  assert.match(requests[0], /islandRegion=chugoku/);
+  assert.match(requests[1], /islandRegion=shikoku/);
+  assert.equal(values.has('island_game_rankings_chugoku'), true);
+  assert.equal(values.has('island_game_rankings_shikoku'), true);
+  assert.equal(values.has('island_game_rankings'), false);
+  assert.equal(postedBody?.islandRegion, IslandRegion.CHUGOKU);
 });
 
 test('one broken cache does not discard rankings from the other modes', async () => {
