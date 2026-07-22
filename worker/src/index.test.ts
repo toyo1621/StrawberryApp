@@ -680,6 +680,38 @@ test('coalesces concurrent leaderboard cache misses and reads through a replica 
   }
 });
 
+test('an authenticated leaderboard refresh bypasses cache and reads from primary', async () => {
+  const cache = new FakeCache();
+  const restoreCache = installFakeCache(cache);
+  try {
+    const env = createEnv();
+    const db = env.DB as unknown as FakeD1Database;
+    const requestUrl = 'https://api.test/rankings?gameType=strawberry_rush&period=all&limit=30';
+    assert.equal((await worker.fetch(new Request(requestUrl), env)).status, 200);
+
+    db.rankings.push({
+      id: 'just-created-entry',
+      playerName: '直後の選手',
+      score: 12,
+      gameType: 'strawberry_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:00:00.000Z',
+      ownerHash: 'e'.repeat(64),
+    });
+    const response = await worker.fetch(new Request(requestUrl, {
+      headers: { authorization: `Bearer ${TEST_PLAYER_TOKEN}` },
+    }), env);
+    const body = await response.json() as RankingRecord[];
+
+    assert.equal(response.headers.get('x-rankings-cache'), 'bypass');
+    assert.deepEqual(body.map((entry) => entry.id), ['just-created-entry']);
+    assert.equal(db.rankingQueryCount, 2);
+    assert.deepEqual(db.sessionConstraints, ['first-unconstrained', 'first-primary']);
+  } finally {
+    restoreCache();
+  }
+});
+
 test('serves a recent stale leaderboard snapshot when D1 is unavailable', async () => {
   const cache = new FakeCache();
   const restoreCache = installFakeCache(cache);

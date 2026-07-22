@@ -1,6 +1,6 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { GameMode, IslandRegion } from '../src/types';
+import { GameMode, IslandRegion, RankingPeriod } from '../src/types';
 
 const values = new Map<string, string>();
 const localStorage = {
@@ -97,6 +97,26 @@ test('leaderboard reads retry a throttled response using Retry-After', async () 
   assert.equal(attempts, 2);
   assert.deepEqual(result.entries, []);
   assert.equal(result.source, 'remote');
+});
+
+test('a fresh leaderboard read uses the player token to request primary consistency', async () => {
+  const rankingService = await rankingServicePromise;
+  const playerToken = '01234567-89ab-4cde-8f01-23456789abcd';
+  values.set('player_private_token_v1', playerToken);
+  let authorization: string | null = null;
+  globalThis.fetch = async (_input, init) => {
+    authorization = new Headers(init?.headers).get('authorization');
+    return Response.json([]);
+  };
+
+  await rankingService.fetchRankingsForModeWithStatus(
+    GameMode.STRAWBERRY,
+    RankingPeriod.ALL,
+    IslandRegion.ALL,
+    { requireFresh: true },
+  );
+
+  assert.equal(authorization, `Bearer ${playerToken}`);
 });
 
 test('a game without a verified session remains local and is not submitted', async () => {
