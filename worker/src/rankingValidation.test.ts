@@ -53,6 +53,9 @@ test('accepts a plausible score submission', () => {
 test('validates island ranking regions without changing existing nationwide submissions', () => {
   assert.equal(parseIslandRegion(undefined, 'island_rush'), 'all');
   assert.equal(parseIslandRegion('chugoku', 'island_rush'), 'chugoku');
+  assert.equal(parseIslandRegion('kyushu_north', 'island_rush'), 'kyushu_north');
+  assert.equal(parseIslandRegion('kyushu_south', 'island_rush'), 'kyushu_south');
+  assert.equal(parseIslandRegion('kyushu', 'island_rush'), 'kyushu');
   assert.equal(
     validateScoreSubmission(validScore({ gameType: 'island_rush', islandRegion: 'shikoku' })).islandRegion,
     'shikoku',

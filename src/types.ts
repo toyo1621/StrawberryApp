@@ -28,11 +28,17 @@ export enum IslandRegion {
   CHUBU_KINKI = 'chubu_kinki',
   CHUGOKU = 'chugoku',
   SHIKOKU = 'shikoku',
+  KYUSHU_NORTH = 'kyushu_north',
+  KYUSHU_SOUTH = 'kyushu_south',
+  // Retained for pre-split score history and cached clients.
   KYUSHU = 'kyushu',
   OKINAWA = 'okinawa',
 }
 
-export type IslandRegionGroup = Exclude<IslandRegion, IslandRegion.ALL>;
+export type IslandRegionGroup = Exclude<
+  IslandRegion,
+  IslandRegion.ALL | IslandRegion.KYUSHU
+>;
 
 export enum RankingPeriod {
   ALL = 'all',

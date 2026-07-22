@@ -13,18 +13,26 @@ export const ISLAND_REGION_OPTIONS: readonly IslandRegionOption[] = [
   { value: IslandRegion.CHUBU_KINKI, label: '中部・近畿' },
   { value: IslandRegion.CHUGOKU, label: '中国' },
   { value: IslandRegion.SHIKOKU, label: '四国' },
-  { value: IslandRegion.KYUSHU, label: '九州' },
+  { value: IslandRegion.KYUSHU_NORTH, label: '九州北部' },
+  { value: IslandRegion.KYUSHU_SOUTH, label: '九州南部' },
   { value: IslandRegion.OKINAWA, label: '沖縄' },
 ];
 
 export const getIslandsForRegion = (region: IslandRegion): readonly Island[] => (
   region === IslandRegion.ALL
     ? ISLANDS
+    : region === IslandRegion.KYUSHU
+      ? ISLANDS.filter((island) => (
+          island.region === IslandRegion.KYUSHU_NORTH
+          || island.region === IslandRegion.KYUSHU_SOUTH
+        ))
     : ISLANDS.filter((island) => island.region === region)
 );
 
 export const getIslandRegionLabel = (region: IslandRegion): string => (
-  ISLAND_REGION_OPTIONS.find((option) => option.value === region)?.label ?? '日本全国'
+  region === IslandRegion.KYUSHU
+    ? '旧九州'
+    : ISLAND_REGION_OPTIONS.find((option) => option.value === region)?.label ?? '日本全国'
 );
 
 export type IslandRound = {

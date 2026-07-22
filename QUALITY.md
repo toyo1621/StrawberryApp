@@ -28,7 +28,7 @@
 - Web HTML、言語、実JS bundle、ファビコン、5秒の応答閾値
 - API/D1 health、v4、release ID、security/cache headers、4秒の要求閾値
 - Webの `release.json` とAPIヘルス/ヘッダーのGit SHA・API v4一致
-- 全4モードと島8地域のランキング応答形
+- 全4モード、島9現行スコープ、互換用の旧九州ランキング応答形
 - 公開ランキングのcache status、30秒TTL、D1地域・primaryメタデータ、同一coloでのcache hit
 - 許可/拒否CORS preflight
 - 専用トークンによるテスト投稿、非公開履歴、1件以上の削除、削除後の不在

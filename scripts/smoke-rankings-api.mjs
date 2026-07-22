@@ -13,6 +13,8 @@ const islandRegions = [
   'chubu_kinki',
   'chugoku',
   'shikoku',
+  'kyushu_north',
+  'kyushu_south',
   'kyushu',
   'okinawa',
 ];

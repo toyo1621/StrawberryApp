@@ -535,12 +535,14 @@ test('a verified game session can be consumed only once', async () => {
   assert.equal(db.rankings.length, 1);
 });
 
-test('keeps nationwide, Chugoku, and Shikoku island rankings separate', async () => {
+test('keeps nationwide and regional island rankings separate', async () => {
   const env = createEnv();
   const submissions = [
     { playerName: '全国選手', score: 3, islandRegion: undefined },
     { playerName: '中国選手', score: 8, islandRegion: 'chugoku' },
     { playerName: '四国選手', score: 6, islandRegion: 'shikoku' },
+    { playerName: '九州北部選手', score: 7, islandRegion: 'kyushu_north' },
+    { playerName: '九州南部選手', score: 5, islandRegion: 'kyushu_south' },
   ];
 
   for (const submission of submissions) {
@@ -564,6 +566,14 @@ test('keeps nationwide, Chugoku, and Shikoku island rankings separate', async ()
     new Request('https://api.test/rankings?gameType=island_rush&islandRegion=shikoku&period=all'),
     env,
   );
+  const kyushuNorth = await worker.fetch(
+    new Request('https://api.test/rankings?gameType=island_rush&islandRegion=kyushu_north&period=all'),
+    env,
+  );
+  const kyushuSouth = await worker.fetch(
+    new Request('https://api.test/rankings?gameType=island_rush&islandRegion=kyushu_south&period=all'),
+    env,
+  );
 
   assert.deepEqual(
     (await nationwide.json() as RankingRecord[]).map((entry) => [entry.playerName, entry.islandRegion]),
@@ -576,6 +586,14 @@ test('keeps nationwide, Chugoku, and Shikoku island rankings separate', async ()
   assert.deepEqual(
     (await shikoku.json() as RankingRecord[]).map((entry) => [entry.playerName, entry.islandRegion]),
     [['四国選手', 'shikoku']],
+  );
+  assert.deepEqual(
+    (await kyushuNorth.json() as RankingRecord[]).map((entry) => [entry.playerName, entry.islandRegion]),
+    [['九州北部選手', 'kyushu_north']],
+  );
+  assert.deepEqual(
+    (await kyushuSouth.json() as RankingRecord[]).map((entry) => [entry.playerName, entry.islandRegion]),
+    [['九州南部選手', 'kyushu_south']],
   );
 });
 
