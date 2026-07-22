@@ -11,7 +11,7 @@
 
 ## 監視
 
-- `.github/workflows/monitor-production.yml` が15分ごとに、Webシェル・実JS bundle・ファビコン・5秒以内の応答、全4モードと島8地域、CORS、API v4・release ID、D1接続、ランキングcache hitと読込先メタデータ、API各要求4秒以内を検査します。専用トークンでゲームセッションを発行し、テストスコアを登録、非公開履歴で確認し、1件以上削除して再取得時の不在まで検証します。
+- `.github/workflows/monitor-production.yml` が15分ごとに、Webシェル・実JS bundle・ファビコン・5秒以内の応答、全4モードと島8地域、CORS、API v4・release ID、D1接続、ランキングcache hitと読込先メタデータ、API各要求4秒以内を検査します。Webの `release.json`、APIヘルス本文、`x-release-id` が同一Git SHAから公開されたAPI v4かも照合します。専用トークンでゲームセッションを発行し、テストスコアを登録、非公開履歴で確認し、1件以上削除して再取得時の不在まで検証します。
 - Pages公開workflowはデプロイ直後に同じ検査を行います。
 - Worker Observabilityは全リクエストを対象に有効化し、5xxをリクエストID付きJSONログで記録します。
 - 公開ランキング応答の `x-rankings-cache`、`x-d1-region`、`x-d1-primary` でcache利用と読込先を切り分けられます。D1 read replicationは公開workflowが `auto` を確認してからWorkerを公開します。
@@ -38,7 +38,7 @@
 
 クライアントは開始後のAPI障害時に最大50件を端末へ保持し、セッションの15分期限内に起動・アプリ復帰ごとに3件ずつ同期します。同じ投稿IDを再利用するため、タイムアウト後の再送でも二重登録されません。セッションなし・期限切れの記録は公開せず端末履歴だけに残します。
 
-公開ランキングは既定30件を実行colo内で30秒fresh、最大5分の障害時snapshotとして保持します。同一キーの同時cold readは1つのD1 queryへ集約します。投稿は同じスコープの4期間、本人削除は全44キーを同一coloで失効します。Cache APIはcolo単位のため、別coloでは最長30秒の表示遅延を許容します。D1障害が5分を超える、または保存snapshotがない場合はランキングだけ一時エラーとなり、ゲームと端末履歴は継続します。
+公開ランキングは既定30件を実行colo内で30秒fresh、最大5分の障害時snapshotとして保持します。同一キーの同時cold readは1つのD1 queryへ集約します。投稿は同じスコープの4期間、本人削除は全44キーを同一coloで失効します。Cache APIはcolo単位のため、別coloでは通常最長30秒、D1障害中のstale fallbackで最長5分、投稿・削除の反映が遅れる可能性があります。D1障害が5分を超える、または保存snapshotがない場合はランキングだけ一時エラーとなり、ゲームと端末履歴は継続します。
 
 ## バックアップと復元
 

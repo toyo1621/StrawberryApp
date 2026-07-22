@@ -90,7 +90,9 @@ const pagesWorkflow = await readFile(new URL('../.github/workflows/deploy-pages.
 requireValue(pagesWorkflow.includes('npm run check && npm run doctor'), 'Expo Doctor is missing from the Pages release gate.');
 requireValue(
   pagesWorkflow.includes('uses: ./.github/workflows/deploy-worker.yml')
-    && pagesWorkflow.includes('EXPECTED_RELEASE_ID: ${{ github.sha }}'),
+    && pagesWorkflow.includes('EXPECTED_RELEASE_ID: ${{ github.sha }}')
+    && pagesWorkflow.includes('EXPO_PUBLIC_RELEASE_ID: ${{ github.sha }}')
+    && pagesWorkflow.includes('smoke:release'),
   'Pages must deploy and verify the Worker from the same Git SHA.',
 );
 
@@ -119,7 +121,8 @@ requireValue(monitorWorkflow.includes('issues: write'), 'Production monitor inci
 requireValue(monitorWorkflow.includes('production-monitor'), 'Production monitor issue automation is missing.');
 requireValue(
   monitorWorkflow.includes('2,17,32,47 * * * *')
-    && monitorWorkflow.includes('MONITOR_ALERT_WEBHOOK_URL'),
+    && monitorWorkflow.includes('MONITOR_ALERT_WEBHOOK_URL')
+    && monitorWorkflow.includes('smoke-release-consistency.mjs'),
   'The 15-minute monitor or optional external alert channel is missing.',
 );
 

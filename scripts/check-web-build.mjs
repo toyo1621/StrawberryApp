@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { isReleaseMetadata } from './operational-contracts.mjs';
 
 const buildDir = path.resolve('web-build');
 const islandSourceDir = path.resolve('src/assets/islands');
@@ -75,6 +76,7 @@ const textAssets = await Promise.all(
 );
 const indexHtml = await readFile(path.join(buildDir, 'index.html'), 'utf8');
 const envExample = await readFile(path.resolve('.env.example'), 'utf8');
+const releaseMetadata = JSON.parse(await readFile(path.join(buildDir, 'release.json'), 'utf8'));
 const expectedApiUrl = envExample.match(/^EXPO_PUBLIC_RANKINGS_API_URL=(.+)$/m)?.[1]?.trim();
 if (textAssets.some((text) => text.includes('cdn.jsdelivr.net/npm/flag-icons'))) {
   throw new Error('The web build still depends on the external flag icon CDN.');
@@ -84,6 +86,9 @@ if (!indexHtml.includes('<html lang="ja">') || !indexHtml.includes(PRODUCTION_BA
 }
 if (!expectedApiUrl || !textAssets.some((text) => text.includes(expectedApiUrl))) {
   throw new Error('The production rankings API URL is missing from the web build.');
+}
+if (!isReleaseMetadata(releaseMetadata, process.env.EXPO_PUBLIC_RELEASE_ID)) {
+  throw new Error('The web release metadata is missing or does not match the requested release.');
 }
 if (
   !indexHtml.includes('http-equiv="Content-Security-Policy"')

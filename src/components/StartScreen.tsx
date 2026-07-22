@@ -9,7 +9,10 @@ import {
   View,
 } from 'react-native';
 import { FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
-import { normalizePlayerName } from '../domain/rankings';
+import {
+  getPlayerNameValidationError,
+  normalizePlayerName,
+} from '../domain/rankings';
 import { getIslandRegionLabel } from '../domain/islands';
 import { GAME_MODE_CONFIG } from '../gameConfig';
 import { savePlayerName } from '../services/playerService';
@@ -37,6 +40,7 @@ type StartScreenProps = {
   onDismissNotice?: () => void;
   darkMode?: boolean;
   isPreparingGame?: boolean;
+  onlineRankingsEnabled?: boolean;
 };
 
 const StartScreen: React.FC<StartScreenProps> = ({
@@ -54,6 +58,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
   onDismissNotice,
   darkMode = false,
   isPreparingGame = false,
+  onlineRankingsEnabled = true,
 }) => {
   const [name, setName] = useState(savedPlayerName);
   const [inputError, setInputError] = useState('');
@@ -125,16 +130,9 @@ const StartScreen: React.FC<StartScreenProps> = ({
 
   const handleSubmit = async () => {
     const normalizedName = normalizePlayerName(name);
-    if (!normalizedName) {
-      setInputError('プレイヤー名を入力してください。');
-      return;
-    }
-    if (normalizedName.length > 12) {
-      setInputError('プレイヤー名は12文字までです。');
-      return;
-    }
-    if (/[\u0000-\u001f\u007f<>]/.test(normalizedName)) {
-      setInputError('使用できない文字が含まれています。');
+    const validationError = getPlayerNameValidationError(normalizedName);
+    if (validationError) {
+      setInputError(validationError);
       return;
     }
 
@@ -195,6 +193,13 @@ const StartScreen: React.FC<StartScreenProps> = ({
         </View>
 
         <View style={styles.startSection}>
+          {!onlineRankingsEnabled && (
+            <StatusBanner
+              message="オンラインランキングはオフです。スコアはこの端末だけに保存されます。"
+              tone="info"
+              darkMode={darkMode}
+            />
+          )}
           <Text style={[styles.inputLabel, { color: theme.text }]}>プレイヤー名</Text>
           <TextInput
             value={name}
@@ -209,7 +214,6 @@ const StartScreen: React.FC<StartScreenProps> = ({
             autoCapitalize="none"
             autoCorrect={false}
             enterKeyHint="go"
-            maxLength={12}
             placeholder="名前を入力"
             placeholderTextColor={theme.textMuted}
             returnKeyType="go"
@@ -361,9 +365,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: FONT_WEIGHT_BOLD,
   },
-  startSection: { width: '100%' },
+  startSection: { width: '100%', gap: 6 },
   inputLabel: {
-    marginBottom: 6,
+    marginTop: 4,
     fontFamily: MARU_GOTHIC_FONT,
     fontSize: 15,
     fontWeight: FONT_WEIGHT_BOLD,

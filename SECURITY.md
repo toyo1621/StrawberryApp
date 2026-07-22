@@ -12,7 +12,7 @@
 
 - ブラウザのPOST/DELETE/OPTIONSは許可Origin以外を拒否し、Originを持たないネイティブ通信は同じ入力・頻度検証を適用
 - `application/json` と2 KiB本文上限を強制
-- 名前の正規化、長さ・制御文字・危険なHTML文字の拒否
+- 名前のNFC正規化、Unicodeコードポイン数の上限、C0/C1制御・不可視・双方向制御・危険なHTML文字のクライアント/Worker両方での拒否
 - 開始前にBearer所有者・モード・島地域へ結び付けた15分有効のUUIDゲームセッションをWorkerで発行
 - モード、島地域、整数スコア、プレイ時間、成立可能な得点速度、サーバー観測経過時間をWorkerで再検証
 - ゲームセッション消費とスコア挿入をD1 batchで確定し、1セッション1投稿を強制
@@ -21,7 +21,8 @@
 - IPアドレスとUser-Agentを秘密ソルト付きSHA-256にし、元データを保存せず、バケットを15分ごとのcronで削除
 - 128-bitランダム端末トークンのBearer認可。ネイティブではSecureStoreだけへ保存し、未送信Async Storageキューへ複製しない。D1にはSHA-256所有者ハッシュだけを保存して公開順位、履歴列挙、削除を所有者へ限定
 - SQLはD1 prepared statementのbindだけで実行
-- APIの `nosniff`、Referrer Policy、Permissions Policy、CORS、Cache-Control
+- APIのCSP、HSTS、`nosniff`、frame拒否、Referrer Policy、Permissions Policy、CORS、Cache-Control
+- 外部入力のリクエストIDを96文字以内の安全な文字種に制限し、不正値はサーバー生成UUIDへ置換
 - 5xxでは内部詳細を返さず、リクエストID付き構造化ログを記録
 - 本番・開発依存を含むnpm監査、最低カバレッジ、実Worker/D1統合、E2Eを公開ゲートに設定
 - すべてのGitHub Actionsを公式タグの不変40桁コミットSHAへ固定し、検査スクリプトでタグ参照への後退を拒否
@@ -46,6 +47,7 @@
 - WebのBearerトークンはブラウザのローカルストレージにあり、同一Originで任意JavaScriptが実行された場合は保護できません。外部実行時依存を持たず、入力をReact textとして描画してXSS面を縮小しています。
 - 公開名は個人情報を書かない前提の自由入力です。メールアドレス等を入力しないようアプリ内で案内します。
 - 端末トークンを失うと旧端末の所有記録を自己削除できません。所有者ハッシュ導入前の移行記録は問い合わせ対応です。
+- 公開ランキングはCloudflareのエッジとD1 read replicaで処理されます。別拠点のキャッシュにより、削除反映は通常最大30秒、D1障害時は最大5分遅れる可能性があります。
 - GitHub PagesではHTTPレスポンスヘッダーを細かく制御できないため、生成HTMLへCSPと`no-referrer`を注入し、スクリプトを同一オリジン、API通信を本番Workerへ限定します。`frame-ancestors`などヘッダーでのみ完全に強制できる防御はPagesの制約として残ります。
 - 島SVGは国土地理院「地理院地図」を参照し、toyo1621が独自に編集・制作したデータです。出典、加工主体、利用条件へのリンク、データ指紋を `DATA_SOURCES.md` に記録します。
 
