@@ -175,8 +175,11 @@ export const fetchRankingsForModeWithStatus = async (
   const rankingRegion = normalizeIslandRegion(gameType, islandRegion);
   if (hasRankingsApi()) {
     try {
-      const requestInit = options.requireFresh
-        ? { headers: { authorization: `Bearer ${await getPlayerToken()}` } }
+      const requestInit: RequestInit | undefined = options.requireFresh
+        ? {
+            cache: 'no-store',
+            headers: { authorization: `Bearer ${await getPlayerToken()}` },
+          }
         : undefined;
       const rankings = await apiRequest(
         `/rankings${buildQuery({

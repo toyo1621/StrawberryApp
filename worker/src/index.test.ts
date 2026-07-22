@@ -704,6 +704,8 @@ test('an authenticated leaderboard refresh bypasses cache and reads from primary
     const body = await response.json() as RankingRecord[];
 
     assert.equal(response.headers.get('x-rankings-cache'), 'bypass');
+    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    assert.match(response.headers.get('vary') ?? '', /Authorization/);
     assert.deepEqual(body.map((entry) => entry.id), ['just-created-entry']);
     assert.equal(db.rankingQueryCount, 2);
     assert.deepEqual(db.sessionConstraints, ['first-unconstrained', 'first-primary']);
