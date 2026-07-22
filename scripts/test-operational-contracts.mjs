@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {
   extractJavaScriptPaths,
   hasHealthyJavaScriptBundles,
+  isCompatibleProductionRelease,
+  isReleaseMetadata,
   isSyntheticCleanupComplete,
   matchesRankingsRelease,
 } from './operational-contracts.mjs';
@@ -36,6 +38,28 @@ assert.equal(isSyntheticCleanupComplete({
 }), false);
 assert.equal(isSyntheticCleanupComplete({ ...cleanup, history: null }), false);
 assert.equal(isSyntheticCleanupComplete({ ...cleanup, syntheticScoreCreated: false, deleted: 0 }), true);
+
+const releaseMetadata = { release: 'a'.repeat(40), apiVersion: 4 };
+assert.equal(isReleaseMetadata(releaseMetadata), true);
+assert.equal(isReleaseMetadata(releaseMetadata, 'a'.repeat(40)), true);
+assert.equal(isReleaseMetadata(releaseMetadata, 'b'.repeat(40)), false);
+assert.equal(isReleaseMetadata({ release: 'development', apiVersion: 4 }), true);
+assert.equal(isReleaseMetadata({ release: 'short', apiVersion: 4 }), false);
+assert.equal(isCompatibleProductionRelease({
+  webRelease: releaseMetadata,
+  apiHealth: { ok: true, version: 4, release: 'a'.repeat(40) },
+  apiHeaderRelease: 'a'.repeat(40),
+}), true);
+assert.equal(isCompatibleProductionRelease({
+  webRelease: releaseMetadata,
+  apiHealth: { ok: true, version: 4, release: 'b'.repeat(40) },
+  apiHeaderRelease: 'b'.repeat(40),
+}), false);
+assert.equal(isCompatibleProductionRelease({
+  webRelease: { release: 'development', apiVersion: 4 },
+  apiHealth: { ok: true, version: 4, release: 'development' },
+  apiHeaderRelease: 'development',
+}), false);
 
 const splitBundleHtml = `
   <script src="/runtime.js" defer></script>

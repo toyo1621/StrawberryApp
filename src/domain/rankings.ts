@@ -1,13 +1,45 @@
 import { RankingEntry, RankingPeriod } from '../types';
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+export const MAX_PLAYER_NAME_LENGTH = 12;
+
+const UNSAFE_PLAYER_NAME_PATTERN = /[<>\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
 
 export const normalizePlayerName = (value: string): string => {
   return value.normalize('NFC').trim().replace(/\s+/g, ' ');
 };
 
+export const getPlayerNameLength = (value: string): number => (
+  [...normalizePlayerName(value)].length
+);
+
+export const getPlayerNameValidationError = (value: string): string | null => {
+  const playerName = normalizePlayerName(value);
+  if (!playerName) {
+    return 'プレイヤー名を入力してください。';
+  }
+  if ([...playerName].length > MAX_PLAYER_NAME_LENGTH) {
+    return `プレイヤー名は${MAX_PLAYER_NAME_LENGTH}文字までです。`;
+  }
+  if (UNSAFE_PLAYER_NAME_PATTERN.test(playerName)) {
+    return '使用できない文字が含まれています。';
+  }
+  return null;
+};
+
 export const rankingIdentity = (value: string): string => {
   return normalizePlayerName(value).toLocaleLowerCase('ja-JP');
+};
+
+export const getRankingPositionByEntryId = (
+  rankings: RankingEntry[],
+  entryId: string | null,
+): number | null => {
+  if (!entryId) {
+    return null;
+  }
+  const index = rankings.findIndex((entry) => entry.id === entryId);
+  return index >= 0 ? index + 1 : null;
 };
 
 export const getPeriodStartDate = (

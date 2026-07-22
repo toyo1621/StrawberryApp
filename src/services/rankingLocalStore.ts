@@ -39,6 +39,21 @@ const ALL_STORAGE_KEYS = [
   ...API_GAME_TYPES.map(getPlayerHistoryStorageKey),
 ];
 
+const storageWriteTails = new Map<string, Promise<void>>();
+
+const withStorageWriteLock = <T>(key: string, operation: () => Promise<T>): Promise<T> => {
+  const previous = storageWriteTails.get(key) ?? Promise.resolve();
+  const result = previous.then(operation, operation);
+  const tail = result.then(() => undefined, () => undefined);
+  storageWriteTails.set(key, tail);
+  void tail.finally(() => {
+    if (storageWriteTails.get(key) === tail) {
+      storageWriteTails.delete(key);
+    }
+  });
+  return result;
+};
+
 const parseStoredRankings = (stored: string | null): RankingEntry[] => {
   if (!stored) {
     return [];
@@ -54,11 +69,7 @@ const parseStoredRankings = (stored: string | null): RankingEntry[] => {
 };
 
 const writeRankings = async (key: string, rankings: RankingEntry[]): Promise<void> => {
-  try {
-    await AsyncStorage.setItem(key, JSON.stringify(rankings));
-  } catch (error) {
-    console.warn('Failed to cache rankings.', error);
-  }
+  await AsyncStorage.setItem(key, JSON.stringify(rankings));
 };
 
 const mergeById = (
@@ -89,8 +100,11 @@ export const mergeIntoLocalPlayerHistory = async (
   gameType: ApiGameType,
   incoming: RankingEntry[],
 ): Promise<void> => {
-  const current = await loadLocalPlayerHistory(gameType);
-  await writeRankings(getPlayerHistoryStorageKey(gameType), mergeById(current, incoming));
+  const key = getPlayerHistoryStorageKey(gameType);
+  await withStorageWriteLock(key, async () => {
+    const current = parseStoredRankings(await AsyncStorage.getItem(key));
+    await writeRankings(key, mergeById(current, incoming));
+  });
 };
 
 export const mergeIntoLocalCache = async (
@@ -98,11 +112,11 @@ export const mergeIntoLocalCache = async (
   islandRegion: IslandRegion,
   incoming: RankingEntry[],
 ): Promise<void> => {
-  const current = await loadLocalRankingsForGame(gameType, islandRegion);
-  await writeRankings(
-    getStorageKey(gameType, islandRegion),
-    mergeById(current, incoming),
-  );
+  const key = getStorageKey(gameType, islandRegion);
+  await withStorageWriteLock(key, async () => {
+    const current = parseStoredRankings(await AsyncStorage.getItem(key));
+    await writeRankings(key, mergeById(current, incoming));
+  });
 };
 
 export const replaceLocalLeaderboardSnapshot = async (
@@ -111,10 +125,13 @@ export const replaceLocalLeaderboardSnapshot = async (
   incoming: RankingEntry[],
   pendingIds: ReadonlySet<string>,
 ): Promise<void> => {
-  const current = await loadLocalRankingsForGame(gameType, islandRegion);
-  const pendingEntries = current.filter((entry) => pendingIds.has(entry.id));
-  const snapshot = mergeById(incoming, pendingEntries);
-  await writeRankings(getStorageKey(gameType, islandRegion), snapshot);
+  const key = getStorageKey(gameType, islandRegion);
+  await withStorageWriteLock(key, async () => {
+    const current = parseStoredRankings(await AsyncStorage.getItem(key));
+    const pendingEntries = current.filter((entry) => pendingIds.has(entry.id));
+    const snapshot = mergeById(incoming, pendingEntries);
+    await writeRankings(key, snapshot);
+  });
 };
 
 export const clearLocalRankingData = async (): Promise<void> => {

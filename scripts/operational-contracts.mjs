@@ -28,6 +28,23 @@ export const isSyntheticCleanupComplete = ({
   && !history.some((entry) => entry?.id === submissionId)
 );
 
+export const isReleaseMetadata = (value, expectedReleaseId) => (
+  Boolean(value)
+  && typeof value.release === 'string'
+  && (/^[0-9a-f]{40}$/.test(value.release) || value.release === 'development')
+  && value.apiVersion === 4
+  && (!expectedReleaseId || value.release === expectedReleaseId)
+);
+
+export const isCompatibleProductionRelease = ({ webRelease, apiHealth, apiHeaderRelease }) => (
+  isReleaseMetadata(webRelease)
+  && webRelease.release !== 'development'
+  && apiHealth?.ok === true
+  && apiHealth?.version === webRelease.apiVersion
+  && apiHealth?.release === webRelease.release
+  && apiHeaderRelease === webRelease.release
+);
+
 export const extractJavaScriptPaths = (html) => {
   if (typeof html !== 'string') {
     return [];

@@ -10,8 +10,7 @@ type RankingListProps = {
   accent: string;
   loading?: boolean;
   limit?: number;
-  highlightedPlayerName?: string;
-  highlightedScore?: number;
+  highlightedEntryId?: string | null;
   darkMode?: boolean;
 };
 
@@ -21,8 +20,7 @@ const RankingList: React.FC<RankingListProps> = ({
   accent,
   loading = false,
   limit = 10,
-  highlightedPlayerName,
-  highlightedScore,
+  highlightedEntryId,
   darkMode = false,
 }) => {
   const theme = getTheme(darkMode);
@@ -49,8 +47,7 @@ const RankingList: React.FC<RankingListProps> = ({
   return (
     <View style={styles.list}>
       {entries.slice(0, limit).map((entry, index) => {
-        const highlighted = entry.playerName === highlightedPlayerName
-          && entry.score === highlightedScore;
+        const highlighted = Boolean(highlightedEntryId) && entry.id === highlightedEntryId;
         const rank = index + 1;
         return (
           <View

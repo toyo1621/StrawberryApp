@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   filterRankingsByPeriod,
+  getPlayerNameLength,
+  getPlayerNameValidationError,
   getPeriodStartDate,
+  getRankingPositionByEntryId,
   getUniquePlayerRankings,
   normalizePlayerName,
   rankingIdentity,
@@ -21,6 +24,16 @@ const entry = (id: string, playerName: string, score: number, createdAt: string)
 test('player names are normalized consistently for display and identity', () => {
   assert.equal(normalizePlayerName('  佐々木　太郎  '), '佐々木 太郎');
   assert.equal(rankingIdentity(' Player '), rankingIdentity('player'));
+});
+
+test('player names use Unicode characters and reject invisible display controls', () => {
+  assert.equal(getPlayerNameLength('🍓'.repeat(12)), 12);
+  assert.equal(getPlayerNameValidationError('🍓'.repeat(12)), null);
+  assert.match(getPlayerNameValidationError('🍓'.repeat(13)) ?? '', /12文字/);
+  assert.match(getPlayerNameValidationError('安全\u202e偽装') ?? '', /使用できない文字/);
+  assert.match(getPlayerNameValidationError('名前\u200b') ?? '', /使用できない文字/);
+  assert.match(getPlayerNameValidationError('名前\u061c') ?? '', /使用できない文字/);
+  assert.match(getPlayerNameValidationError('<script>') ?? '', /使用できない文字/);
 });
 
 test('ranking periods start at midnight in Japan time', () => {
@@ -49,4 +62,15 @@ test('leaderboards keep one best score per normalized player and use earliest ti
   ];
 
   assert.deepEqual(getUniquePlayerRankings(rankings).map(({ id }) => id), ['best-early', 'other']);
+});
+
+test('the current rank uses submission id when names and scores are identical', () => {
+  const rankings = [
+    entry('another-owner', '同じ名前', 8, '2026-01-01T00:00:00.000Z'),
+    entry('current-owner', '同じ名前', 8, '2026-01-02T00:00:00.000Z'),
+  ];
+
+  assert.equal(getRankingPositionByEntryId(rankings, 'current-owner'), 2);
+  assert.equal(getRankingPositionByEntryId(rankings, 'missing'), null);
+  assert.equal(getRankingPositionByEntryId(rankings, null), null);
 });

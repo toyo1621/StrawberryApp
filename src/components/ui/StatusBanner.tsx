@@ -5,7 +5,7 @@ import { getTheme } from '../../theme';
 
 type StatusBannerProps = {
   message: string;
-  tone?: 'error' | 'success';
+  tone?: 'error' | 'success' | 'info';
   onDismiss?: () => void;
   darkMode?: boolean;
 };
@@ -17,8 +17,12 @@ const StatusBanner: React.FC<StatusBannerProps> = ({
   darkMode = false,
 }) => {
   const theme = getTheme(darkMode);
-  const foreground = tone === 'error' ? theme.danger : theme.success;
-  const background = tone === 'error' ? theme.dangerBackground : theme.successBackground;
+  const foreground = tone === 'error'
+    ? theme.danger
+    : tone === 'success' ? theme.success : theme.info;
+  const background = tone === 'error'
+    ? theme.dangerBackground
+    : tone === 'success' ? theme.successBackground : theme.infoBackground;
 
   return (
     <View

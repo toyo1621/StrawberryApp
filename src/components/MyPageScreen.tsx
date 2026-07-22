@@ -11,7 +11,10 @@ import {
 } from 'react-native';
 import { FONT_WEIGHT_BOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
 import { getIslandRegionLabel } from '../domain/islands';
-import { normalizePlayerName } from '../domain/rankings';
+import {
+  getPlayerNameValidationError,
+  normalizePlayerName,
+} from '../domain/rankings';
 import { GAME_MODE_CONFIG } from '../gameConfig';
 import { loadPlayerName, savePlayerName } from '../services/playerService';
 import { fetchPlayerScoreHistory } from '../services/rankingService';
@@ -95,12 +98,9 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
 
   const handleSave = async () => {
     const normalizedName = normalizePlayerName(name);
-    if (!normalizedName) {
-      setMessage({ text: 'プレイヤー名を入力してください。', tone: 'error' });
-      return;
-    }
-    if (normalizedName.length > 12 || /[\u0000-\u001f\u007f<>]/.test(normalizedName)) {
-      setMessage({ text: 'プレイヤー名は使用可能な文字で12文字以内にしてください。', tone: 'error' });
+    const validationError = getPlayerNameValidationError(normalizedName);
+    if (validationError) {
+      setMessage({ text: validationError, tone: 'error' });
       return;
     }
 
@@ -186,7 +186,6 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
             accessibilityHint="公開ランキングに表示する12文字までの名前です"
             autoCapitalize="none"
             autoCorrect={false}
-            maxLength={12}
             placeholder="名前を入力"
             placeholderTextColor={theme.textMuted}
             style={[

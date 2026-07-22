@@ -10,6 +10,7 @@ import {
 } from '../services/rankingService';
 import { loadPlayerName } from '../services/playerService';
 import {
+  DEFAULT_SETTINGS,
   loadSettings,
   type AppSettings,
 } from '../services/settingsService';
@@ -46,10 +47,7 @@ export const useAppData = (): AppData => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [settings, setSettings] = useState<AppSettings>({
-    darkMode: false,
-    hapticsEnabled: true,
-  });
+  const [settings, setSettings] = useState<AppSettings>({ ...DEFAULT_SETTINGS });
   const resumeSyncInFlightRef = useRef(false);
 
   useEffect(() => {
@@ -58,14 +56,22 @@ export const useAppData = (): AppData => {
       setError(null);
       try {
         prefetchStrawberryJuiceImage();
-        const [rankingsResult, nameResult, settingsResult, syncResult] = await Promise.allSettled([
-          fetchAllRankingsWithStatus(),
-          loadPlayerName(),
-          loadSettings(),
-          syncPendingScores(),
-        ]);
         const errors: string[] = [];
         const notices: string[] = [];
+        let loadedSettings = { ...DEFAULT_SETTINGS };
+        try {
+          loadedSettings = await loadSettings();
+          setSettings(loadedSettings);
+        } catch (settingsError) {
+          console.error('Failed to load settings:', settingsError);
+          errors.push('設定を読み込めなかったため初期設定を使用します。');
+        }
+
+        const [rankingsResult, nameResult, syncResult] = await Promise.allSettled([
+          fetchAllRankingsWithStatus(),
+          loadPlayerName(),
+          syncPendingScores({ onlineRankingsEnabled: loadedSettings.onlineRankingsEnabled }),
+        ]);
 
         let rankingState: AllRankingsFetchResult = rankingsResult.status === 'fulfilled'
           ? rankingsResult.value
@@ -84,13 +90,6 @@ export const useAppData = (): AppData => {
         } else {
           console.error('Failed to load the player name:', nameResult.reason);
           errors.push('保存済みのプレイヤー名を読み込めませんでした。');
-        }
-
-        if (settingsResult.status === 'fulfilled') {
-          setSettings(settingsResult.value);
-        } else {
-          console.error('Failed to load settings:', settingsResult.reason);
-          errors.push('設定を読み込めなかったため初期設定を使用します。');
         }
 
         if (syncResult.status === 'fulfilled') {
@@ -138,7 +137,9 @@ export const useAppData = (): AppData => {
       }
       resumeSyncInFlightRef.current = true;
       try {
-        const result = await syncPendingScores();
+        const result = await syncPendingScores({
+          onlineRankingsEnabled: settings.onlineRankingsEnabled,
+        });
         if (result.synced > 0) {
           const refreshed = await fetchAllRankingsWithStatus();
           setRankingsByMode(refreshed.rankings);
@@ -154,7 +155,7 @@ export const useAppData = (): AppData => {
       }
     });
     return () => subscription.remove();
-  }, []);
+  }, [settings.onlineRankingsEnabled]);
 
   return {
     playerName,

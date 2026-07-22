@@ -6,6 +6,7 @@ import {
 } from '../gameConfig';
 import {
   filterRankingsByPeriod,
+  getPlayerNameValidationError,
   getUniquePlayerRankings,
   normalizePlayerName,
   rankingIdentity,
@@ -47,6 +48,7 @@ import {
 } from './rankingModels';
 import {
   clearPendingScores,
+  discardPendingScores,
   enqueuePendingScore,
   loadPendingScores,
   transactPendingScores,
@@ -73,6 +75,22 @@ export type {
 const RANKING_LIMIT = 30;
 const PENDING_SYNC_BATCH_SIZE = 3;
 
+const persistRemoteEntryBestEffort = async (
+  gameType: ApiGameType,
+  islandRegion: IslandRegion,
+  entry: RankingEntry,
+): Promise<void> => {
+  const results = await Promise.allSettled([
+    mergeIntoLocalCache(gameType, islandRegion, [entry]),
+    mergeIntoLocalPlayerHistory(gameType, [entry]),
+  ]);
+  results.forEach((result) => {
+    if (result.status === 'rejected') {
+      console.warn('A remote score was saved, but its local cache could not be updated.', result.reason);
+    }
+  });
+};
+
 const postScore = async (score: PendingScore): Promise<RankingEntry> => {
   if (!score.gameSessionId) {
     throw new RankingsApiError('A verified game session is required.', 400);
@@ -93,7 +111,13 @@ const postScore = async (score: PendingScore): Promise<RankingEntry> => {
   });
 };
 
-export const syncPendingScores = async (): Promise<SyncResult> => {
+export const syncPendingScores = async (
+  options: { onlineRankingsEnabled?: boolean } = {},
+): Promise<SyncResult> => {
+  if (options.onlineRankingsEnabled === false) {
+    const pendingScores = await loadPendingScores();
+    return { synced: 0, pending: pendingScores.length, discarded: 0 };
+  }
   if (!hasRankingsApi()) {
     const pendingScores = await loadPendingScores();
     return { synced: 0, pending: pendingScores.length, discarded: 0 };
@@ -122,8 +146,7 @@ export const syncPendingScores = async (): Promise<SyncResult> => {
       }
       try {
         const entry = await postScore(score);
-        await mergeIntoLocalCache(score.gameType, score.islandRegion, [entry]);
-        await mergeIntoLocalPlayerHistory(score.gameType, [entry]);
+        await persistRemoteEntryBestEffort(score.gameType, score.islandRegion, entry);
         synced += 1;
       } catch (error) {
         if (!isTemporaryApiFailure(error)) {
@@ -168,12 +191,16 @@ export const fetchRankingsForModeWithStatus = async (
             ))
             .map((score) => score.submissionId),
         );
-        await replaceLocalLeaderboardSnapshot(
-          gameType,
-          rankingRegion,
-          rankings,
-          pendingIds,
-        );
+        try {
+          await replaceLocalLeaderboardSnapshot(
+            gameType,
+            rankingRegion,
+            rankings,
+            pendingIds,
+          );
+        } catch (cacheError) {
+          console.warn('Remote rankings loaded, but the local cache could not be updated.', cacheError);
+        }
       }
       return { entries: rankings, source: 'remote', stale: false };
     } catch (error) {
@@ -254,6 +281,11 @@ export const saveScoreForMode = async (
     throw new Error('A valid game duration is required to save a score.');
   }
 
+  const playerNameError = getPlayerNameValidationError(playerName);
+  if (playerNameError) {
+    throw new Error(playerNameError);
+  }
+
   const gameType = GAME_MODE_CONFIG[mode].apiType;
   const pending: PendingScore = {
     submissionId: generateSubmissionId(),
@@ -277,8 +309,7 @@ export const saveScoreForMode = async (
   if (hasRankingsApi() && hasUsableSession) {
     try {
       const entry = await postScore(pending);
-      await mergeIntoLocalCache(pending.gameType, pending.islandRegion, [entry]);
-      await mergeIntoLocalPlayerHistory(pending.gameType, [entry]);
+      await persistRemoteEntryBestEffort(pending.gameType, pending.islandRegion, entry);
       return {
         entry,
         destination: 'remote',
@@ -292,7 +323,20 @@ export const saveScoreForMode = async (
       }
       console.warn('Queued a score after an API failure.', error);
       const droppedPendingScores = await enqueuePendingScore(pending);
-      const entry = await saveLocalScore(pending);
+      let entry: RankingEntry;
+      try {
+        entry = await saveLocalScore(pending);
+      } catch (cacheError) {
+        console.warn('The queued score could not be added to the local ranking cache.', cacheError);
+        entry = {
+          id: pending.submissionId,
+          playerName: pending.playerName,
+          score: pending.score,
+          gameType: pending.gameType,
+          islandRegion: pending.islandRegion,
+          createdAt: pending.createdAt,
+        };
+      }
       return {
         entry,
         destination: 'local',
@@ -342,7 +386,11 @@ export const fetchPlayerScoreHistory = async (
         parseRankingEntries,
         { headers: { authorization: `Bearer ${playerToken}` } },
       );
-      await mergeIntoLocalPlayerHistory(gameType, history);
+      try {
+        await mergeIntoLocalPlayerHistory(gameType, history);
+      } catch (cacheError) {
+        console.warn('Remote score history loaded, but the local cache could not be updated.', cacheError);
+      }
       return history;
     } catch (error) {
       console.warn('Using cached score history after an API failure.', error);
@@ -375,6 +423,8 @@ export const getPlayerBestScore = async (playerName: string): Promise<number> =>
 export const clearRankingData = async (): Promise<void> => {
   await Promise.all([clearLocalRankingData(), clearPendingScores()]);
 };
+
+export const discardPendingRankingScores = (): Promise<number> => discardPendingScores();
 
 export const deletePlayerRankingData = async (): Promise<number> => {
   const playerToken = await getStoredPlayerToken();
