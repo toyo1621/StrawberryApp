@@ -169,11 +169,15 @@ export const fetchRankingsForModeWithStatus = async (
   mode: GameMode,
   period: RankingPeriod = RankingPeriod.ALL,
   islandRegion: IslandRegion = IslandRegion.ALL,
+  options: { requireFresh?: boolean } = {},
 ): Promise<RankingFetchResult> => {
   const gameType = GAME_MODE_CONFIG[mode].apiType;
   const rankingRegion = normalizeIslandRegion(gameType, islandRegion);
   if (hasRankingsApi()) {
     try {
+      const requestInit = options.requireFresh
+        ? { headers: { authorization: `Bearer ${await getPlayerToken()}` } }
+        : undefined;
       const rankings = await apiRequest(
         `/rankings${buildQuery({
           gameType,
@@ -182,6 +186,7 @@ export const fetchRankingsForModeWithStatus = async (
           limit: RANKING_LIMIT,
         })}`,
         parseRankingEntries,
+        requestInit,
       );
       if (period === RankingPeriod.ALL) {
         const pendingIds = new Set(
