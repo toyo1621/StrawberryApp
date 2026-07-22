@@ -1,23 +1,19 @@
 import { isSyntheticCleanupComplete } from './operational-contracts.mjs';
+import {
+  API_GAME_TYPES,
+  ISLAND_REGIONS,
+  RANKINGS_API_VERSION,
+} from './generated/rankingContract.mjs';
 
 const apiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
 const expectedReleaseId = process.env.EXPECTED_RELEASE_ID;
 const maximumRequestDurationMs = Number(process.env.MAX_API_REQUEST_DURATION_MS || 4_000);
+const requireMonitorHeartbeat = process.env.REQUIRE_MONITOR_HEARTBEAT === 'true';
+const maximumHeartbeatAgeMs = Number(process.env.MAX_MONITOR_HEARTBEAT_AGE_MS || 25 * 60_000);
 const contractAttempts = 8;
 const allowedOrigin = 'https://toyo1621.github.io';
-const gameTypes = ['strawberry_rush', 'island_rush', 'flag_rush', 'color_rush'];
-const islandRegions = [
-  'all',
-  'hokkaido_tohoku',
-  'kanto',
-  'chubu_kinki',
-  'chugoku',
-  'shikoku',
-  'kyushu_north',
-  'kyushu_south',
-  'kyushu',
-  'okinawa',
-];
+const gameTypes = API_GAME_TYPES;
+const islandRegions = ISLAND_REGIONS;
 
 if (!apiUrl) {
   console.error('EXPO_PUBLIC_RANKINGS_API_URL is required.');
@@ -72,8 +68,8 @@ const assertOk = async (path, init, validateBody) => {
       ) {
         throw new Error(`${path} is missing hardened transport or response metadata.`);
       }
-      if (response.headers.get('x-api-version') !== '4') {
-        throw new Error(`${path} is not serving API version 4.`);
+      if (response.headers.get('x-api-version') !== String(RANKINGS_API_VERSION)) {
+        throw new Error(`${path} is not serving API version ${RANKINGS_API_VERSION}.`);
       }
       if (
         expectedReleaseId
@@ -102,7 +98,7 @@ const assertOk = async (path, init, validateBody) => {
 
 const durations = [];
 const healthResult = await assertOk('/health', undefined, (body) => {
-  if (body.ok !== true || body.version !== 4 || typeof body.release !== 'string') {
+  if (body.ok !== true || body.version !== RANKINGS_API_VERSION || typeof body.release !== 'string') {
     throw new Error('/health did not return the expected versioned status.');
   }
   if (expectedReleaseId && body.release !== expectedReleaseId) {
@@ -112,6 +108,18 @@ const healthResult = await assertOk('/health', undefined, (body) => {
 durations.push(healthResult.durationMs);
 if (healthResult.headers.get('cache-control') !== 'no-store') {
   throw new Error('/health must not be cached.');
+}
+if (requireMonitorHeartbeat) {
+  const monitor = healthResult.body.monitor;
+  const checkedAt = Date.parse(monitor?.checkedAt);
+  const ageMs = Date.now() - checkedAt;
+  if (!monitor
+    || !['pending', 'healthy'].includes(monitor.status)
+    || !Number.isFinite(checkedAt)
+    || ageMs < 0
+    || ageMs > maximumHeartbeatAgeMs) {
+    throw new Error('The Cloudflare scheduled monitor heartbeat is unhealthy or stale.');
+  }
 }
 
 const rankingScopes = [
@@ -140,6 +148,9 @@ for (const { gameType, islandRegion } of rankingScopes) {
       || typeof entry.createdAt !== 'string'
     ) {
       throw new Error(`Ranking response includes an invalid ${gameType} entry.`);
+    }
+    if ('isCurrentPlayer' in entry) {
+      throw new Error('Anonymous rankings must not expose the current-player marker.');
     }
   }
 }
@@ -201,7 +212,7 @@ if (
   preflight.status !== 204
   || preflight.headers.get('access-control-allow-origin') !== allowedOrigin
   || !preflight.headers.get('access-control-allow-headers')?.includes('authorization')
-  || preflight.headers.get('x-api-version') !== '4'
+  || preflight.headers.get('x-api-version') !== String(RANKINGS_API_VERSION)
   || !preflight.headers.get('x-release-id')
   || preflight.headers.get('x-frame-options') !== 'DENY'
 ) {
@@ -287,6 +298,21 @@ try {
   }
   syntheticScoreCreated = true;
 
+  const personalizedRanking = await assertOk(
+    '/rankings?gameType=strawberry_rush&islandRegion=all&period=daily&limit=100',
+    { headers: { authorization, 'cache-control': 'no-store' } },
+  );
+  durations.push(personalizedRanking.durationMs);
+  const currentEntries = personalizedRanking.body.filter(
+    (entry) => entry.isCurrentPlayer === true,
+  );
+  if (
+    currentEntries.length !== 1
+    || currentEntries[0].id !== submissionId
+  ) {
+    throw new Error('Synthetic score was not immediately visible as the current-player ranking.');
+  }
+
   const history = await assertOk('/players/me/history?gameType=strawberry_rush&limit=5', {
     headers: { authorization },
   });
@@ -316,5 +342,6 @@ try {
 
 console.log(
   `Rankings API smoke check passed (release ${healthResult.body.release}, ${gameTypes.length} modes, `
-  + `edge cache, verified session/write/read/delete, max ${Math.max(...durations)} ms).`,
+  + `edge cache, verified session/write/personalized-read/history/delete, `
+  + `max ${Math.max(...durations)} ms).`,
 );

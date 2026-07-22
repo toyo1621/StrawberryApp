@@ -58,10 +58,10 @@ npm run test:e2e         # Chromium/Firefox/WebKit、Pixel 7、320px、axe、操
 npm run build:native-bundles # iOS/AndroidのMetro本番バンドル
 npm run check:native-build   # Hermes 2.5 MiB、各export 16 MiB、415島の予算
 npm run build:web
-npm run check:web-build  # JS 700 KiB、島SVG 12 MiB、全体14 MiBの予算と415件完全性
+npm run check:web-build  # JS 660 KiB/raw・175 KiB/gzip、島SVG 12 MiB、全体14 MiBの予算
 ```
 
-Pull Requestの `Quality` workflowとPages公開ゲートが同じ検査を実行します。循環依存・層境界・主要ファイル行数、40並列cache miss、32並列の実Worker/D1読込も自動検査します。15分監視はWeb、ファビコン、全4ランキング、CORS、D1、ランキングcache hit、テストスコアの登録・非公開履歴・削除後の不在に加え、WebとAPIが同一Git SHAから公開されていることまで確認します。失敗時はGitHub Issueと設定済みの外部Webhookへ通知します。
+Pull Requestの `Quality` とCodeQL workflow、Pages公開ゲートが検査を実行します。循環依存・層境界・主要ファイル行数、生成済みランキング契約、機械可読プライバシー宣言、40並列cache miss、32並列の実Worker/D1読込も自動検査します。GitHub Actionsの外形監視とCloudflare Cronの心拍監視はともに15分間隔で動作し、Web、ファビコン、全4ランキング、CORS、D1、cache hit、登録・非公開履歴・削除、本番Git SHAを確認します。失敗時はGitHub Issue、Worker構造化ログ、設定済みの外部Webhookへ通知します。
 
 ## ディレクトリ
 
@@ -75,8 +75,9 @@ src/
   services/         API、端末保存、キャッシュ、排他制御付き送信キュー
   gameConfig.ts     4モード共通設定
   gameRules.ts      4モードの得点・時間ルール
+contracts/          API種別・期間・島地域の正本JSON
 worker/
-  src/              API経路、ランキング、投稿、本人データ、入力検証、テスト
+  src/              API経路、ランキング、投稿、本人データ、監視、入力検証、テスト
   migrations/       D1マイグレーション
   schema.sql         新規D1用スキーマ
 e2e/                Playwright操作・アクセシビリティテスト
@@ -86,17 +87,19 @@ scripts/            検証、スモーク、移行補助
 ## 文書
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md): 構成、データフロー、業務ルール
-- [API.md](./API.md): API v4のセッション、認可、応答、エラー
+- [API.md](./API.md): API v5のセッション、認可、応答、エラー
 - [QUALITY.md](./QUALITY.md): 自動品質ゲート、性能予算、手動確認範囲
 - [SECURITY.md](./SECURITY.md): 脅威モデル、入力防御、秘密情報、報告方法
+- [PRIVACY.md](./PRIVACY.md): 収集データ、目的、保持、削除、外部処理者
 - [OPERATIONS.md](./OPERATIONS.md): 監視、障害対応、バックアップ、復旧
 - [DEPLOYMENT.md](./DEPLOYMENT.md): Worker、D1、Pages、EASの公開手順
+- [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md): Web・iOS・Androidのリリース証跡
 - [CONTRIBUTING.md](./CONTRIBUTING.md): 開発・テスト・リリース手順
 - [CHANGELOG.md](./CHANGELOG.md): リリースごとの利用者・運用変更
 - [DATA_SOURCES.md](./DATA_SOURCES.md): 島データの出典、制作、変換、完全性検証
 
 ## データについて
 
-公開ランキングには入力したプレイヤー名、スコア、モード、島の出題地域、登録日時が表示されます。順位の重複排除、全履歴、削除は端末で生成した秘密トークンの所有者単位で扱い、サーバーにはSHA-256所有者ハッシュだけを保存します。ネイティブのトークンはSecureStore、Webではローカルストレージだけに保存し、Async Storageの未送信キューには複製しません。オンラインランキングをオフにすると今後の書込と保存待ち送信を停止し、保存待ちキューを端末から削除します。既存の公開スコアはマイページから削除できます。詳細はアプリ内のプライバシーポリシーと [SECURITY.md](./SECURITY.md) に記載しています。
+公開ランキングには入力したプレイヤー名、スコア、モード、島の出題地域、登録日時が表示されます。順位の重複排除、本人表示、全履歴、削除は端末で生成した秘密トークンの所有者単位で扱い、サーバーにはSHA-256所有者ハッシュだけを保存します。ネイティブのトークンはSecureStore、Webではローカルストレージだけに保存し、Async Storageの未送信キューには複製しません。オンラインランキングをオフにすると今後の書込と保存待ち送信を停止し、保存待ちキューを端末から削除します。既存の公開スコアはマイページから削除できます。詳細はアプリ内のプライバシーポリシーと [PRIVACY.md](./PRIVACY.md) に記載しています。
 
 415件の島形状SVGは、[国土地理院「地理院地図」](https://maps.gsi.go.jp/)を参照し、toyo1621がゲーム表示向けに独自制作した編集・加工物です。詳細は [DATA_SOURCES.md](./DATA_SOURCES.md) に記録しています。

@@ -1,10 +1,12 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { isReleaseMetadata } from './operational-contracts.mjs';
 
 const buildDir = path.resolve('web-build');
 const islandSourceDir = path.resolve('src/assets/islands');
-const MAX_JS_BYTES = 700 * 1024;
+const MAX_JS_BYTES = 660 * 1024;
+const MAX_GZIP_JS_BYTES = 175 * 1024;
 const MAX_TOTAL_BYTES = 14 * 1024 * 1024;
 const MAX_ISLAND_ASSET_BYTES = 12 * 1024 * 1024;
 const MAX_SINGLE_ISLAND_ASSET_BYTES = 80 * 1024;
@@ -29,12 +31,26 @@ const largestJs = jsFiles.reduce((largest, current) => current.size > largest.si
   file: '',
   size: 0,
 });
+const compressedJsFiles = await Promise.all(jsFiles.map(async ({ file }) => ({
+  file,
+  size: gzipSync(await readFile(file), { level: 9 }).byteLength,
+})));
+const largestCompressedJs = compressedJsFiles.reduce(
+  (largest, current) => current.size > largest.size ? current : largest,
+  { file: '', size: 0 },
+);
 
 if (jsFiles.length === 0) {
   throw new Error('No JavaScript bundle was found in web-build.');
 }
 if (largestJs.size > MAX_JS_BYTES) {
   throw new Error(`Largest JavaScript bundle is ${largestJs.size} bytes; budget is ${MAX_JS_BYTES}.`);
+}
+if (largestCompressedJs.size > MAX_GZIP_JS_BYTES) {
+  throw new Error(
+    `Largest gzip JavaScript bundle is ${largestCompressedJs.size} bytes; `
+    + `budget is ${MAX_GZIP_JS_BYTES}.`,
+  );
 }
 if (totalBytes > MAX_TOTAL_BYTES) {
   throw new Error(`Web build is ${totalBytes} bytes; budget is ${MAX_TOTAL_BYTES}.`);
@@ -101,6 +117,7 @@ if (
 
 console.log(
   `Web build budget passed: ${(largestJs.size / 1024).toFixed(1)} KiB largest JS, `
+  + `${(largestCompressedJs.size / 1024).toFixed(1)} KiB gzip, `
   + `${(islandAssetBytes / 1024 / 1024).toFixed(2)} MiB across ${islandAssetNames.length} island SVGs, `
   + `${(totalBytes / 1024 / 1024).toFixed(2)} MiB total.`,
 );

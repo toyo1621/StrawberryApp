@@ -322,6 +322,49 @@ test('cached ranking results are explicitly marked stale after an API failure', 
   assert.equal(result.entries[0].playerName, 'キャッシュ');
 });
 
+test('cached rankings preserve same-name owners while coalescing current-player scores', async () => {
+  const rankingService = await rankingServicePromise;
+  values.set('strawberry_game_rankings', JSON.stringify([
+    {
+      id: 'same-name-owner',
+      playerName: '同じ名前',
+      score: 12,
+      gameType: 'strawberry_rush',
+      islandRegion: IslandRegion.ALL,
+      createdAt: '2026-07-21T00:00:00.000Z',
+    },
+    {
+      id: 'current-player-old',
+      playerName: '同じ名前',
+      score: 4,
+      gameType: 'strawberry_rush',
+      islandRegion: IslandRegion.ALL,
+      createdAt: '2026-07-21T00:01:00.000Z',
+      isCurrentPlayer: true,
+    },
+    {
+      id: 'current-player-best',
+      playerName: '改名後',
+      score: 8,
+      gameType: 'strawberry_rush',
+      islandRegion: IslandRegion.ALL,
+      createdAt: '2026-07-21T00:02:00.000Z',
+      isCurrentPlayer: true,
+    },
+  ]));
+  const originalWarn = console.warn;
+  console.warn = () => undefined;
+  globalThis.fetch = async () => { throw new TypeError('offline'); };
+
+  const result = await rankingService.fetchRankingsForModeWithStatus(GameMode.STRAWBERRY)
+    .finally(() => { console.warn = originalWarn; });
+
+  assert.deepEqual(result.entries.map(({ id }) => id), [
+    'same-name-owner',
+    'current-player-best',
+  ]);
+});
+
 test('a successful empty leaderboard response removes stale cached rankings', async () => {
   const rankingService = await rankingServicePromise;
   values.set('strawberry_game_rankings', JSON.stringify([{
@@ -704,7 +747,7 @@ test('a remotely accepted score succeeds even when its local cache cannot be wri
   }
 });
 
-test('concurrent local scores are merged without a lost update', async () => {
+test('concurrent local scores retain full history and one current-player best', async () => {
   const rankingService = await rankingServicePromise;
 
   await Promise.all([
@@ -722,8 +765,17 @@ test('concurrent local scores are merged without a lost update', async () => {
     ),
   ]);
 
-  const leaderboard = JSON.parse(values.get('color_game_rankings') ?? '[]') as unknown[];
+  const leaderboard = JSON.parse(values.get('color_game_rankings') ?? '[]') as {
+    playerName: string;
+    score: number;
+    isCurrentPlayer?: boolean;
+  }[];
   const history = JSON.parse(values.get('strawberry_player_history_v2_color_rush') ?? '[]') as unknown[];
-  assert.equal(leaderboard.length, 2);
+  assert.deepEqual(leaderboard, [{
+    ...leaderboard[0],
+    playerName: '同時2',
+    score: 2,
+    isCurrentPlayer: true,
+  }]);
   assert.equal(history.length, 2);
 });

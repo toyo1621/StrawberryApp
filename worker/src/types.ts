@@ -2,6 +2,8 @@ export interface Env {
   DB: D1Database;
   ALLOWED_ORIGINS?: string;
   RATE_LIMIT_SALT?: string;
+  WEB_APP_URL?: string;
+  MONITOR_ALERT_WEBHOOK_URL?: string;
   CF_VERSION_METADATA?: {
     id: string;
     tag?: string;
@@ -26,6 +28,7 @@ export type RankingEntry = {
   gameType: string;
   islandRegion: string;
   createdAt: string;
+  isCurrentPlayer?: boolean;
 };
 
 export type GameSessionRow = {

@@ -1,11 +1,7 @@
 import { GameMode, RankingsByMode } from './types';
+import { API_GAME_TYPES } from './generated/rankingContract';
 
-export const API_GAME_TYPES = [
-  'strawberry_rush',
-  'island_rush',
-  'flag_rush',
-  'color_rush',
-] as const;
+export { API_GAME_TYPES } from './generated/rankingContract';
 
 export type ApiGameType = typeof API_GAME_TYPES[number];
 

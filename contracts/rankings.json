@@ -1,0 +1,27 @@
+{
+  "apiVersion": 5,
+  "gameTypes": [
+    "strawberry_rush",
+    "island_rush",
+    "flag_rush",
+    "color_rush"
+  ],
+  "rankingPeriods": [
+    "all",
+    "daily",
+    "weekly",
+    "monthly"
+  ],
+  "islandRegions": [
+    { "key": "ALL", "value": "all" },
+    { "key": "HOKKAIDO_TOHOKU", "value": "hokkaido_tohoku" },
+    { "key": "KANTO", "value": "kanto" },
+    { "key": "CHUBU_KINKI", "value": "chubu_kinki" },
+    { "key": "CHUGOKU", "value": "chugoku" },
+    { "key": "SHIKOKU", "value": "shikoku" },
+    { "key": "KYUSHU_NORTH", "value": "kyushu_north" },
+    { "key": "KYUSHU_SOUTH", "value": "kyushu_south" },
+    { "key": "KYUSHU", "value": "kyushu" },
+    { "key": "OKINAWA", "value": "okinawa" }
+  ]
+}

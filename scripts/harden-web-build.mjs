@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { RANKINGS_API_VERSION } from './generated/rankingContract.mjs';
 
 const indexPath = path.resolve('web-build/index.html');
 const apiUrl = process.env.EXPO_PUBLIC_RANKINGS_API_URL?.trim();
@@ -52,7 +53,7 @@ const hardenedHtml = html.replace(
 await writeFile(indexPath, hardenedHtml, 'utf8');
 await writeFile(
   path.resolve('web-build/release.json'),
-  `${JSON.stringify({ release: releaseId, apiVersion: 4 })}\n`,
+  `${JSON.stringify({ release: releaseId, apiVersion: RANKINGS_API_VERSION })}\n`,
   'utf8',
 );
 

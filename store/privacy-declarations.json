@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "tracking": false,
+  "advertising": false,
+  "analytics": false,
+  "saleOfData": false,
+  "data": [
+    {
+      "field": "display_name",
+      "category": "user_content",
+      "purpose": "app_functionality",
+      "public": true,
+      "linkedToPseudonymousUser": true,
+      "retention": "until_user_deletion"
+    },
+    {
+      "field": "score_and_game_scope",
+      "category": "gameplay_content",
+      "purpose": "app_functionality",
+      "public": true,
+      "linkedToPseudonymousUser": true,
+      "retention": "until_user_deletion"
+    },
+    {
+      "field": "hashed_player_token",
+      "category": "user_identifier",
+      "purpose": "account_and_ranking_integrity",
+      "public": false,
+      "linkedToPseudonymousUser": true,
+      "retention": "until_user_deletion"
+    },
+    {
+      "field": "salted_network_abuse_hash",
+      "category": "diagnostics",
+      "purpose": "fraud_prevention_security",
+      "public": false,
+      "linkedToPseudonymousUser": false,
+      "retention": "maximum_15_minutes"
+    },
+    {
+      "field": "verified_game_session",
+      "category": "gameplay_content",
+      "purpose": "fraud_prevention_security",
+      "public": false,
+      "linkedToPseudonymousUser": true,
+      "retention": "until_expiry_then_scheduled_deletion"
+    }
+  ],
+  "processors": [
+    {
+      "name": "Cloudflare Workers and D1",
+      "role": "ranking API, security controls, and ranking storage"
+    },
+    {
+      "name": "GitHub Pages",
+      "role": "static web application hosting only"
+    }
+  ]
+}

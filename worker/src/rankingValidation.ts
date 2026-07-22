@@ -1,28 +1,18 @@
-export const GAME_TYPES = [
-  'strawberry_rush',
-  'island_rush',
-  'flag_rush',
-  'color_rush',
-] as const;
+import {
+  API_GAME_TYPES,
+  ISLAND_REGIONS,
+  RANKING_PERIODS,
+} from './generated/rankingContract';
+
+export const GAME_TYPES = API_GAME_TYPES;
 
 export type GameType = typeof GAME_TYPES[number];
 
-export const PERIODS = ['all', 'daily', 'weekly', 'monthly'] as const;
+export const PERIODS = RANKING_PERIODS;
 
 export type RankingPeriod = typeof PERIODS[number];
 
-export const ISLAND_REGIONS = [
-  'all',
-  'hokkaido_tohoku',
-  'kanto',
-  'chubu_kinki',
-  'chugoku',
-  'shikoku',
-  'kyushu_north',
-  'kyushu_south',
-  'kyushu',
-  'okinawa',
-] as const;
+export { ISLAND_REGIONS } from './generated/rankingContract';
 
 export type IslandRegion = typeof ISLAND_REGIONS[number];
 

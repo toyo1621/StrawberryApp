@@ -84,29 +84,30 @@ export const filterRankingsByPeriod = (
   });
 };
 
-export const getUniquePlayerRankings = (
+const isBetterRanking = (candidate: RankingEntry, current: RankingEntry): boolean => (
+  candidate.score > current.score
+  || (candidate.score === current.score && candidate.createdAt < current.createdAt)
+);
+
+export const getLeaderboardEntries = (
   rankings: RankingEntry[],
   limit = 30,
 ): RankingEntry[] => {
-  const bestByPlayer = new Map<string, RankingEntry>();
+  const bestByIdentity = new Map<string, RankingEntry>();
 
   rankings.forEach((entry) => {
-    const identity = rankingIdentity(entry.playerName);
-    if (!identity) {
+    if (!entry.id) {
       return;
     }
 
-    const existing = bestByPlayer.get(identity);
-    if (
-      !existing
-      || entry.score > existing.score
-      || (entry.score === existing.score && entry.createdAt < existing.createdAt)
-    ) {
-      bestByPlayer.set(identity, entry);
+    const identity = entry.isCurrentPlayer ? 'current-player' : `entry:${entry.id}`;
+    const existing = bestByIdentity.get(identity);
+    if (!existing || isBetterRanking(entry, existing)) {
+      bestByIdentity.set(identity, entry);
     }
   });
 
-  return [...bestByPlayer.values()]
+  return [...bestByIdentity.values()]
     .sort((a, b) => b.score - a.score || a.createdAt.localeCompare(b.createdAt))
     .slice(0, limit);
 };

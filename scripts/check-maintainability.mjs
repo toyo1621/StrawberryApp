@@ -7,9 +7,11 @@ const appSourceRoot = resolve(root, 'src');
 const workerSourceRoot = resolve(root, 'worker/src');
 const sourceRoots = [appSourceRoot, workerSourceRoot];
 const orchestratorLimits = new Map([
-  ['src/App.tsx', 500],
-  ['src/services/rankingService.ts', 500],
+  ['src/App.tsx', 420],
+  ['src/components/AppScreenRouter.tsx', 240],
+  ['src/services/rankingService.ts', 420],
   ['worker/src/index.ts', 300],
+  ['worker/src/leaderboards.ts', 480],
 ]);
 
 const listSourceFiles = (directory) => readdirSync(directory, { withFileTypes: true })

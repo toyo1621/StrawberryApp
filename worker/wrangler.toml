@@ -14,6 +14,7 @@ crons = ["*/15 * * * *"]
 
 [vars]
 ALLOWED_ORIGINS = "https://toyo1621.github.io,http://localhost:3000,http://localhost:8081,http://localhost:19006"
+WEB_APP_URL = "https://toyo1621.github.io/StrawberryApp"
 
 [[d1_databases]]
 binding = "DB"

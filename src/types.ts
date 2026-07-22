@@ -1,3 +1,5 @@
+import { ISLAND_REGION } from './generated/rankingContract';
+
 export enum GameState {
   START,
   PLAYING,
@@ -21,23 +23,14 @@ export enum GameMode {
   COLOR = 'color',
 }
 
-export enum IslandRegion {
-  ALL = 'all',
-  HOKKAIDO_TOHOKU = 'hokkaido_tohoku',
-  KANTO = 'kanto',
-  CHUBU_KINKI = 'chubu_kinki',
-  CHUGOKU = 'chugoku',
-  SHIKOKU = 'shikoku',
-  KYUSHU_NORTH = 'kyushu_north',
-  KYUSHU_SOUTH = 'kyushu_south',
-  // Retained for pre-split score history and cached clients.
-  KYUSHU = 'kyushu',
-  OKINAWA = 'okinawa',
-}
+export const IslandRegion = ISLAND_REGION;
+// A generated value object and its union type intentionally share the public name.
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type IslandRegion = typeof IslandRegion[keyof typeof IslandRegion];
 
 export type IslandRegionGroup = Exclude<
   IslandRegion,
-  IslandRegion.ALL | IslandRegion.KYUSHU
+  typeof IslandRegion.ALL | typeof IslandRegion.KYUSHU
 >;
 
 export enum RankingPeriod {
@@ -54,6 +47,7 @@ export interface RankingEntry {
   gameType: string;
   islandRegion: IslandRegion;
   createdAt: string;
+  isCurrentPlayer?: boolean;
 }
 
 export type RankingsByMode = Record<GameMode, RankingEntry[]>;

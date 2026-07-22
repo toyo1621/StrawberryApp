@@ -1,8 +1,5 @@
-import React, { Suspense, lazy, useState, useCallback, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View,
-  ActivityIndicator,
-  Text,
   Image,
   Animated,
   AccessibilityInfo,
@@ -11,9 +8,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { strawberryJuiceImage } from './assets/images/strawberryJuiceAsset';
 import { GameState, GameMode, IslandRegion } from './types';
-import { getUniquePlayerRankings } from './domain/rankings';
+import { getLeaderboardEntries } from './domain/rankings';
 import ErrorBoundary from './components/ErrorBoundary';
-import StartScreen from './components/StartScreen';
+import AppScreenRouter, { AppLoadingFallback } from './components/AppScreenRouter';
 import {
   deletePlayerRankingData,
   createRankingGameSession,
@@ -29,19 +26,6 @@ import { useScreenAnnouncement } from './hooks/useScreenAnnouncement';
 import { useHardwareBackNavigation } from './hooks/useHardwareBackNavigation';
 import { saveGameResult } from './services/gameResultService';
 import { appStyles as styles } from './App.styles';
-
-const GameScreen = lazy(() => import('./components/GameScreen'));
-const IslandGameScreen = lazy(() => import('./components/IslandGameScreen'));
-const FlagGameScreen = lazy(() => import('./components/FlagGameScreen'));
-const ColorGameScreen = lazy(() => import('./components/ColorGameScreen'));
-const MemoryGameScreen = lazy(() => import('./components/MemoryGameScreen'));
-const MemoryGame2Screen = lazy(() => import('./components/MemoryGame2Screen'));
-const GameOverScreen = lazy(() => import('./components/GameOverScreen'));
-const RulesScreen = lazy(() => import('./components/RulesScreen'));
-const MyPageScreen = lazy(() => import('./components/MyPageScreen'));
-const PrivacyPolicyScreen = lazy(() => import('./components/PrivacyPolicyScreen'));
-const TermsOfServiceScreen = lazy(() => import('./components/TermsOfServiceScreen'));
-const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
 const App: React.FC = () => {
   const {
@@ -114,7 +98,8 @@ const App: React.FC = () => {
     setPlayerName(name);
     setGameMode(mode);
     setIslandRegion(selectedIslandRegion);
-    setCurrentScore(0); currentResultIdRef.current = null;
+    setCurrentScore(0);
+    currentResultIdRef.current = null;
     setMemoryAnswer('');
     setFirstDistractor('');
     setError(null);
@@ -178,7 +163,7 @@ const App: React.FC = () => {
         } else {
           setRankingsByMode((current) => ({
             ...current,
-            [gameMode]: getUniquePlayerRankings([
+            [gameMode]: getLeaderboardEntries([
               ...current[gameMode],
               result.entry,
             ]),
@@ -208,7 +193,8 @@ const App: React.FC = () => {
   const handleRestart = useCallback(() => {
     gameSessionRef.current = null;
     gameStartedAtRef.current = null;
-    gameplayDurationMsRef.current = null; currentResultIdRef.current = null;
+    gameplayDurationMsRef.current = null;
+    currentResultIdRef.current = null;
     setGameState(GameState.START);
   }, []);
   const handleHardwareBack = useCallback((destination: GameState) => {
@@ -219,7 +205,8 @@ const App: React.FC = () => {
   const handlePlayAgain = useCallback(async () => {
     if (isPreparingGame) {return;}
     setIsPreparingGame(true);
-    setCurrentScore(0); currentResultIdRef.current = null;
+    setCurrentScore(0);
+    currentResultIdRef.current = null;
     setMemoryAnswer('');
     setFirstDistractor('');
     setError(null);
@@ -340,136 +327,50 @@ const App: React.FC = () => {
     }
   }, [juiceScale, juiceOpacity]);
 
-  const renderScreen = () => {
-    switch (gameState) {
-      case GameState.PLAYING:
-        return <GameScreen onGameOver={handleGameOver} onMemoryGame={handleMemoryGame} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onShowJuice={handleShowJuice} onBackToHome={handleRestart} />;
-      case GameState.ISLAND_PLAYING:
-        return <IslandGameScreen region={islandRegion} onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={handleRestart} />;
-      case GameState.FLAG_PLAYING:
-        return <FlagGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={handleRestart} />;
-      case GameState.COLOR_PLAYING:
-        return <ColorGameScreen onGameOver={handleGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={handleRestart} />;
-      case GameState.MEMORY_GAME:
-        return (
-          <MemoryGameScreen 
-            currentScore={currentScore}
-            correctAnswer={memoryAnswer}
-            onComplete={handleMemoryGame2}
-            darkMode={settings.darkMode}
-          />
-        );
-      case GameState.MEMORY_GAME_2:
-        return (
-          <MemoryGame2Screen 
-            currentScore={currentScore}
-            correctAnswer={firstDistractor}
-            onComplete={handleGameOver}
-            darkMode={settings.darkMode}
-          />
-        );
-      case GameState.GAME_OVER:
-        return (
-          <>
-          <GameOverScreen 
-            ranking={rankingsByMode[gameMode]}
-            gameMode={gameMode}
-            islandRegion={islandRegion}
-            currentPlayer={{ id: currentResultIdRef.current, name: playerName, score: currentScore }}
-            onPlayAgain={handlePlayAgain}
-            onGoHome={handleRestart}
-            error={error}
-            onDismissError={() => setError(null)}
-            notice={notice}
-            onDismissNotice={() => setNotice(null)}
-            darkMode={settings.darkMode}
-            isPreparingGame={isPreparingGame}
-            isSavingScore={isSavingScore}
-            />
-            {isSavingScore && (
-              <View style={styles.savingOverlay}>
-                <View style={styles.savingContainer}>
-                  <ActivityIndicator accessibilityLabel="スコアを保存中" size="large" color="#be185d" />
-                  <Text accessibilityLiveRegion="polite" style={styles.savingText}>スコアを保存中...</Text>
-                </View>
-              </View>
-            )}
-          </>
-        );
-      case GameState.START:
-      default:
-        return (
-          <>
-            <StartScreen 
-              onStart={handleGameStart} 
-              rankings={rankingsByMode}
-              isLoading={isLoading} 
-              onShowRules={handleShowRules} 
-              onShowMyPage={handleShowMyPage}
-              savedPlayerName={playerName}
-              initialMode={gameMode}
-              initialIslandRegion={islandRegion}
-              error={error}
-              onDismissError={() => setError(null)}
-              notice={notice}
-              onDismissNotice={() => setNotice(null)}
-              darkMode={settings.darkMode}
-              isPreparingGame={isPreparingGame}
-              onlineRankingsEnabled={settings.onlineRankingsEnabled}
-            />
-            {isSavingScore && (
-              <View style={styles.savingOverlay}>
-                <View style={styles.savingContainer}>
-                  <ActivityIndicator accessibilityLabel="スコアを保存中" size="large" color="#be185d" />
-                  <Text accessibilityLiveRegion="polite" style={styles.savingText}>スコアを保存中...</Text>
-                </View>
-              </View>
-            )}
-          </>
-        );
-      case GameState.RULES:
-        return <RulesScreen onBack={handleBackFromRules} darkMode={settings.darkMode} />;
-      case GameState.MY_PAGE:
-        return (
-          <MyPageScreen 
-            onBack={handleBackFromMyPage} 
-            onNameChanged={handleNameChanged}
-            onShowSettings={handleShowSettings}
-            onShowPrivacyPolicy={handleShowPrivacyPolicy}
-            onShowTermsOfService={handleShowTermsOfService}
-            onDeleteData={handleDeleteData}
-            darkMode={settings.darkMode}
-          />
-        );
-      case GameState.SETTINGS:
-        return <SettingsScreen onBack={handleBackFromSettings} onSettingsChanged={handleSettingsChanged} darkMode={settings.darkMode} />;
-      case GameState.PRIVACY_POLICY:
-        return <PrivacyPolicyScreen onBack={handleBackFromPrivacyPolicy} darkMode={settings.darkMode} />;
-      case GameState.TERMS_OF_SERVICE:
-        return <TermsOfServiceScreen onBack={handleBackFromTermsOfService} darkMode={settings.darkMode} />;
-    }
-  };
-
   return (
     <ErrorBoundary>
       <SafeAreaView role="main" style={[styles.container, settings.darkMode && styles.containerDark]} edges={['top', 'bottom']}>
         <StatusBar style={settings.darkMode ? "light" : "dark"} />
-        <Suspense fallback={(
-          <View style={styles.loadingScreen}>
-            <ActivityIndicator
-              accessibilityLabel="画面を読み込み中"
-              size="large"
-              color={settings.darkMode ? '#f9a8d4' : '#be185d'}
-            />
-            <Text
-              accessibilityLiveRegion="polite"
-              style={[styles.loadingText, settings.darkMode && styles.loadingTextDark]}
-            >
-              画面を読み込み中...
-            </Text>
-          </View>
-        )}>
-          {renderScreen()}
+        <Suspense fallback={<AppLoadingFallback darkMode={settings.darkMode} />}>
+          <AppScreenRouter
+            gameState={gameState}
+            gameMode={gameMode}
+            islandRegion={islandRegion}
+            currentScore={currentScore}
+            memoryAnswer={memoryAnswer}
+            firstDistractor={firstDistractor}
+            rankingsByMode={rankingsByMode}
+            currentResultId={currentResultIdRef.current}
+            playerName={playerName}
+            error={error}
+            notice={notice}
+            settings={settings}
+            isLoading={isLoading}
+            isPreparingGame={isPreparingGame}
+            isSavingScore={isSavingScore}
+            onGameStart={handleGameStart}
+            onGameOver={handleGameOver}
+            onMemoryGame={handleMemoryGame}
+            onMemoryGame2={handleMemoryGame2}
+            onShowJuice={handleShowJuice}
+            onRestart={handleRestart}
+            onPlayAgain={handlePlayAgain}
+            onShowRules={handleShowRules}
+            onBackFromRules={handleBackFromRules}
+            onShowMyPage={handleShowMyPage}
+            onBackFromMyPage={handleBackFromMyPage}
+            onNameChanged={handleNameChanged}
+            onShowSettings={handleShowSettings}
+            onBackFromSettings={handleBackFromSettings}
+            onSettingsChanged={handleSettingsChanged}
+            onShowPrivacyPolicy={handleShowPrivacyPolicy}
+            onBackFromPrivacyPolicy={handleBackFromPrivacyPolicy}
+            onShowTermsOfService={handleShowTermsOfService}
+            onBackFromTermsOfService={handleBackFromTermsOfService}
+            onDeleteData={handleDeleteData}
+            onDismissError={() => setError(null)}
+            onDismissNotice={() => setNotice(null)}
+          />
         </Suspense>
         {/* いちご汁オーバーレイ（画面全体に表示） */}
         {showStrawberryJuice && (

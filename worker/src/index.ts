@@ -1,4 +1,5 @@
 import { cleanupRateLimitBuckets } from './identity';
+import { RANKINGS_API_VERSION } from './generated/rankingContract';
 import {
   getReleaseId,
   getRequestId,
@@ -19,6 +20,10 @@ import {
   getPlayerBestScore,
   getPlayerHistory,
 } from './playerRankings';
+import {
+  getProductionMonitorStatus,
+  runProductionMonitor,
+} from './productionMonitor';
 import { ValidationError } from './rankingValidation';
 import {
   cleanupExpiredGameSessions,
@@ -38,9 +43,6 @@ const ALLOWED_METHODS_BY_PATH = new Map<string, string[]>([
 ]);
 
 export type { Env } from './types';
-export { cleanupRateLimitBuckets } from './identity';
-export { getPeriodStart } from './leaderboards';
-export { cleanupExpiredGameSessions } from './scoreSubmissions';
 
 const noStoreHeaders = (requestId: string): HeadersInit => ({
   'cache-control': 'no-store',
@@ -102,7 +104,7 @@ const handleOptions = (
   setCorsHeaders(headers, origin, env);
   setSecurityHeaders(headers);
   headers.set('allow', [...allowedMethods, 'OPTIONS'].join(', '));
-  headers.set('x-api-version', '4');
+  headers.set('x-api-version', String(RANKINGS_API_VERSION));
   headers.set('x-release-id', getReleaseId(env));
   headers.set('x-request-id', requestId);
   return new Response(null, { status: 204, headers });
@@ -120,15 +122,23 @@ const routeRequest = async (
 
   switch (route) {
     case 'GET /health': {
-      const health = await env.DB.prepare('SELECT 1 AS ok').first<{ ok: number }>();
+      const [health, monitor] = await Promise.all([
+        env.DB.prepare('SELECT 1 AS ok').first<{ ok: number }>(),
+        getProductionMonitorStatus(env),
+      ]);
       if (health?.ok !== 1) {
         throw new Error('Database health check failed.');
       }
       return json({
         ok: true,
         service: 'strawberry-rankings-api',
-        version: 4,
+        version: RANKINGS_API_VERSION,
         release: getReleaseId(env),
+        monitor: monitor ? {
+          status: monitor.status,
+          checkedAt: monitor.checkedAt,
+          latencyMs: monitor.latencyMs,
+        } : null,
       }, { headers: noStoreHeaders(requestId) }, origin, env);
     }
 
@@ -281,6 +291,7 @@ export default {
     await Promise.all([
       cleanupRateLimitBuckets(env),
       cleanupExpiredGameSessions(env),
+      runProductionMonitor(env),
     ]);
   },
 };

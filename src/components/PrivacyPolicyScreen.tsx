@@ -36,7 +36,7 @@ const sections: InfoSection[] = [
   {
     title: '4. 公開範囲',
     paragraphs: [
-      '上位ランキングのプレイヤー名、スコア、ゲームモード、島の出題地域、記録日時はランキングAPIから公開されます。順位は秘密トークンから作る所有者ハッシュごとの最高点で、同名の別端末は別順位です。全スコア履歴は端末の秘密トークンを持つ本人だけが取得できます。氏名や連絡先など、公開したくない情報をプレイヤー名に入力しないでください。',
+      '上位ランキングのプレイヤー名、スコア、ゲームモード、島の出題地域、記録日時はランキングAPIから公開されます。順位は秘密トークンから作る所有者ハッシュごとの最高点で、同名の別端末は別順位です。秘密トークンを付けた本人向け応答だけが該当行を「あなた」と識別し、所有者ハッシュや公開用の固定識別子は返しません。全スコア履歴は端末の秘密トークンを持つ本人だけが取得できます。氏名や連絡先など、公開したくない情報をプレイヤー名に入力しないでください。',
     ],
   },
   {
@@ -69,7 +69,7 @@ const sections: InfoSection[] = [
 const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({ onBack, darkMode = false }) => (
   <InfoScreen
     title="プライバシーポリシー"
-    updatedAt="2026年7月22日"
+    updatedAt="2026年7月23日"
     sections={sections}
     onBack={onBack}
     darkMode={darkMode}

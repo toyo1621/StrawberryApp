@@ -31,6 +31,10 @@ CREATE INDEX IF NOT EXISTS idx_rankings_game_region_legacy_name_score_created
 CREATE INDEX IF NOT EXISTS idx_rankings_owner_game_created
   ON rankings (owner_hash, game_type, created_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_rankings_owner_game_region_score_created
+  ON rankings (owner_hash, game_type, island_region, score DESC, created_at ASC)
+  WHERE owner_hash IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS score_submission_buckets (
   identity_hash TEXT NOT NULL,
   window_start INTEGER NOT NULL,
@@ -66,3 +70,15 @@ CREATE INDEX IF NOT EXISTS idx_game_sessions_expires
 
 CREATE INDEX IF NOT EXISTS idx_game_sessions_owner_started
   ON game_sessions (owner_hash, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS service_heartbeats (
+  monitor_name TEXT PRIMARY KEY,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'healthy', 'unhealthy')),
+  checked_at TEXT NOT NULL,
+  latency_ms INTEGER NOT NULL DEFAULT 0 CHECK (latency_ms >= 0),
+  details TEXT NOT NULL DEFAULT ''
+);
+
+INSERT INTO service_heartbeats (monitor_name, status, checked_at, latency_ms, details)
+VALUES ('production', 'pending', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 0, 'Waiting for the first scheduled check.')
+ON CONFLICT(monitor_name) DO NOTHING;

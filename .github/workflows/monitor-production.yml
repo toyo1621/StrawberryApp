@@ -2,7 +2,10 @@ name: Monitor Production
 
 on:
   schedule:
-    - cron: "2,17,32,47 * * * *"
+    - cron: "2 * * * *"
+    - cron: "17 * * * *"
+    - cron: "32 * * * *"
+    - cron: "47 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -30,6 +33,7 @@ jobs:
         run: node scripts/smoke-rankings-api.mjs
         env:
           EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev
+          REQUIRE_MONITOR_HEARTBEAT: "true"
 
       - name: Check web and API release consistency
         run: node scripts/smoke-release-consistency.mjs
@@ -48,6 +52,7 @@ jobs:
       ALERT_WEBHOOK_URL: ${{ secrets.MONITOR_ALERT_WEBHOOK_URL }}
     steps:
       - name: Open or update production incident
+        id: incident
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -57,12 +62,14 @@ jobs:
           issue_number="$(gh issue list --repo "$REPOSITORY" --label production-monitor --state open --json number --jq '.[0].number // empty')"
           if [ -n "$issue_number" ]; then
             gh issue comment "$issue_number" --repo "$REPOSITORY" --body "Production monitoring failed again: $RUN_URL"
+            echo "notify=false" >> "$GITHUB_OUTPUT"
           else
             gh issue create --repo "$REPOSITORY" --label production-monitor --title "Production monitoring failed" --body "The 15-minute web/API smoke check failed. Investigate the run: $RUN_URL"
+            echo "notify=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Notify external incident webhook
-        if: env.ALERT_WEBHOOK_URL != ''
+        if: steps.incident.outputs.notify == 'true' && env.ALERT_WEBHOOK_URL != ''
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -82,6 +89,7 @@ jobs:
       ALERT_WEBHOOK_URL: ${{ secrets.MONITOR_ALERT_WEBHOOK_URL }}
     steps:
       - name: Close recovered production incident
+        id: incident
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -91,10 +99,13 @@ jobs:
           if [ -n "$issue_number" ]; then
             gh issue comment "$issue_number" --repo "$REPOSITORY" --body "Production monitoring recovered: $RUN_URL"
             gh issue close "$issue_number" --repo "$REPOSITORY" --reason completed
+            echo "notify=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "notify=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Notify external recovery webhook
-        if: env.ALERT_WEBHOOK_URL != ''
+        if: steps.incident.outputs.notify == 'true' && env.ALERT_WEBHOOK_URL != ''
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |

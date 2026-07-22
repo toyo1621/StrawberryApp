@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { RANKINGS_API_VERSION } from './generated/rankingContract.mjs';
 import {
   extractJavaScriptPaths,
   hasHealthyJavaScriptBundles,
@@ -10,10 +11,10 @@ import {
 
 const release = {
   ok: true,
-  headerVersion: '4',
+  headerVersion: String(RANKINGS_API_VERSION),
   headerReleaseId: 'commit-a',
-  body: { ok: true, version: 4, release: 'commit-a' },
-  expectedVersion: '4',
+  body: { ok: true, version: RANKINGS_API_VERSION, release: 'commit-a' },
+  expectedVersion: String(RANKINGS_API_VERSION),
   expectedReleaseId: 'commit-a',
 };
 
@@ -39,25 +40,25 @@ assert.equal(isSyntheticCleanupComplete({
 assert.equal(isSyntheticCleanupComplete({ ...cleanup, history: null }), false);
 assert.equal(isSyntheticCleanupComplete({ ...cleanup, syntheticScoreCreated: false, deleted: 0 }), true);
 
-const releaseMetadata = { release: 'a'.repeat(40), apiVersion: 4 };
+const releaseMetadata = { release: 'a'.repeat(40), apiVersion: RANKINGS_API_VERSION };
 assert.equal(isReleaseMetadata(releaseMetadata), true);
 assert.equal(isReleaseMetadata(releaseMetadata, 'a'.repeat(40)), true);
 assert.equal(isReleaseMetadata(releaseMetadata, 'b'.repeat(40)), false);
-assert.equal(isReleaseMetadata({ release: 'development', apiVersion: 4 }), true);
-assert.equal(isReleaseMetadata({ release: 'short', apiVersion: 4 }), false);
+assert.equal(isReleaseMetadata({ release: 'development', apiVersion: RANKINGS_API_VERSION }), true);
+assert.equal(isReleaseMetadata({ release: 'short', apiVersion: RANKINGS_API_VERSION }), false);
 assert.equal(isCompatibleProductionRelease({
   webRelease: releaseMetadata,
-  apiHealth: { ok: true, version: 4, release: 'a'.repeat(40) },
+  apiHealth: { ok: true, version: RANKINGS_API_VERSION, release: 'a'.repeat(40) },
   apiHeaderRelease: 'a'.repeat(40),
 }), true);
 assert.equal(isCompatibleProductionRelease({
   webRelease: releaseMetadata,
-  apiHealth: { ok: true, version: 4, release: 'b'.repeat(40) },
+  apiHealth: { ok: true, version: RANKINGS_API_VERSION, release: 'b'.repeat(40) },
   apiHeaderRelease: 'b'.repeat(40),
 }), false);
 assert.equal(isCompatibleProductionRelease({
-  webRelease: { release: 'development', apiVersion: 4 },
-  apiHealth: { ok: true, version: 4, release: 'development' },
+  webRelease: { release: 'development', apiVersion: RANKINGS_API_VERSION },
+  apiHealth: { ok: true, version: RANKINGS_API_VERSION, release: 'development' },
   apiHeaderRelease: 'development',
 }), false);
 
