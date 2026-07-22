@@ -142,12 +142,15 @@ const routeRequest = async (
 
     case 'GET /rankings': {
       const result = await fetchLeaderboard(request, env, context);
-      const cacheControl = result.cacheStatus === 'stale'
-        ? 'public, max-age=5, stale-if-error=300'
-        : 'public, max-age=30, stale-while-revalidate=120, stale-if-error=300';
+      const cacheControl = request.headers.has('authorization')
+        ? 'private, no-store'
+        : result.cacheStatus === 'stale'
+          ? 'public, max-age=5, stale-if-error=300'
+          : 'public, max-age=30, stale-while-revalidate=120, stale-if-error=300';
       return json(result.entries, {
         headers: {
           'cache-control': cacheControl,
+          'vary': 'Authorization',
           'x-d1-primary': result.servedByPrimary === undefined
             ? 'unknown'
             : String(result.servedByPrimary),
