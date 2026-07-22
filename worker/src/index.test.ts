@@ -1,11 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker, {
-  cleanupExpiredGameSessions,
-  cleanupRateLimitBuckets,
-  Env,
-  getPeriodStart,
-} from './index.js';
+import worker, { Env } from './index.js';
+import { cleanupRateLimitBuckets, sha256Hex } from './identity.js';
+import { getPeriodStart } from './leaderboards.js';
+import { cleanupExpiredGameSessions } from './scoreSubmissions.js';
+import { RANKINGS_API_VERSION } from './generated/rankingContract.js';
 
 type RankingRecord = {
   id: string;
@@ -33,6 +32,14 @@ type GameSessionRecord = {
   expiresAt: string;
   consumedAt: string | null;
   submissionId: string | null;
+};
+
+type HeartbeatRecord = {
+  monitorName: string;
+  status: 'pending' | 'healthy' | 'unhealthy';
+  checkedAt: string;
+  latencyMs: number;
+  details: string;
 };
 
 class FakeStatement {
@@ -86,8 +93,40 @@ class FakeStatement {
       return ranking ? { score: ranking.score } as T : null;
     }
 
+    if (this.sql.includes('SELECT id') && this.sql.includes('owner_hash = ?')) {
+      if (this.db.failOwnerLookup) {
+        throw new Error('Simulated owner lookup failure.');
+      }
+      const [gameType, islandRegion, ownerHash, periodStart] = this.params as [
+        string,
+        string,
+        string,
+        string | undefined,
+      ];
+      const ranking = this.db.rankings
+        .filter((entry) => (
+          entry.gameType === gameType
+          && entry.islandRegion === islandRegion
+          && entry.ownerHash === ownerHash
+          && (!periodStart || entry.createdAt >= periodStart)
+        ))
+        .sort((a, b) => b.score - a.score || a.createdAt.localeCompare(b.createdAt))[0];
+      return ranking ? { id: ranking.id } as T : null;
+    }
+
     if (this.sql.includes('SELECT 1 AS ok')) {
       return { ok: 1 } as T;
+    }
+
+    if (this.sql.includes('FROM service_heartbeats')) {
+      const [monitorName] = this.params as [string];
+      const heartbeat = this.db.heartbeats.find((entry) => entry.monitorName === monitorName);
+      return heartbeat ? {
+        status: heartbeat.status,
+        checked_at: heartbeat.checkedAt,
+        latency_ms: heartbeat.latencyMs,
+        details: heartbeat.details,
+      } as T : null;
     }
 
     return null;
@@ -199,6 +238,24 @@ class FakeStatement {
       changes = 1;
     }
 
+    if (this.sql.includes('INSERT INTO service_heartbeats')) {
+      const [monitorName, status, checkedAt, latencyMs, details] = this.params as [
+        string,
+        HeartbeatRecord['status'],
+        string,
+        number,
+        string,
+      ];
+      const existing = this.db.heartbeats.find((entry) => entry.monitorName === monitorName);
+      const heartbeat = { monitorName, status, checkedAt, latencyMs, details };
+      if (existing) {
+        Object.assign(existing, heartbeat);
+      } else {
+        this.db.heartbeats.push(heartbeat);
+      }
+      changes = 1;
+    }
+
     if (this.sql.includes('UPDATE game_sessions')) {
       const [consumedAt, submissionId, id] = this.params as [string, string, string];
       const session = this.db.gameSessions.find((entry) => entry.id === id);
@@ -262,8 +319,10 @@ class FakeD1Database {
   rankings: RankingRecord[] = [];
   submissionBuckets: SubmissionBucket[] = [];
   gameSessions: GameSessionRecord[] = [];
+  heartbeats: HeartbeatRecord[] = [];
   rankingQueryCount = 0;
   failRankingQueries = false;
+  failOwnerLookup = false;
   sessionConstraints: string[] = [];
 
   prepare(sql: string) {
@@ -308,6 +367,21 @@ class FakeCache implements Cache {
       this.responses.set(key, new Response(JSON.stringify(value), {
         headers: { 'cache-control': 'public, max-age=300' },
       }));
+    }
+  }
+
+  async markFirstSnapshotAsCurrentPlayer(): Promise<void> {
+    for (const [key, response] of this.responses) {
+      const value = await response.clone().json() as {
+        entries: { isCurrentPlayer?: boolean }[];
+      };
+      if (value.entries[0]) {
+        value.entries[0].isCurrentPlayer = true;
+      }
+      this.responses.set(key, new Response(JSON.stringify(value), {
+        headers: { 'cache-control': 'public, max-age=300' },
+      }));
+      return;
     }
   }
 }
@@ -698,7 +772,7 @@ test('coalesces concurrent leaderboard cache misses and reads through a replica 
   }
 });
 
-test('an authenticated leaderboard refresh bypasses cache and reads from primary', async () => {
+test('authenticated leaderboard reads personalize cached data and fresh primary reads', async () => {
   const cache = new FakeCache();
   const restoreCache = installFakeCache(cache);
   try {
@@ -707,6 +781,7 @@ test('an authenticated leaderboard refresh bypasses cache and reads from primary
     const requestUrl = 'https://api.test/rankings?gameType=strawberry_rush&period=all&limit=30';
     assert.equal((await worker.fetch(new Request(requestUrl), env)).status, 200);
 
+    const ownerHash = await sha256Hex(`player:${TEST_PLAYER_TOKEN}`);
     db.rankings.push({
       id: 'just-created-entry',
       playerName: '直後の選手',
@@ -714,19 +789,117 @@ test('an authenticated leaderboard refresh bypasses cache and reads from primary
       gameType: 'strawberry_rush',
       islandRegion: 'all',
       createdAt: '2026-07-22T00:00:00.000Z',
-      ownerHash: 'e'.repeat(64),
+      ownerHash,
     });
-    const response = await worker.fetch(new Request(requestUrl, {
+    const cachedResponse = await worker.fetch(new Request(requestUrl, {
       headers: { authorization: `Bearer ${TEST_PLAYER_TOKEN}` },
     }), env);
-    const body = await response.json() as RankingRecord[];
+    const cachedBody = await cachedResponse.json() as (RankingRecord & { isCurrentPlayer?: boolean })[];
+
+    assert.equal(cachedResponse.headers.get('x-rankings-cache'), 'hit');
+    assert.deepEqual(cachedBody, []);
+
+    const response = await worker.fetch(new Request(requestUrl, {
+      headers: {
+        authorization: `Bearer ${TEST_PLAYER_TOKEN}`,
+        'cache-control': 'no-store',
+      },
+    }), env);
+    const body = await response.json() as (RankingRecord & { isCurrentPlayer?: boolean })[];
 
     assert.equal(response.headers.get('x-rankings-cache'), 'bypass');
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
     assert.match(response.headers.get('vary') ?? '', /Authorization/);
-    assert.deepEqual(body.map((entry) => entry.id), ['just-created-entry']);
+    assert.deepEqual(body.map((entry) => [entry.id, entry.isCurrentPlayer]), [
+      ['just-created-entry', true],
+    ]);
+    const publicResponse = await worker.fetch(new Request(requestUrl, {
+      headers: { 'cache-control': 'no-store' },
+    }), env);
+    const publicBody = await publicResponse.json() as { id: string; isCurrentPlayer?: boolean }[];
+    assert.deepEqual(publicBody.map((entry) => [entry.id, entry.isCurrentPlayer]), [
+      ['just-created-entry', undefined],
+    ]);
+
+    assert.equal(db.rankingQueryCount, 3);
+    assert.deepEqual(db.sessionConstraints, [
+      'first-unconstrained',
+      'first-primary',
+      'first-primary',
+      'first-primary',
+      'first-unconstrained',
+    ]);
+  } finally {
+    restoreCache();
+  }
+});
+
+test('keeps cached rankings available when optional personalization fails', async () => {
+  const cache = new FakeCache();
+  const restoreCache = installFakeCache(cache);
+  try {
+    const env = createEnv();
+    const db = env.DB as unknown as FakeD1Database;
+    const ownerHash = await sha256Hex(`player:${TEST_PLAYER_TOKEN}`);
+    db.rankings.push({
+      id: 'available-without-marker',
+      playerName: '継続表示',
+      score: 9,
+      gameType: 'strawberry_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:00:00.000Z',
+      ownerHash,
+    });
+    const requestUrl = 'https://api.test/rankings?gameType=strawberry_rush&period=all&limit=30';
+    assert.equal((await worker.fetch(new Request(requestUrl), env)).status, 200);
+    db.failOwnerLookup = true;
+
+    const cachedResponse = await worker.fetch(new Request(requestUrl, {
+      headers: { authorization: `Bearer ${TEST_PLAYER_TOKEN}` },
+    }), env);
+    const cachedBody = await cachedResponse.json() as { isCurrentPlayer?: boolean }[];
+    assert.equal(cachedResponse.status, 200);
+    assert.equal(cachedResponse.headers.get('x-rankings-cache'), 'hit');
+    assert.equal(cachedBody[0].isCurrentPlayer, undefined);
+
+    const freshResponse = await worker.fetch(new Request(requestUrl, {
+      headers: {
+        authorization: `Bearer ${TEST_PLAYER_TOKEN}`,
+        'cache-control': 'no-store',
+      },
+    }), env);
+    assert.equal(freshResponse.status, 500);
+  } finally {
+    restoreCache();
+  }
+});
+
+test('rejects current-player data from the public edge cache', async () => {
+  const cache = new FakeCache();
+  const restoreCache = installFakeCache(cache);
+  try {
+    const env = createEnv();
+    const db = env.DB as unknown as FakeD1Database;
+    db.rankings.push({
+      id: 'public-cache-entry',
+      playerName: '公開選手',
+      score: 7,
+      gameType: 'color_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:00:00.000Z',
+      ownerHash: 'e'.repeat(64),
+    });
+    const requestUrl = 'https://api.test/rankings?gameType=color_rush&period=all&limit=30';
+    assert.equal((await worker.fetch(new Request(requestUrl), env)).status, 200);
+    await cache.markFirstSnapshotAsCurrentPlayer();
+
+    const response = await worker.fetch(new Request(requestUrl), env);
+    const body = await response.json() as { isCurrentPlayer?: boolean }[];
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('x-rankings-cache'), 'miss');
+    assert.equal(body[0].isCurrentPlayer, undefined);
+    assert.equal(cache.deleteCount, 1);
     assert.equal(db.rankingQueryCount, 2);
-    assert.deepEqual(db.sessionConstraints, ['first-unconstrained', 'first-primary']);
   } finally {
     restoreCache();
   }
@@ -896,7 +1069,7 @@ test('handles CORS preflights and unknown routes explicitly', async () => {
 
   assert.equal(allowed.status, 204);
   assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://toyo1621.github.io');
-  assert.equal(allowed.headers.get('x-api-version'), '4');
+  assert.equal(allowed.headers.get('x-api-version'), String(RANKINGS_API_VERSION));
   assert.equal(allowed.headers.get('x-release-id'), 'development');
   assert.equal(rejected.status, 403);
   assert.equal(missing.status, 404);
@@ -931,7 +1104,7 @@ test('health check verifies the database and returns security headers', async ()
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(response.headers.get('vary'), 'Origin');
-  assert.equal(response.headers.get('x-api-version'), '4');
+  assert.equal(response.headers.get('x-api-version'), String(RANKINGS_API_VERSION));
   assert.equal(response.headers.get('x-release-id'), 'development');
   assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains');
   assert.equal(response.headers.get('x-frame-options'), 'DENY');
@@ -940,8 +1113,9 @@ test('health check verifies the database and returns security headers', async ()
   assert.deepEqual(await response.json(), {
     ok: true,
     service: 'strawberry-rankings-api',
-    version: 4,
+    version: RANKINGS_API_VERSION,
     release: 'development',
+    monitor: null,
   });
 });
 
@@ -1110,4 +1284,58 @@ test('scheduled maintenance removes both transient data sets', async () => {
 
   assert.deepEqual(db.submissionBuckets, []);
   assert.deepEqual(db.gameSessions, []);
+});
+
+test('scheduled monitoring records health and notifies failure and recovery transitions', async () => {
+  const env = createEnv({
+    WEB_APP_URL: 'https://web.test/StrawberryApp',
+    MONITOR_ALERT_WEBHOOK_URL: 'https://alerts.test/monitor',
+  });
+  const db = env.DB as unknown as FakeD1Database;
+  const originalFetch = globalThis.fetch;
+  const originalError = console.error;
+  const notifications: { status: string }[] = [];
+  let webHealthy = true;
+  let webhookHealthy = false;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url === 'https://alerts.test/monitor') {
+      notifications.push(JSON.parse(String(init?.body)) as { status: string });
+      return new Response(null, { status: webhookHealthy ? 204 : 503 });
+    }
+    if (!webHealthy) {
+      return new Response('unavailable', { status: 503 });
+    }
+    if (url.endsWith('/release.json')) {
+      return Response.json({ release: 'a'.repeat(40), apiVersion: RANKINGS_API_VERSION });
+    }
+    return new Response('<!doctype html><title>StrawberryApp</title>', {
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    });
+  };
+  console.error = () => undefined;
+
+  try {
+    await worker.scheduled({}, env);
+    assert.equal(db.heartbeats[0].status, 'healthy');
+    assert.deepEqual(notifications, []);
+
+    webHealthy = false;
+    await assert.rejects(worker.scheduled({}, env), /Production monitor failed/);
+    assert.equal(db.heartbeats[0].status, 'unhealthy');
+    assert.deepEqual(notifications.map(({ status }) => status), ['unhealthy']);
+
+    webHealthy = true;
+    webhookHealthy = true;
+    await worker.scheduled({}, env);
+    assert.equal(db.heartbeats[0].status, 'healthy');
+    assert.deepEqual(notifications.map(({ status }) => status), ['unhealthy', 'healthy']);
+
+    const health = await worker.fetch(new Request('https://api.test/health'), env);
+    const body = await health.json() as { monitor: Record<string, unknown> };
+    assert.deepEqual(Object.keys(body.monitor).sort(), ['checkedAt', 'latencyMs', 'status']);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.error = originalError;
+  }
 });

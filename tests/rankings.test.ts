@@ -6,7 +6,7 @@ import {
   getPlayerNameValidationError,
   getPeriodStartDate,
   getRankingPositionByEntryId,
-  getUniquePlayerRankings,
+  getLeaderboardEntries,
   normalizePlayerName,
   rankingIdentity,
 } from '../src/domain/rankings';
@@ -53,15 +53,18 @@ test('period filtering excludes old and invalid timestamps', () => {
   assert.deepEqual(filterRankingsByPeriod(rankings, RankingPeriod.DAILY, now).map(({ id }) => id), ['new']);
 });
 
-test('leaderboards keep one best score per normalized player and use earliest ties', () => {
+test('leaderboards preserve same-name owners and keep only the current player best', () => {
   const rankings = [
-    entry('first', 'Player', 10, '2026-01-02T00:00:00.000Z'),
-    entry('best-late', ' player ', 20, '2026-01-03T00:00:00.000Z'),
-    entry('best-early', 'PLAYER', 20, '2026-01-01T00:00:00.000Z'),
-    entry('other', '別の人', 15, '2026-01-01T00:00:00.000Z'),
+    entry('same-name-owner', 'Player', 18, '2026-01-02T00:00:00.000Z'),
+    { ...entry('current-old', ' player ', 10, '2026-01-03T00:00:00.000Z'), isCurrentPlayer: true },
+    { ...entry('current-best-late', 'PLAYER', 20, '2026-01-03T00:00:00.000Z'), isCurrentPlayer: true },
+    { ...entry('current-best-early', 'PLAYER', 20, '2026-01-01T00:00:00.000Z'), isCurrentPlayer: true },
   ];
 
-  assert.deepEqual(getUniquePlayerRankings(rankings).map(({ id }) => id), ['best-early', 'other']);
+  assert.deepEqual(
+    getLeaderboardEntries(rankings).map(({ id }) => id),
+    ['current-best-early', 'same-name-owner'],
+  );
 });
 
 test('the current rank uses submission id when names and scores are identical', () => {

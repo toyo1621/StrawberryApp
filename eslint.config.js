@@ -20,10 +20,10 @@ module.exports = defineConfig([
     files: ['src/**/*.{ts,tsx}', 'worker/src/**/*.ts'],
     ignores: ['src/**/*.test.ts', 'worker/src/**/*.test.ts'],
     rules: {
-      complexity: ['error', 30],
-      'max-depth': ['error', 5],
-      'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+      complexity: ['error', 28],
+      'max-depth': ['error', 4],
+      'max-lines': ['error', { max: 550, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
     },
   },
   {

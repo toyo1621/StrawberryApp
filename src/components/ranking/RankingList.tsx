@@ -47,13 +47,14 @@ const RankingList: React.FC<RankingListProps> = ({
   return (
     <View style={styles.list}>
       {entries.slice(0, limit).map((entry, index) => {
-        const highlighted = Boolean(highlightedEntryId) && entry.id === highlightedEntryId;
+        const highlighted = entry.isCurrentPlayer
+          || (Boolean(highlightedEntryId) && entry.id === highlightedEntryId);
         const rank = index + 1;
         return (
           <View
             key={entry.id}
             accessible
-            accessibilityLabel={`${rank}位、${entry.playerName}、${entry.score}${unit}`}
+            accessibilityLabel={`${rank}位、${entry.playerName}、${entry.score}${unit}${entry.isCurrentPlayer ? '、あなたの記録' : ''}`}
             style={[
               styles.row,
               { borderBottomColor: theme.border },
@@ -65,6 +66,9 @@ const RankingList: React.FC<RankingListProps> = ({
                 {rank <= 3 ? ['1st', '2nd', '3rd'][rank - 1] : `${rank}`}
               </Text>
               <Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{entry.playerName}</Text>
+              {entry.isCurrentPlayer && (
+                <Text style={[styles.currentPlayerLabel, { color: accent, borderColor: accent }]}>あなた</Text>
+              )}
             </View>
             <Text style={[styles.score, { color: accent }]}>{entry.score} {unit}</Text>
           </View>
@@ -112,6 +116,17 @@ const styles = StyleSheet.create({
     fontFamily: MARU_GOTHIC_FONT,
     fontSize: 15,
     lineHeight: 20,
+    fontWeight: FONT_WEIGHT_BOLD,
+  },
+  currentPlayerLabel: {
+    flexShrink: 0,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    fontFamily: MARU_GOTHIC_FONT,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: FONT_WEIGHT_BOLD,
   },
   stateContainer: {

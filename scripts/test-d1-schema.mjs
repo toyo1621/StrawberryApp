@@ -30,7 +30,7 @@ const output = run([
   'execute',
   ...commonArgs,
   '--command',
-  "SELECT name, type FROM sqlite_master WHERE name IN ('game_sessions', 'idx_game_sessions_expires', 'idx_rankings_game_region_score_created', 'idx_rankings_game_region_owner_score_created', 'idx_rankings_game_region_legacy_name_score_created', 'idx_rankings_owner_game_created', 'score_submission_buckets') ORDER BY name",
+  "SELECT name, type FROM sqlite_master WHERE name IN ('game_sessions', 'idx_game_sessions_expires', 'idx_rankings_game_region_score_created', 'idx_rankings_game_region_owner_score_created', 'idx_rankings_game_region_legacy_name_score_created', 'idx_rankings_owner_game_created', 'idx_rankings_owner_game_region_score_created', 'score_submission_buckets', 'service_heartbeats') ORDER BY name",
   '--json',
 ]);
 const response = JSON.parse(output);
@@ -43,7 +43,9 @@ assert.deepEqual(rows, [
   { name: 'idx_rankings_game_region_owner_score_created', type: 'index' },
   { name: 'idx_rankings_game_region_score_created', type: 'index' },
   { name: 'idx_rankings_owner_game_created', type: 'index' },
+  { name: 'idx_rankings_owner_game_region_score_created', type: 'index' },
   { name: 'score_submission_buckets', type: 'table' },
+  { name: 'service_heartbeats', type: 'table' },
 ]);
 
 const columnsOutput = run([
@@ -153,6 +155,34 @@ runUpgrade([
   '--file',
   resolve(root, 'worker/migrations/0011_split_kyushu_regions.sql'),
 ]);
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--file',
+  resolve(root, 'worker/migrations/0012_production_monitor_heartbeat.sql'),
+]);
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--file',
+  resolve(root, 'worker/migrations/0013_optimize_personalized_leaderboards.sql'),
+]);
+
+const heartbeatOutput = runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  "SELECT monitor_name, status, latency_ms FROM service_heartbeats WHERE monitor_name = 'production'",
+  '--json',
+]);
+assert.deepEqual(JSON.parse(heartbeatOutput)[0]?.results ?? [], [{
+  monitor_name: 'production',
+  status: 'pending',
+  latency_ms: 0,
+}]);
 
 const preservedOutput = runUpgrade([
   'd1',
@@ -301,6 +331,28 @@ assert.equal(
 );
 assert.equal(
   leaderboardPlan.some((detail) => detail.includes('idx_rankings_game_region_legacy_name_score_created')),
+  true,
+);
+
+const personalizedPlanOutput = runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  `EXPLAIN QUERY PLAN
+   SELECT id
+   FROM rankings
+   WHERE game_type = 'strawberry_rush'
+     AND island_region = 'all'
+     AND owner_hash = '${'a'.repeat(64)}'
+   ORDER BY score DESC, created_at ASC
+   LIMIT 1`,
+  '--json',
+]);
+const personalizedPlan = (JSON.parse(personalizedPlanOutput)[0]?.results ?? [])
+  .map((row) => String(row.detail));
+assert.equal(
+  personalizedPlan.some((detail) => detail.includes('idx_rankings_owner_game_region_score_created')),
   true,
 );
 

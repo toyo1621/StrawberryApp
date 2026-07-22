@@ -12,7 +12,7 @@
 
 - ブラウザのPOST/DELETE/OPTIONSは許可Origin以外を拒否し、Originを持たないネイティブ通信は同じ入力・頻度検証を適用
 - `application/json` と2 KiB本文上限を強制
-- 名前のNFC正規化、Unicodeコードポイン数の上限、C0/C1制御・不可視・双方向制御・危険なHTML文字のクライアント/Worker両方での拒否
+- 名前のNFC正規化、Unicodeコードポイント数の上限、C0/C1制御・不可視・双方向制御・危険なHTML文字のクライアント/Worker両方での拒否
 - 開始前にBearer所有者・モード・島地域へ結び付けた15分有効のUUIDゲームセッションをWorkerで発行
 - モード、島地域、整数スコア、プレイ時間、成立可能な得点速度、サーバー観測経過時間をWorkerで再検証
 - ゲームセッション消費とスコア挿入をD1 batchで確定し、1セッション1投稿を強制
@@ -24,14 +24,18 @@
 - APIのCSP、HSTS、`nosniff`、frame拒否、Referrer Policy、Permissions Policy、CORS、Cache-Control
 - 外部入力のリクエストIDを96文字以内の安全な文字種に制限し、不正値はサーバー生成UUIDへ置換
 - 5xxでは内部詳細を返さず、リクエストID付き構造化ログを記録
-- 本番・開発依存を含むnpm監査、最低カバレッジ、実Worker/D1統合、E2Eを公開ゲートに設定
+- 本人マーカーはBearer所有者をprimaryで照合したprivate応答にだけ合成し、匿名応答と公開キャッシュへ保存しない
+- 本番・開発依存を含むnpm監査、CodeQLのJavaScript/TypeScript解析、最低カバレッジ、実Worker/D1統合、E2Eを公開ゲートに設定
+- API種別・期間・地域を正本JSONから生成し、クライアント・Worker・DB制約の不一致をCIで拒否
+- 収集データ・目的・保持・処理者を `store/privacy-declarations.json` へ機械可読で固定し、追跡・広告SDKの混入とアプリ内ポリシー不一致をCIで拒否
 - すべてのGitHub Actionsを公式タグの不変40桁コミットSHAへ固定し、検査スクリプトでタグ参照への後退を拒否
-- GitHub Secret Scanning、Push Protection、Dependabot、必須PR品質チェックを有効化
+- Dependabotの週次更新、CODEOWNERS、必須PR品質workflowをリポジトリ内で定義。GitHub Secret Scanning、Push Protection、branch protectionはリポジトリ設定でも有効化して定期監査
 - 秘密情報と生成エクスポートを `.gitignore` で除外
 
 ## 秘密情報
 
 - `RATE_LIMIT_SALT` はWrangler secretへ16文字以上のランダム値として保存します。
+- WorkerとGitHub監視の任意 `MONITOR_ALERT_WEBHOOK_URL` はそれぞれCloudflare secretとGitHub `production` Environment secretへ保存し、HTTPSだけを許可します。
 - `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` はGitHub `production` EnvironmentのSecretsに保存します。
 - Expoの `EXPO_PUBLIC_` 変数は公開情報です。秘密鍵を置いてはいけません。
 - Cloudflare API tokenは対象Worker/D1の公開に必要な最小権限とし、不要時に失効します。

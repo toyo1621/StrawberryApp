@@ -1,3 +1,5 @@
+import { RANKINGS_API_VERSION } from './generated/rankingContract.mjs';
+
 export const matchesRankingsRelease = ({
   ok,
   headerVersion,
@@ -32,7 +34,7 @@ export const isReleaseMetadata = (value, expectedReleaseId) => (
   Boolean(value)
   && typeof value.release === 'string'
   && (/^[0-9a-f]{40}$/.test(value.release) || value.release === 'development')
-  && value.apiVersion === 4
+  && value.apiVersion === RANKINGS_API_VERSION
   && (!expectedReleaseId || value.release === expectedReleaseId)
 );
 
