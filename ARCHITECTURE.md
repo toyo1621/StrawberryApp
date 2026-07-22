@@ -7,7 +7,9 @@ flowchart LR
   U["Web / iOS / Android"] --> A["Expo React Native app"]
   A --> L["Async Storage / SecureStore"]
   A -->|"HTTPS JSON"| W["Cloudflare Worker"]
-  W --> D["Cloudflare D1"]
+  W --> C["Colo-local ranking cache"]
+  W --> R["D1 read replica"]
+  W --> D["D1 primary"]
   G["GitHub Actions"] --> P["GitHub Pages"]
   G -->|"scheduled smoke"| P
   G -->|"scheduled smoke"| W
@@ -19,14 +21,18 @@ flowchart LR
 
 | 領域 | 主なファイル | 責務 |
 | --- | --- | --- |
-| 画面遷移・起動処理 | `src/App.tsx` | 設定、名前、ランキング、同期、ゲーム状態 |
+| 画面遷移・ゲーム制御 | `src/App.tsx`, `src/App.styles.ts` | 画面状態、ゲーム開始・終了、画面構成、スタイル |
+| 起動・復帰処理 | `src/hooks/useAppData.ts` | 設定、名前、ランキング、保留投稿同期、アセット先読込 |
 | モード定義 | `src/gameConfig.ts` | API種別、表示名、単位、配色、順序 |
 | ゲーム規則 | `src/gameRules.ts` | 共通時間、5分上限、回答間隔、減点、回復、特別得点 |
 | 島データ | `src/data/islands.ts`, `src/assets/islands/` | 415件の名前、自治体、地域分類、ローカルSVG |
 | 純粋ロジック | `src/domain/` | シャッフル、色分類、締切タイマー、名前正規化、期間、順位 |
 | UI | `src/components/` | ゲーム、履歴、規約、共通UI |
-| 永続化・通信 | `src/services/` | Async Storage、ネイティブSecureStore、タイムアウト、再試行、オフラインキュー |
-| API | `worker/src/index.ts` | CORS、ルーティング、レート制限、D1アクセス |
+| 永続化・通信 | `src/services/` | APIクライアント、保存形式、キャッシュ、排他制御付きオフラインキュー |
+| APIルーティング | `worker/src/index.ts`, `worker/src/http.ts` | CORS、応答ヘッダー、エラー境界、経路選択 |
+| 公開ランキング | `worker/src/leaderboards.ts` | D1読込、所有者別集計、エッジキャッシュ、失効 |
+| 投稿・本人データ | `worker/src/scoreSubmissions.ts`, `worker/src/playerRankings.ts` | セッション、冪等投稿、履歴、削除 |
+| 識別・制限 | `worker/src/identity.ts` | Bearer所有者、ハッシュ化、原子的な連投制限 |
 | 入力境界 | `worker/src/rankingValidation.ts` | 型、文字、時間、得点成立性の検証 |
 
 ## ランキングのデータフロー
@@ -40,7 +46,11 @@ flowchart LR
 7. 開始後の通信失敗は同じIDで端末へ最大50件保存し、有効期限内に起動・アプリ復帰時に最大3件ずつ同期します。未送信データへ秘密トークンは保存せず、送信時に保護領域から読みます。セッションなし・期限切れは端末履歴だけに残します。
 8. 表示時は所有者ハッシュ単位で重複排除し、最高点、先着順で並べます。所有者情報のない移行前記録だけは正規化名を単位にします。
 
-起動時のランキング取得、設定読込、名前読込、保留スコア同期は `Promise.allSettled` で並列実行します。ランキングもモード単位で部分成功させ、キャッシュ表示と失敗を画面で区別します。
+公開ランキングは既定の30件だけをCloudflareの実行拠点単位で30秒間fresh、最大5分間の障害時スナップショットとして保持します。同じキーの同時cache missは1回のD1要求へまとめ、投稿時は対象スコープの4期間、本人削除時は44キーを失効させます。別拠点のキャッシュは最大30秒遅れる可能性があります。
+
+公開読込はD1 Sessions APIの `first-unconstrained` で最寄りの利用可能なレプリカを許可します。直近整合性が必要な本人履歴・自己ベストは `first-primary`、投稿と削除はprimaryへ送ります。所有者あり・移行前データを別CTEへ分け、対応する2つの部分インデックスを利用します。
+
+起動時のランキング取得、設定読込、名前読込、保留スコア同期は `useAppData.ts` が `Promise.allSettled` で並列実行します。ランキングはモード単位で部分成功させ、キャッシュ表示と失敗を画面で区別します。保留キューの読込・同期・追加・削除は1つの非同期mutexで直列化し、同期中に新しい投稿が失われないようにします。
 
 ## API契約
 
@@ -84,6 +94,8 @@ flowchart LR
 
 - アカウント認証はなく、端末トークンは公開順位、履歴、削除の匿名所有者を証明します。同名の別所有者は別順位で、所有者情報のない移行前記録だけは同一名として扱います。
 - Pagesは静的配信で、API障害時もゲーム本体は動作します。
+- D1障害時は5分以内のランキングスナップショットを返せますが、新規投稿と本人データ操作はD1復旧まで成功しません。
+- D1とWorkerはCloudflare単一ベンダーに依存します。静的ゲームと端末履歴は独立していますが、ランキングの複数ベンダー書込フェイルオーバーはMVP範囲外です。
 - 小規模MVPのためルーターやグローバル状態管理ライブラリは導入していません。
 - 島ランキングは日本全国と7地域を別スコープとして集計します。地域分割前の島ランキングは運用判断により関東へ再分類し、スコア履歴では地域名も表示します。
 - 賞品、課金、強い本人性が必要になった場合は、匿名トークンではなくアカウントとサーバー権威のゲーム進行へ再設計します。

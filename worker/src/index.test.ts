@@ -109,14 +109,18 @@ class FakeStatement {
           created_at: ranking.createdAt,
           owner_hash: ranking.ownerHash,
         })) as T[];
-      return { results };
+      return { results, meta: { served_by_region: 'LOCAL', served_by_primary: true } };
     }
 
-    if (this.sql.includes('WITH ranked_scores')) {
+    if (this.sql.includes('WITH owner_ranked')) {
+      this.db.rankingQueryCount += 1;
+      if (this.db.failRankingQueries) {
+        throw new Error('Simulated leaderboard database failure.');
+      }
       const [gameType, islandRegion] = this.params as [string, string];
       const hasPeriodStart = this.sql.includes('created_at >= ?');
       const periodStart = hasPeriodStart ? this.params[2] as string : null;
-      const limit = this.params[hasPeriodStart ? 3 : 2] as number;
+      const limit = this.params.at(-1) as number;
       const bestByPlayer = new Map<string, RankingRecord>();
 
       this.db.rankings
@@ -151,9 +155,9 @@ class FakeStatement {
           created_at: ranking.createdAt,
           owner_hash: ranking.ownerHash,
         })) as T[];
-      return { results };
+      return { results, meta: { served_by_region: 'LOCAL', served_by_primary: false } };
     }
-    return { results: [] as T[] };
+    return { results: [] as T[], meta: {} };
   }
 
   async run() {
@@ -221,6 +225,9 @@ class FakeStatement {
         session.id === sessionId && session.submissionId === sessionSubmissionId
       ));
       if (canInsert) {
+        if (this.db.rankings.some((ranking) => ranking.id === id)) {
+          throw new Error('UNIQUE constraint failed: rankings.id');
+        }
         this.db.rankings.push({ id, playerName, score, gameType, islandRegion, createdAt, ownerHash });
         changes = 1;
       }
@@ -255,6 +262,9 @@ class FakeD1Database {
   rankings: RankingRecord[] = [];
   submissionBuckets: SubmissionBucket[] = [];
   gameSessions: GameSessionRecord[] = [];
+  rankingQueryCount = 0;
+  failRankingQueries = false;
+  sessionConstraints: string[] = [];
 
   prepare(sql: string) {
     return new FakeStatement(sql, this);
@@ -267,7 +277,67 @@ class FakeD1Database {
     }
     return results;
   }
+
+  withSession(constraint = 'first-unconstrained') {
+    this.sessionConstraints.push(constraint);
+    return this;
+  }
 }
+
+class FakeCache implements Cache {
+  private readonly responses = new Map<string, Response>();
+  deleteCount = 0;
+
+  async match(request: Request): Promise<Response | undefined> {
+    return this.responses.get(request.url)?.clone();
+  }
+
+  async put(request: Request, response: Response): Promise<void> {
+    this.responses.set(request.url, response.clone());
+  }
+
+  async delete(request: Request): Promise<boolean> {
+    this.deleteCount += 1;
+    return this.responses.delete(request.url);
+  }
+
+  async ageSnapshotsBy(durationMs: number): Promise<void> {
+    for (const [key, response] of this.responses) {
+      const value = await response.clone().json() as { cachedAt: number };
+      value.cachedAt -= durationMs;
+      this.responses.set(key, new Response(JSON.stringify(value), {
+        headers: { 'cache-control': 'public, max-age=300' },
+      }));
+    }
+  }
+}
+
+class FakeExecutionContext implements ExecutionContext {
+  private readonly promises: Promise<unknown>[] = [];
+
+  waitUntil(promise: Promise<unknown>): void {
+    this.promises.push(promise);
+  }
+
+  async drain(): Promise<void> {
+    await Promise.all(this.promises);
+  }
+}
+
+const installFakeCache = (cache: FakeCache): (() => void) => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'caches');
+  Object.defineProperty(globalThis, 'caches', {
+    configurable: true,
+    value: { default: cache },
+  });
+  return () => {
+    if (original) {
+      Object.defineProperty(globalThis, 'caches', original);
+    } else {
+      Reflect.deleteProperty(globalThis, 'caches');
+    }
+  };
+};
 
 const createEnv = (overrides: Partial<Env> = {}): Env => ({
   DB: new FakeD1Database() as unknown as D1Database,
@@ -574,6 +644,102 @@ test('ranks verified players by owner while preserving legacy name deduplication
   ]);
 });
 
+test('coalesces concurrent leaderboard cache misses and reads through a replica session', async () => {
+  const cache = new FakeCache();
+  const restoreCache = installFakeCache(cache);
+  try {
+    const env = createEnv();
+    const db = env.DB as unknown as FakeD1Database;
+    db.rankings.push({
+      id: 'cached-leaderboard-entry',
+      playerName: 'キャッシュ選手',
+      score: 11,
+      gameType: 'strawberry_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:00:00.000Z',
+      ownerHash: 'c'.repeat(64),
+    });
+    const context = new FakeExecutionContext();
+    const requestUrl = 'https://api.test/rankings?gameType=strawberry_rush&period=all&limit=30';
+    const responses = await Promise.all(
+      Array.from({ length: 40 }, () => worker.fetch(new Request(requestUrl), env, context)),
+    );
+    await context.drain();
+
+    assert.equal(responses.every((response) => response.status === 200), true);
+    assert.equal(db.rankingQueryCount, 1);
+    assert.deepEqual(db.sessionConstraints, ['first-unconstrained']);
+    assert.equal(responses[0].headers.get('x-d1-region'), 'LOCAL');
+    assert.equal(responses[0].headers.get('x-d1-primary'), 'false');
+
+    const cached = await worker.fetch(new Request(requestUrl), env);
+    assert.equal(cached.headers.get('x-rankings-cache'), 'hit');
+    assert.equal(db.rankingQueryCount, 1);
+  } finally {
+    restoreCache();
+  }
+});
+
+test('serves a recent stale leaderboard snapshot when D1 is unavailable', async () => {
+  const cache = new FakeCache();
+  const restoreCache = installFakeCache(cache);
+  try {
+    const env = createEnv();
+    const db = env.DB as unknown as FakeD1Database;
+    db.rankings.push({
+      id: 'stale-leaderboard-entry',
+      playerName: '保存済み選手',
+      score: 9,
+      gameType: 'flag_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:00:00.000Z',
+      ownerHash: 'd'.repeat(64),
+    });
+    const requestUrl = 'https://api.test/rankings?gameType=flag_rush&period=all&limit=30';
+    assert.equal((await worker.fetch(new Request(requestUrl), env)).status, 200);
+    await cache.ageSnapshotsBy(60_000);
+    db.failRankingQueries = true;
+
+    const response = await worker.fetch(new Request(requestUrl), env);
+    const body = await response.json() as RankingRecord[];
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('x-rankings-cache'), 'stale');
+    assert.deepEqual(body.map((entry) => entry.id), ['stale-leaderboard-entry']);
+    assert.equal(db.rankingQueryCount, 2);
+  } finally {
+    restoreCache();
+  }
+});
+
+test('invalidates the affected leaderboard cache after a score is created', async () => {
+  const cache = new FakeCache();
+  const restoreCache = installFakeCache(cache);
+  try {
+    const env = createEnv();
+    const db = env.DB as unknown as FakeD1Database;
+    const requestUrl = 'https://api.test/rankings?gameType=color_rush&period=all&limit=30';
+    await worker.fetch(new Request(requestUrl), env);
+    assert.equal(db.rankingQueryCount, 1);
+
+    const created = await submitVerifiedScore(env, {
+      playerName: '更新選手',
+      score: 2,
+      gameType: 'color_rush',
+      durationMs: 30_000,
+    });
+    assert.equal(created.status, 201);
+    assert.equal(cache.deleteCount, 4);
+
+    const refreshed = await worker.fetch(new Request(requestUrl), env);
+    const body = await refreshed.json() as RankingRecord[];
+    assert.equal(refreshed.headers.get('x-rankings-cache'), 'miss');
+    assert.equal(body.some((entry) => entry.playerName === '更新選手'), true);
+    assert.equal(db.rankingQueryCount, 2);
+  } finally {
+    restoreCache();
+  }
+});
+
 test('treats a retried submission as idempotent', async () => {
   const env = createEnv();
   const db = env.DB as unknown as FakeD1Database;
@@ -601,6 +767,32 @@ test('treats a retried submission as idempotent', async () => {
   assert.equal(db.submissionBuckets[0].submissionCount, 1);
 });
 
+test('treats simultaneous retries for one session as one idempotent submission', async () => {
+  const env = createEnv();
+  const db = env.DB as unknown as FakeD1Database;
+  const gameSessionId = await startGameSession(env, 'strawberry_rush');
+  const session = db.gameSessions.find((entry) => entry.id === gameSessionId);
+  if (session) {
+    session.startedAt = new Date(Date.now() - 30_000).toISOString();
+  }
+  const body = {
+    submissionId: 'concurrent_retry_000001',
+    gameSessionId,
+    playerName: '同時再送',
+    score: 3,
+    gameType: 'strawberry_rush',
+    durationMs: 30_000,
+  };
+
+  const responses = await Promise.all([
+    worker.fetch(scoreRequest(body), env),
+    worker.fetch(scoreRequest(body), env),
+  ]);
+
+  assert.deepEqual(responses.map((response) => response.status).sort(), [200, 201]);
+  assert.equal(db.rankings.filter((entry) => entry.id === body.submissionId).length, 1);
+});
+
 test('rejects non-JSON and oversized score requests', async () => {
   const env = createEnv();
   const nonJson = new Request('https://api.test/scores', {
@@ -617,6 +809,40 @@ test('rejects non-JSON and oversized score requests', async () => {
 
   assert.equal((await worker.fetch(nonJson, env)).status, 415);
   assert.equal((await worker.fetch(oversized, env)).status, 413);
+});
+
+test('handles CORS preflights and unknown routes explicitly', async () => {
+  const env = createEnv();
+  const allowed = await worker.fetch(new Request('https://api.test/scores', {
+    method: 'OPTIONS',
+    headers: { origin: 'https://toyo1621.github.io' },
+  }), env);
+  const rejected = await worker.fetch(new Request('https://api.test/scores', {
+    method: 'OPTIONS',
+    headers: { origin: 'https://example.com' },
+  }), env);
+  const missing = await worker.fetch(new Request('https://api.test/missing'), env);
+
+  assert.equal(allowed.status, 204);
+  assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://toyo1621.github.io');
+  assert.equal(rejected.status, 403);
+  assert.equal(missing.status, 404);
+  assert.deepEqual(await missing.json(), { error: 'Not found' });
+});
+
+test('returns a sanitized 500 response when an uncached leaderboard query fails', async () => {
+  const env = createEnv();
+  const db = env.DB as unknown as FakeD1Database;
+  db.failRankingQueries = true;
+  const response = await worker.fetch(new Request(
+    'https://api.test/rankings?gameType=strawberry_rush&period=all&limit=3',
+    { headers: { 'cache-control': 'no-cache' } },
+  ), env);
+  const body = await response.json() as { error: string; requestId: string };
+
+  assert.equal(response.status, 500);
+  assert.equal(body.error, 'The service is temporarily unavailable.');
+  assert.equal(typeof body.requestId, 'string');
 });
 
 test('health check verifies the database and returns security headers', async () => {
@@ -668,6 +894,11 @@ test('private history requires its bearer token and can be deleted by its owner'
   assert.equal(unauthorized.status, 401);
 
   const headers = { authorization: `Bearer ${TEST_PLAYER_TOKEN}` };
+  const best = await worker.fetch(
+    new Request('https://api.test/players/me/best?gameType=strawberry_rush', { headers }),
+    env,
+  );
+  assert.deepEqual(await best.json(), { score: 7 });
   const history = await worker.fetch(
     new Request('https://api.test/players/me/history?gameType=strawberry_rush', { headers }),
     env,
@@ -727,6 +958,7 @@ test('rate limits repeated score submissions from the same client', async () => 
   }), env);
 
   assert.equal(limitedResponse.status, 429);
+  assert.equal(limitedResponse.headers.get('retry-after'), '60');
 });
 
 test('removes transient rate-limit identifiers after the retention window', async () => {
@@ -771,4 +1003,27 @@ test('removes expired game sessions without touching active sessions', async () 
   await cleanupExpiredGameSessions(env, new Date('2026-07-21T00:30:00.000Z'));
 
   assert.deepEqual(db.gameSessions.map((session) => session.id), ['22222222-2222-4222-8222-222222222222']);
+});
+
+test('scheduled maintenance removes both transient data sets', async () => {
+  const env = createEnv();
+  const db = env.DB as unknown as FakeD1Database;
+  db.submissionBuckets = [
+    { identityHash: 'expired-hash', windowStart: 1, submissionCount: 1, expiresAt: '2000-01-01T00:00:00.000Z' },
+  ];
+  db.gameSessions = [{
+    id: '33333333-3333-4333-8333-333333333333',
+    ownerHash: 'e'.repeat(64),
+    gameType: 'flag_rush',
+    islandRegion: 'all',
+    startedAt: '2000-01-01T00:00:00.000Z',
+    expiresAt: '2000-01-01T00:15:00.000Z',
+    consumedAt: null,
+    submissionId: null,
+  }];
+
+  await worker.scheduled({}, env);
+
+  assert.deepEqual(db.submissionBuckets, []);
+  assert.deepEqual(db.gameSessions, []);
 });

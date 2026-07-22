@@ -1,6 +1,6 @@
 # Deployment
 
-本番はGitHub Pages、Cloudflare Worker、Cloudflare D1で構成します。互換性を保つため、リリース順序は **D1 Time Travel復元点、D1マイグレーション、Worker、API v4とGit SHA確認、Pages** とします。Pages workflowが再利用可能なWorker workflowを呼ぶため、手動の公開順序には依存しません。
+本番はGitHub Pages、Cloudflare Worker、Cloudflare D1で構成します。互換性を保つため、リリース順序は **D1 Time Travel復元点、D1マイグレーション、read replication有効化、Worker、API v4とGit SHA確認、Pages** とします。Pages workflowが再利用可能なWorker workflowを呼ぶため、手動の公開順序には依存しません。
 
 ## 事前条件
 
@@ -26,7 +26,10 @@ npm run d1:apply-schema
 
 ```bash
 npm run d1:migrate
+npm run d1:enable-read-replication
 ```
+
+`d1:enable-read-replication` はCloudflare APIの `read_replication.mode` を冪等に `auto` へ設定し、再取得して確認します。ローカルでは `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`D1_DATABASE_ID` が必要です。公開順位はD1 Sessions APIで最寄りの利用可能な読込先を使い、本人履歴はprimaryへ固定します。
 
 - `0004` は所有者ハッシュと履歴用インデックスを追加します。既存行は `NULL` のまま公開順位を維持します。
 - `0005` は短期保持の連投イベントを原子的な分単位バケットへ置き換えます。
@@ -55,13 +58,13 @@ GitHub Actionsから公開する場合は、`production` Environmentに次を登
 - Secret: `CLOUDFLARE_ACCOUNT_ID`
 - Worker secret: `RATE_LIMIT_SALT`（Wranglerで登録）
 
-`Deploy Rankings Worker` workflowは手動実行とPagesからの再利用に対応し、検証、D1 Time Travel bookmark取得、migration前後のランキング件数一致、Git SHA tag付きWorker公開、本番のセッション発行・登録・履歴・削除後不在スモーク、release ID照合を順番に実施します。失敗時もStep Summaryに復元コマンドを残します。
+`Deploy Rankings Worker` workflowは手動実行とPagesからの再利用に対応し、検証、D1 Time Travel bookmark取得、migration前後のランキング件数一致、read replication有効化、Git SHA tag付きWorker公開、本番のセッション発行・登録・履歴・削除後不在スモーク、release ID照合を順番に実施します。失敗時もStep Summaryに復元コマンドを残します。
 
 ## GitHub Pages
 
 Repository Variable `EXPO_PUBLIC_RANKINGS_API_URL` に本番Worker URLを登録します。`main` へのpushで `Deploy GitHub Pages` workflowが次を実行します。
 
-1. D1復元点、migration、同じGit SHAのWorker公開とAPIスモーク
+1. D1復元点、migration、read replication、同じGit SHAのWorker公開とAPIスモーク
 2. lint、型検査、単体・Workerテスト、空D1への全移行、設定検査、依存監査
 3. Chromium/Firefox/WebKit、Pixel 7、320px E2E、全主要画面のaxe WCAG A/AA、44px操作領域、性能検査
 4. 本番Webビルドと700 KiB/JS・12 MiB/島SVG・14 MiB/全体の容量予算検査
@@ -85,7 +88,7 @@ EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.de
 npm run check:web-build
 ```
 
-1. D1 Time Travel bookmarkとモード・地域別件数を記録します。必要なら暗号化SQL exportも取得します。
+1. D1 Time Travel bookmarkとモード・地域別件数を記録し、read replicationが `auto` であることを確認します。必要なら暗号化SQL exportも取得します。
 2. 変更をPRで `main` へマージし、Pages workflowがWorkerからPagesまで直列公開することを確認します。
 3. WebとAPIのスモーク、D1件数、`x-release-id`とマージSHAの一致を再確認します。
 
