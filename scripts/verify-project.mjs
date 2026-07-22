@@ -1,8 +1,9 @@
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 
 const configModule = await import(`../app.config.js?verify=${Date.now()}`);
 const expo = configModule.default?.expo;
 const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+const packageLock = JSON.parse(await readFile(new URL('../package-lock.json', import.meta.url), 'utf8'));
 const failures = [];
 
 const requireValue = (condition, message) => {
@@ -18,6 +19,11 @@ requireValue(/^\d+$/.test(expo?.ios?.buildNumber || ''), 'iOS buildNumber must b
 requireValue(expo?.web?.lang === 'ja', 'The web document language must be Japanese.');
 requireValue(expo?.experiments?.baseUrl, 'A GitHub Pages base URL is required.');
 requireValue(expo?.version === packageJson.version, 'Expo and package versions must match.');
+requireValue(
+  packageLock.version === packageJson.version
+    && packageLock.packages?.['']?.version === packageJson.version,
+  'Package and lockfile versions must match.',
+);
 requireValue(expo?.plugins?.includes('expo-secure-store'), 'SecureStore config plugin is missing.');
 requireValue(
   /^\d+\.\d+\.\d+$/.test(packageJson.devDependencies?.['expo-doctor'] || ''),
@@ -30,14 +36,18 @@ requireValue(
   'The native production build must use the production rankings API.',
 );
 requireValue(
-  packageJson.scripts?.['build:web']?.includes('harden-web-build.mjs')
-    && packageJson.scripts?.['build:web:e2e']?.includes('harden-web-build.mjs'),
+  packageJson.scripts?.['build:web']?.includes('build-production-web.mjs')
+    && packageJson.scripts?.['build:web:e2e']?.includes('harden-web-build.mjs')
+    && (await readFile(new URL('./build-production-web.mjs', import.meta.url), 'utf8'))
+      .includes('EXPO_PUBLIC_RANKINGS_API_URL'),
   'Web builds must inject the security policy metadata.',
 );
 requireValue(
   packageJson.scripts?.check?.includes('check:maintainability')
+    && packageJson.scripts?.check?.includes('verify:contracts')
+    && packageJson.scripts?.check?.includes('verify:privacy')
     && packageJson.scripts?.['check:maintainability']?.includes('check-maintainability.mjs'),
-  'The maintainability architecture gate is missing.',
+  'The maintainability, generated-contract, or privacy gate is missing.',
 );
 
 const icon = await readFile(new URL('../assets/app-icon.png', import.meta.url));
@@ -65,16 +75,30 @@ const wrangler = await readFile(new URL('../worker/wrangler.toml', import.meta.u
 requireValue(wrangler.includes('[observability]') && wrangler.includes('enabled = true'), 'Worker observability must be enabled.');
 requireValue(wrangler.includes('[triggers]') && wrangler.includes('*/15 * * * *'), 'Rate-limit cleanup cron is missing.');
 requireValue(wrangler.includes('[version_metadata]'), 'Worker version metadata binding is missing.');
+requireValue(
+  wrangler.includes('WEB_APP_URL = "https://toyo1621.github.io/StrawberryApp"'),
+  'The Cloudflare production monitor web target is missing.',
+);
 
 const schema = await readFile(new URL('../worker/schema.sql', import.meta.url), 'utf8');
 requireValue(schema.includes('owner_hash'), 'Private history ownership is missing from the D1 schema.');
 requireValue(schema.includes('island_region'), 'Island ranking regions are missing from the D1 schema.');
 requireValue(schema.includes('score_submission_buckets'), 'Atomic rate-limit buckets are missing from the D1 schema.');
 requireValue(schema.includes('game_sessions'), 'Verified game sessions are missing from the D1 schema.');
+requireValue(schema.includes('service_heartbeats'), 'Production monitor heartbeats are missing from the D1 schema.');
 requireValue(
   schema.includes('idx_rankings_game_region_owner_score_created')
-    && schema.includes('idx_rankings_game_region_legacy_name_score_created'),
-  'Owner-ranked leaderboard indexes are missing from the D1 schema.',
+    && schema.includes('idx_rankings_game_region_legacy_name_score_created')
+    && schema.includes('idx_rankings_owner_game_region_score_created'),
+  'Owner-ranked or personalized leaderboard indexes are missing from the D1 schema.',
+);
+
+const productionMonitor = await readFile(new URL('../worker/src/productionMonitor.ts', import.meta.url), 'utf8');
+requireValue(
+  productionMonitor.includes('service_heartbeats')
+    && productionMonitor.includes('MONITOR_ALERT_WEBHOOK_URL')
+    && productionMonitor.includes('https:'),
+  'The Cloudflare scheduled monitor or HTTPS transition alert is incomplete.',
 );
 
 const qualityWorkflow = await readFile(new URL('../.github/workflows/quality.yml', import.meta.url), 'utf8');
@@ -130,8 +154,9 @@ const monitorWorkflow = await readFile(new URL('../.github/workflows/monitor-pro
 requireValue(monitorWorkflow.includes('issues: write'), 'Production monitor incident permissions are missing.');
 requireValue(monitorWorkflow.includes('production-monitor'), 'Production monitor issue automation is missing.');
 requireValue(
-  monitorWorkflow.includes('2,17,32,47 * * * *')
+  ['2', '17', '32', '47'].every((minute) => monitorWorkflow.includes(`${minute} * * * *`))
     && monitorWorkflow.includes('MONITOR_ALERT_WEBHOOK_URL')
+    && monitorWorkflow.includes('REQUIRE_MONITOR_HEARTBEAT')
     && monitorWorkflow.includes('smoke-release-consistency.mjs'),
   'The 15-minute monitor or optional external alert channel is missing.',
 );
@@ -142,12 +167,54 @@ requireValue(
   'The pinned EAS mobile release workflow is incomplete.',
 );
 
+const codeqlWorkflow = await readFile(new URL('../.github/workflows/codeql.yml', import.meta.url), 'utf8');
+requireValue(
+  codeqlWorkflow.includes('javascript-typescript')
+    && codeqlWorkflow.includes('security-events: write')
+    && codeqlWorkflow.includes('pull_request:'),
+  'The CodeQL JavaScript and TypeScript workflow is incomplete.',
+);
+
+const dependabot = await readFile(new URL('../.github/dependabot.yml', import.meta.url), 'utf8');
+requireValue(
+  /package-ecosystem:\s*["']?npm["']?/.test(dependabot)
+    && /package-ecosystem:\s*["']?github-actions["']?/.test(dependabot)
+    && dependabot.match(/interval:\s*["']?weekly["']?/g)?.length === 2,
+  'Weekly Dependabot coverage for npm and GitHub Actions is incomplete.',
+);
+const codeowners = await readFile(new URL('../.github/CODEOWNERS', import.meta.url), 'utf8');
+requireValue(codeowners.includes('* @toyo1621'), 'The repository CODEOWNER is missing.');
+
+const privacyDeclarations = JSON.parse(
+  await readFile(new URL('../store/privacy-declarations.json', import.meta.url), 'utf8'),
+);
+requireValue(
+  privacyDeclarations.tracking === false
+    && privacyDeclarations.advertising === false
+    && privacyDeclarations.analytics === false,
+  'Privacy declarations must explicitly disable tracking, advertising, and analytics.',
+);
+
+const rankingContract = JSON.parse(
+  await readFile(new URL('../contracts/rankings.json', import.meta.url), 'utf8'),
+);
+requireValue(rankingContract.apiVersion === 5, 'The canonical rankings API must be version 5.');
+
+const apiDocumentation = await readFile(new URL('../API.md', import.meta.url), 'utf8');
+requireValue(
+  apiDocumentation.includes('# Rankings API v5')
+    && apiDocumentation.includes('isCurrentPlayer')
+    && apiDocumentation.includes('service_heartbeats'),
+  'API v5 personalization or monitor documentation is incomplete.',
+);
+
 const workflowSources = await Promise.all([
   'quality.yml',
   'deploy-pages.yml',
   'deploy-worker.yml',
   'mobile-release.yml',
   'monitor-production.yml',
+  'codeql.yml',
 ].map((file) => readFile(new URL(`../.github/workflows/${file}`, import.meta.url), 'utf8')));
 requireValue(
   workflowSources.every((source) => [...source.matchAll(/uses:\s+[^@\s]+@([^\s#]+)/g)]
@@ -159,15 +226,20 @@ await stat(new URL('../eas.json', import.meta.url));
 await stat(new URL('../.env.example', import.meta.url));
 await stat(new URL('../API.md', import.meta.url));
 await stat(new URL('../QUALITY.md', import.meta.url));
+await stat(new URL('../PRIVACY.md', import.meta.url));
+await stat(new URL('../RELEASE_CHECKLIST.md', import.meta.url));
 await stat(new URL('../CHANGELOG.md', import.meta.url));
 await stat(new URL('../DATA_SOURCES.md', import.meta.url));
-await stat(new URL('../worker/migrations/0004_private_player_history.sql', import.meta.url));
-await stat(new URL('../worker/migrations/0005_atomic_rate_limits.sql', import.meta.url));
-await stat(new URL('../worker/migrations/0006_align_score_contract.sql', import.meta.url));
-await stat(new URL('../worker/migrations/0007_split_island_rankings_by_region.sql', import.meta.url));
-await stat(new URL('../worker/migrations/0008_move_legacy_island_rankings_to_kanto.sql', import.meta.url));
-await stat(new URL('../worker/migrations/0009_verified_game_sessions.sql', import.meta.url));
-await stat(new URL('../worker/migrations/0010_rank_leaderboards_by_owner.sql', import.meta.url));
+const migrationDirectory = new URL('../worker/migrations/', import.meta.url);
+const migrationFiles = (await readdir(migrationDirectory))
+  .filter((file) => /^\d{4}_[a-z0-9_]+\.sql$/.test(file))
+  .sort();
+requireValue(migrationFiles.length >= 13, 'The complete D1 migration history is required.');
+requireValue(
+  migrationFiles.every((file, index) => file.startsWith(String(index + 1).padStart(4, '0'))),
+  'D1 migration numbers must be contiguous and start at 0001.',
+);
+await Promise.all(migrationFiles.map((file) => stat(new URL(file, migrationDirectory))));
 
 if (failures.length > 0) {
   throw new Error(`Project verification failed:\n- ${failures.join('\n- ')}`);

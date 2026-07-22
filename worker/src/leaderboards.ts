@@ -1,10 +1,11 @@
 import {
   ISLAND_REGIONS,
+  PERIODS,
   parseGameType,
   parseIslandRegion,
   parseRankingPeriod,
 } from './rankingValidation';
-import { getBearerPlayerToken } from './identity';
+import { getBearerPlayerToken, sha256Hex } from './identity';
 import type { Env, RankingEntry, RankingRow } from './types';
 import { mapRanking } from './types';
 
@@ -14,7 +15,7 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const CACHE_FRESH_MS = 30 * 1000;
 const CACHE_RETENTION_SECONDS = 5 * 60;
 const CACHE_VERSION = 'v1';
-const RANKING_PERIODS = ['all', 'daily', 'weekly', 'monthly'] as const;
+const RANKING_PERIODS = PERIODS;
 type CacheStatus = 'bypass' | 'hit' | 'miss' | 'stale';
 
 type LeaderboardSnapshot = {
@@ -177,6 +178,57 @@ const queryLeaderboard = async (
   };
 };
 
+const getCurrentPlayerBestEntryId = async (
+  query: LeaderboardQuery,
+  env: Env,
+  ownerHash: string,
+): Promise<string | null> => {
+  const params: string[] = [query.gameType, query.islandRegion, ownerHash];
+  let periodClause = '';
+  if (query.start) {
+    periodClause = 'AND created_at >= ?';
+    params.push(query.start);
+  }
+  const row = await getPrimaryReadSession(env.DB).prepare(
+    `
+      SELECT id
+      FROM rankings
+      WHERE game_type = ? AND island_region = ? AND owner_hash = ? ${periodClause}
+      ORDER BY score DESC, created_at ASC
+      LIMIT 1
+    `,
+  ).bind(...params).first<{ id: string }>();
+  return row?.id ?? null;
+};
+
+const personalizeSnapshot = async <T extends LeaderboardSnapshot>(
+  snapshot: T,
+  query: LeaderboardQuery,
+  env: Env,
+  ownerHash: string | null,
+  required = false,
+): Promise<T> => {
+  if (!ownerHash) {
+    return snapshot;
+  }
+  let currentEntryId: string | null;
+  try {
+    currentEntryId = await getCurrentPlayerBestEntryId(query, env, ownerHash);
+  } catch (error) {
+    if (required) {
+      throw error;
+    }
+    console.warn('Serving a public leaderboard without the current-player marker.', error);
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    entries: snapshot.entries.map((entry) => (
+      entry.id === currentEntryId ? { ...entry, isCurrentPlayer: true } : entry
+    )),
+  } as T;
+};
+
 const getEdgeCache = (): Cache | null => {
   try {
     return typeof caches === 'undefined' ? null : caches.default;
@@ -210,7 +262,8 @@ const isRankingEntry = (value: unknown): value is RankingEntry => {
     && Number.isInteger(entry.score)
     && typeof entry.gameType === 'string'
     && typeof entry.islandRegion === 'string'
-    && typeof entry.createdAt === 'string';
+    && typeof entry.createdAt === 'string'
+    && entry.isCurrentPlayer === undefined;
 };
 
 const parseCachedSnapshot = async (response: Response): Promise<LeaderboardSnapshot | null> => {
@@ -282,7 +335,6 @@ const refreshSnapshot = (
 const canUseCache = (request: Request, query: LeaderboardQuery): boolean => {
   const cacheControl = request.headers.get('cache-control')?.toLowerCase() ?? '';
   return query.limit === DEFAULT_LIMIT
-    && !request.headers.has('authorization')
     && !cacheControl.includes('no-cache')
     && !cacheControl.includes('no-store');
 };
@@ -293,13 +345,15 @@ export const fetchLeaderboard = async (
   context?: ExecutionContext,
 ): Promise<LeaderboardResult> => {
   const query = parseLeaderboardQuery(request);
-  const readFromPrimary = getBearerPlayerToken(request, false) !== null;
+  const playerToken = getBearerPlayerToken(request, false);
+  const ownerHash = playerToken ? await sha256Hex(`player:${playerToken}`) : null;
+  const readFromPrimary = ownerHash !== null && !canUseCache(request, query);
   const cache = getEdgeCache();
   if (!cache || !canUseCache(request, query)) {
-    return {
+    return personalizeSnapshot({
       ...await queryLeaderboard(query, env, readFromPrimary),
       cacheStatus: 'bypass',
-    };
+    }, query, env, ownerHash, readFromPrimary);
   }
 
   const key = buildCacheKey(request.url, query.gameType, query.islandRegion, query.period);
@@ -315,7 +369,12 @@ export const fetchLeaderboard = async (
   }
 
   if (cached && Date.now() - cached.cachedAt <= CACHE_FRESH_MS) {
-    return { ...cached, cacheStatus: 'hit' };
+    return personalizeSnapshot(
+      { ...cached, cacheStatus: 'hit' },
+      query,
+      env,
+      ownerHash,
+    );
   }
 
   const refresh = refreshSnapshot(cache, key, query, env);
@@ -323,15 +382,30 @@ export const fetchLeaderboard = async (
     context.waitUntil(refresh.catch((error) => {
       console.warn('Failed to refresh a stale leaderboard snapshot.', error);
     }));
-    return { ...cached, cacheStatus: 'stale' };
+    return personalizeSnapshot(
+      { ...cached, cacheStatus: 'stale' },
+      query,
+      env,
+      ownerHash,
+    );
   }
 
   try {
-    return { ...await refresh, cacheStatus: 'miss' };
+    return personalizeSnapshot(
+      { ...await refresh, cacheStatus: 'miss' },
+      query,
+      env,
+      ownerHash,
+    );
   } catch (error) {
     if (cached) {
       console.warn('Serving a stale leaderboard snapshot after a database failure.', error);
-      return { ...cached, cacheStatus: 'stale' };
+      return personalizeSnapshot(
+        { ...cached, cacheStatus: 'stale' },
+        query,
+        env,
+        ownerHash,
+      );
     }
     throw error;
   }

@@ -1,4 +1,5 @@
 import type { Env } from './types';
+import { RANKINGS_API_VERSION } from './generated/rankingContract';
 
 const MAX_REQUEST_BODY_BYTES = 2_048;
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -78,7 +79,7 @@ export const json = (
   const headers = new Headers(init.headers);
   headers.set('content-type', 'application/json; charset=utf-8');
   setSecurityHeaders(headers);
-  headers.set('x-api-version', '4');
+  headers.set('x-api-version', String(RANKINGS_API_VERSION));
   headers.set('x-release-id', getReleaseId(env));
   setCorsHeaders(headers, origin, env);
 

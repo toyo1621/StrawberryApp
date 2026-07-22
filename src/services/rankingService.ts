@@ -6,8 +6,8 @@ import {
 } from '../gameConfig';
 import {
   filterRankingsByPeriod,
+  getLeaderboardEntries,
   getPlayerNameValidationError,
-  getUniquePlayerRankings,
   normalizePlayerName,
   rankingIdentity,
 } from '../domain/rankings';
@@ -37,32 +37,33 @@ import {
   parseDeleteResult,
   parseGameSession,
   parseRankingEntries,
-  parseRankingEntry,
   type AllRankingsFetchResult,
   type PendingScore,
   type RankingFetchResult,
   type RankingGameSession,
   type ScoreMetadata,
   type ScoreSaveResult,
-  type SyncResult,
 } from './rankingModels';
 import {
   clearPendingScores,
   discardPendingScores,
   enqueuePendingScore,
   loadPendingScores,
-  transactPendingScores,
 } from './rankingPendingQueue';
 import {
-  RankingsApiError,
   apiRequest,
   buildQuery,
   hasRankingsApi,
   isTemporaryApiFailure,
 } from './rankingsApiClient';
+import {
+  persistRemoteEntryBestEffort,
+  postPendingScore,
+} from './rankingSubmissionService';
 
 export { RankingPeriod } from '../types';
 export { hasRankingsApi } from './rankingsApiClient';
+export { syncPendingScores } from './rankingSubmissionService';
 export type {
   AllRankingsFetchResult,
   RankingFetchResult,
@@ -73,97 +74,6 @@ export type {
 } from './rankingModels';
 
 const RANKING_LIMIT = 30;
-const PENDING_SYNC_BATCH_SIZE = 3;
-
-const persistRemoteEntryBestEffort = async (
-  gameType: ApiGameType,
-  islandRegion: IslandRegion,
-  entry: RankingEntry,
-): Promise<void> => {
-  const results = await Promise.allSettled([
-    mergeIntoLocalCache(gameType, islandRegion, [entry]),
-    mergeIntoLocalPlayerHistory(gameType, [entry]),
-  ]);
-  results.forEach((result) => {
-    if (result.status === 'rejected') {
-      console.warn('A remote score was saved, but its local cache could not be updated.', result.reason);
-    }
-  });
-};
-
-const postScore = async (score: PendingScore): Promise<RankingEntry> => {
-  if (!score.gameSessionId) {
-    throw new RankingsApiError('A verified game session is required.', 400);
-  }
-  const playerToken = await getPlayerToken();
-  return apiRequest('/scores', parseRankingEntry, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${playerToken}` },
-    body: JSON.stringify({
-      submissionId: score.submissionId,
-      gameSessionId: score.gameSessionId,
-      playerName: score.playerName,
-      score: score.score,
-      gameType: score.gameType,
-      islandRegion: score.islandRegion,
-      durationMs: score.durationMs,
-    }),
-  });
-};
-
-export const syncPendingScores = async (
-  options: { onlineRankingsEnabled?: boolean } = {},
-): Promise<SyncResult> => {
-  if (options.onlineRankingsEnabled === false) {
-    const pendingScores = await loadPendingScores();
-    return { synced: 0, pending: pendingScores.length, discarded: 0 };
-  }
-  if (!hasRankingsApi()) {
-    const pendingScores = await loadPendingScores();
-    return { synced: 0, pending: pendingScores.length, discarded: 0 };
-  }
-
-  return transactPendingScores(async (pendingScores) => {
-    if (pendingScores.length === 0) {
-      return {
-        scores: pendingScores,
-        result: { synced: 0, pending: 0, discarded: 0 },
-      };
-    }
-
-    const batch = pendingScores.slice(0, PENDING_SYNC_BATCH_SIZE);
-    let remaining = pendingScores.slice(PENDING_SYNC_BATCH_SIZE);
-    let synced = 0;
-    let discarded = 0;
-
-    for (let index = 0; index < batch.length; index += 1) {
-      const score = batch[index];
-      if (!score.gameSessionId
-        || !score.gameSessionExpiresAt
-        || Date.parse(score.gameSessionExpiresAt) <= Date.now()) {
-        discarded += 1;
-        continue;
-      }
-      try {
-        const entry = await postScore(score);
-        await persistRemoteEntryBestEffort(score.gameType, score.islandRegion, entry);
-        synced += 1;
-      } catch (error) {
-        if (!isTemporaryApiFailure(error)) {
-          discarded += 1;
-        } else {
-          remaining = [...batch.slice(index), ...remaining];
-          break;
-        }
-      }
-    }
-
-    return {
-      scores: remaining,
-      result: { synced, pending: remaining.length, discarded },
-    };
-  });
-};
 
 export const fetchRankingsForModeWithStatus = async (
   mode: GameMode,
@@ -175,12 +85,10 @@ export const fetchRankingsForModeWithStatus = async (
   const rankingRegion = normalizeIslandRegion(gameType, islandRegion);
   if (hasRankingsApi()) {
     try {
-      const requestInit: RequestInit | undefined = options.requireFresh
-        ? {
-            cache: 'no-store',
-            headers: { authorization: `Bearer ${await getPlayerToken()}` },
-          }
-        : undefined;
+      const requestInit: RequestInit = {
+        ...(options.requireFresh ? { cache: 'no-store' as const } : {}),
+        headers: { authorization: `Bearer ${await getPlayerToken()}` },
+      };
       const rankings = await apiRequest(
         `/rankings${buildQuery({
           gameType,
@@ -218,7 +126,7 @@ export const fetchRankingsForModeWithStatus = async (
 
   const localRankings = await loadLocalRankingsForGame(gameType, rankingRegion);
   return {
-    entries: getUniquePlayerRankings(
+    entries: getLeaderboardEntries(
       filterRankingsByPeriod(localRankings, period),
       RANKING_LIMIT,
     ),
@@ -273,6 +181,7 @@ const saveLocalScore = async (pending: PendingScore): Promise<RankingEntry> => {
     gameType: pending.gameType,
     islandRegion: pending.islandRegion,
     createdAt: pending.createdAt,
+    isCurrentPlayer: true,
   };
   await mergeIntoLocalCache(pending.gameType, pending.islandRegion, [entry]);
   await mergeIntoLocalPlayerHistory(pending.gameType, [entry]);
@@ -316,7 +225,7 @@ export const saveScoreForMode = async (
   );
   if (hasRankingsApi() && hasUsableSession) {
     try {
-      const entry = await postScore(pending);
+      const entry = await postPendingScore(pending);
       await persistRemoteEntryBestEffort(pending.gameType, pending.islandRegion, entry);
       return {
         entry,
@@ -343,6 +252,7 @@ export const saveScoreForMode = async (
           gameType: pending.gameType,
           islandRegion: pending.islandRegion,
           createdAt: pending.createdAt,
+          isCurrentPlayer: true,
         };
       }
       return {

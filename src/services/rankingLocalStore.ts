@@ -3,6 +3,7 @@ import {
   API_GAME_TYPES,
   type ApiGameType,
 } from '../gameConfig';
+import { getLeaderboardEntries } from '../domain/rankings';
 import type { RankingEntry } from '../types';
 import { IslandRegion } from '../types';
 import { toRankingEntry } from './rankingModels';
@@ -72,7 +73,7 @@ const writeRankings = async (key: string, rankings: RankingEntry[]): Promise<voi
   await AsyncStorage.setItem(key, JSON.stringify(rankings));
 };
 
-const mergeById = (
+const mergeHistoryById = (
   current: RankingEntry[],
   incoming: RankingEntry[],
 ): RankingEntry[] => {
@@ -103,7 +104,7 @@ export const mergeIntoLocalPlayerHistory = async (
   const key = getPlayerHistoryStorageKey(gameType);
   await withStorageWriteLock(key, async () => {
     const current = parseStoredRankings(await AsyncStorage.getItem(key));
-    await writeRankings(key, mergeById(current, incoming));
+    await writeRankings(key, mergeHistoryById(current, incoming));
   });
 };
 
@@ -115,7 +116,10 @@ export const mergeIntoLocalCache = async (
   const key = getStorageKey(gameType, islandRegion);
   await withStorageWriteLock(key, async () => {
     const current = parseStoredRankings(await AsyncStorage.getItem(key));
-    await writeRankings(key, mergeById(current, incoming));
+    await writeRankings(
+      key,
+      getLeaderboardEntries([...current, ...incoming], LOCAL_CACHE_LIMIT),
+    );
   });
 };
 
@@ -129,7 +133,10 @@ export const replaceLocalLeaderboardSnapshot = async (
   await withStorageWriteLock(key, async () => {
     const current = parseStoredRankings(await AsyncStorage.getItem(key));
     const pendingEntries = current.filter((entry) => pendingIds.has(entry.id));
-    const snapshot = mergeById(incoming, pendingEntries);
+    const snapshot = getLeaderboardEntries(
+      [...incoming, ...pendingEntries],
+      LOCAL_CACHE_LIMIT,
+    );
     await writeRankings(key, snapshot);
   });
 };

@@ -194,6 +194,58 @@ test('island rankings follow the selected nationwide and split Kyushu scope', as
   await expect(page.getByText('九州北部ランキング選手')).toHaveCount(0);
 });
 
+test('offline rankings preserve same-name owners and identify only the current-player best', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('strawberry_game_rankings', JSON.stringify([
+      {
+        id: 'same-name-owner',
+        playerName: '同名選手',
+        score: 12,
+        gameType: 'strawberry_rush',
+        islandRegion: 'all',
+        createdAt: '2026-07-22T00:00:00.000Z',
+      },
+      {
+        id: 'current-player-old',
+        playerName: '以前の名前',
+        score: 5,
+        gameType: 'strawberry_rush',
+        islandRegion: 'all',
+        createdAt: '2026-07-22T00:01:00.000Z',
+        isCurrentPlayer: true,
+      },
+      {
+        id: 'current-player-best',
+        playerName: '同名選手',
+        score: 10,
+        gameType: 'strawberry_rush',
+        islandRegion: 'all',
+        createdAt: '2026-07-22T00:02:00.000Z',
+        isCurrentPlayer: true,
+      },
+    ]));
+  });
+
+  await page.goto('/');
+  await expect(page.getByText('同名選手')).toHaveCount(2);
+  await expect(page.getByText('以前の名前')).toHaveCount(0);
+  await expect(page.getByText('あなた', { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel(/2位、同名選手、10個、あなたの記録/)).toBeVisible();
+  await expectNoAccessibilityViolations(page);
+});
+
+test('the primary flow can start with keyboard activation and reduced motion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await page.getByLabel('プレイヤー名').fill('キーボード利用者');
+  const startButton = page.getByRole('button', { name: 'いちごモードでゲームを開始' });
+  await startButton.focus();
+  await expect(startButton).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('progressbar', { name: '残り時間' })).toBeVisible();
+  await expectNoAccessibilityViolations(page);
+});
+
 test('settings and all-mode score history are reachable', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('プレイヤー名').fill('設定テスト');

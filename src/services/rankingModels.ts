@@ -91,7 +91,8 @@ export const toRankingEntry = (value: unknown): RankingEntry | null => {
     && Number.isInteger(entry.score)
     && isApiGameType(entry.gameType)
     && typeof entry.createdAt === 'string'
-    && Number.isFinite(Date.parse(entry.createdAt)))) {
+    && Number.isFinite(Date.parse(entry.createdAt))
+    && (entry.isCurrentPlayer === undefined || typeof entry.isCurrentPlayer === 'boolean'))) {
     return null;
   }
 
@@ -102,6 +103,7 @@ export const toRankingEntry = (value: unknown): RankingEntry | null => {
     gameType: entry.gameType,
     islandRegion: normalizeIslandRegion(entry.gameType, entry.islandRegion),
     createdAt: entry.createdAt,
+    ...(entry.isCurrentPlayer === true ? { isCurrentPlayer: true } : {}),
   };
 };
 

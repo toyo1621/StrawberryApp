@@ -14,9 +14,9 @@ npm run web
 
 ## 変更の原則
 
-- モード共通値は `src/gameConfig.ts`、純粋ロジックは `src/domain/` に置きます。
+- APIゲーム種別・期間・島地域は `contracts/rankings.json` を変更して `npm run generate:contracts` で生成し、表示専用値は `src/gameConfig.ts`、純粋ロジックは `src/domain/` に置きます。
 - API入力はクライアントを信用せず、`worker/src/rankingValidation.ts` で検証します。
-- 新しい外部通信、端末保存項目、ログ項目はプライバシーポリシーと `SECURITY.md` を同時に更新します。
+- 新しい外部通信、端末保存項目、ログ項目はアプリ内ポリシー、`store/privacy-declarations.json`、`PRIVACY.md`、`SECURITY.md` を同時に更新します。
 - UIはライト/ダーク、320px幅、キーボード、スクリーンリーダー、動きを減らす設定を確認します。
 - `src` からWorker、WorkerからUIへ依存させず、主要モジュールの分割上限と循環依存を `npm run check:maintainability` で守ります。
 - MVPに不要な状態管理、ルーター、分析SDKは追加しません。
@@ -38,9 +38,9 @@ npx wrangler deploy --dry-run --config worker/wrangler.toml
 
 | 種別 | 対象 |
 | --- | --- |
-| `tests/` | シャッフル、色分類、締切タイマー、ゲーム/Worker得点契約、Unicode名前、ランキング、保存結果、設定、戻る層級、再試行、排他制御付きキャッシュ/キュー |
-| `worker/src/*.test.ts` | 入力拒否、Bearer所有権、ゲームセッション、CORS、HTTPメソッド・security header、冪等性、原子的連投、40並列cache miss、stale fallback、JST、削除 |
-| `test:db` | 空のローカルD1へ全migrationを適用し、地域再分類、所有者・セッション・制限スキーマと公開順位のクエリ計画を照合 |
+| `tests/` | シャッフル、色分類、締切タイマー、ゲーム/Worker得点契約、Unicode名前、同名別所有者・本人マーカー、保存結果、設定、戻る層級、再試行、排他制御付きキャッシュ/キュー |
+| `worker/src/*.test.ts` | 入力拒否、Bearer所有権、ゲームセッション、CORS、HTTPメソッド・security header、冪等性、原子的連投、40並列cache miss、stale fallback、本人応答の非漏えい、scheduled monitor、JST、削除 |
+| `test:db` | 空のローカルD1へ全migrationを適用し、地域再分類、所有者・セッション・心拍・制限スキーマと公開順位・本人照合のクエリ計画を照合 |
 | `test:integration` | 実ローカルWorker/D1でセッション、batch登録、32並列読込、同時再送、順位、履歴、削除をHTTP検査 |
 | `e2e/` | 全モード、主要画面、ダーク、オンライン参加停止、Unicode入力拒否、Chromium/Firefox/WebKit、Pixel 7/320px、axe、ARIA、主操作順序、削除、性能 |
 
@@ -59,10 +59,10 @@ npx wrangler deploy --dry-run --config worker/wrangler.toml
 ## リリース
 
 1. バージョン、iOS buildNumber、Android versionCodeを更新します。
-2. 必須チェックと実機確認を完了します。
+2. 必須チェックと [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) の対象プラットフォーム確認を完了します。
 3. D1変更前にTime Travel bookmarkを取得し、番号付きmigrationを追加します。
 4. `main`のPages workflowでD1 migration、同一SHA Worker、Pagesを直列公開します。
-5. Web/API smoke、全4モードのランキング、オフライン復帰を確認します。
+5. Web/API smoke、Cloudflare心拍、全4モードのランキング、投稿直後の本人表示、オフライン復帰を確認します。
 6. 問題時に戻すコミットとバックアップを記録します。
 
 詳しい公開・復旧手順は [DEPLOYMENT.md](./DEPLOYMENT.md) と [OPERATIONS.md](./OPERATIONS.md) にあります。
