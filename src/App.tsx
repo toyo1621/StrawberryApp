@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -15,18 +15,6 @@ import { strawberryJuiceImage } from './assets/images/strawberryJuiceAsset';
 import { GameState, GameMode, IslandRegion, RankingsByMode } from './types';
 import ErrorBoundary from './components/ErrorBoundary';
 import StartScreen from './components/StartScreen';
-import GameScreen from './components/GameScreen';
-import IslandGameScreen from './components/IslandGameScreen';
-import FlagGameScreen from './components/FlagGameScreen';
-import ColorGameScreen from './components/ColorGameScreen';
-import MemoryGameScreen from './components/MemoryGameScreen';
-import MemoryGame2Screen from './components/MemoryGame2Screen';
-import GameOverScreen from './components/GameOverScreen';
-import RulesScreen from './components/RulesScreen';
-import MyPageScreen from './components/MyPageScreen';
-import PrivacyPolicyScreen from './components/PrivacyPolicyScreen';
-import TermsOfServiceScreen from './components/TermsOfServiceScreen';
-import SettingsScreen from './components/SettingsScreen';
 import {
   deletePlayerRankingData,
   createRankingGameSession,
@@ -40,6 +28,19 @@ import { clearPlayerName, loadPlayerName } from './services/playerService';
 import { clearSettings, DEFAULT_SETTINGS, loadSettings } from './services/settingsService';
 import type { AppSettings } from './services/settingsService';
 import { createEmptyRankings } from './gameConfig';
+
+const GameScreen = lazy(() => import('./components/GameScreen'));
+const IslandGameScreen = lazy(() => import('./components/IslandGameScreen'));
+const FlagGameScreen = lazy(() => import('./components/FlagGameScreen'));
+const ColorGameScreen = lazy(() => import('./components/ColorGameScreen'));
+const MemoryGameScreen = lazy(() => import('./components/MemoryGameScreen'));
+const MemoryGame2Screen = lazy(() => import('./components/MemoryGame2Screen'));
+const GameOverScreen = lazy(() => import('./components/GameOverScreen'));
+const RulesScreen = lazy(() => import('./components/RulesScreen'));
+const MyPageScreen = lazy(() => import('./components/MyPageScreen'));
+const PrivacyPolicyScreen = lazy(() => import('./components/PrivacyPolicyScreen'));
+const TermsOfServiceScreen = lazy(() => import('./components/TermsOfServiceScreen'));
+const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
 const prefetchStrawberryJuiceImage = () => {
   try {
@@ -537,7 +538,23 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <SafeAreaView role="main" style={[styles.container, settings.darkMode && styles.containerDark]} edges={['top', 'bottom']}>
         <StatusBar style={settings.darkMode ? "light" : "dark"} />
-        {renderScreen()}
+        <Suspense fallback={(
+          <View style={styles.loadingScreen}>
+            <ActivityIndicator
+              accessibilityLabel="画面を読み込み中"
+              size="large"
+              color={settings.darkMode ? '#f9a8d4' : '#be185d'}
+            />
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[styles.loadingText, settings.darkMode && styles.loadingTextDark]}
+            >
+              画面を読み込み中...
+            </Text>
+          </View>
+        )}>
+          {renderScreen()}
+        </Suspense>
         {/* いちご汁オーバーレイ（画面全体に表示） */}
         {showStrawberryJuice && (
           <Animated.View 
@@ -569,6 +586,19 @@ const styles = StyleSheet.create({
   },
   containerDark: {
     backgroundColor: '#1f2937', // dark gray
+  },
+  loadingScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    color: '#831843',
+    fontSize: 16,
+  },
+  loadingTextDark: {
+    color: '#fbcfe8',
   },
   savingOverlay: {
     position: 'absolute',

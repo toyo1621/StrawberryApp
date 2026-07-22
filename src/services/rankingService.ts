@@ -24,8 +24,16 @@ import {
   getPlayerToken,
   getStoredPlayerToken,
 } from './playerIdentityService';
+import {
+  RankingsApiError,
+  apiRequest,
+  buildQuery,
+  hasRankingsApi,
+  isTemporaryApiFailure,
+} from './rankingsApiClient';
 
 export { RankingPeriod } from '../types';
+export { hasRankingsApi } from './rankingsApiClient';
 
 export interface ScoreMetadata {
   durationMs: number;
@@ -75,7 +83,6 @@ type PendingScore = {
   islandRegion: IslandRegion;
   durationMs: number;
   createdAt: string;
-  playerToken?: string;
   gameSessionId?: string;
   gameSessionExpiresAt?: string;
 };
@@ -84,8 +91,6 @@ const RANKING_LIMIT = 30;
 const LOCAL_CACHE_LIMIT = 200;
 const PENDING_SCORE_LIMIT = 50;
 const PENDING_SYNC_BATCH_SIZE = 3;
-const API_TIMEOUT_MS = 6_000;
-const API_ATTEMPTS = 2;
 const PENDING_SCORES_KEY = 'strawberry_pending_scores_v1';
 const PLAYER_HISTORY_KEY_PREFIX = 'strawberry_player_history_v2';
 
@@ -129,24 +134,6 @@ const ALL_STORAGE_KEYS = [
     .map((region) => getStorageKey('island_rush', region)),
   ...API_GAME_TYPES.map((gameType) => `${PLAYER_HISTORY_KEY_PREFIX}_${gameType}`),
 ];
-
-const rankingsApiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
-
-export const hasRankingsApi = (): boolean => rankingsApiUrl.length > 0;
-
-class RankingsApiError extends Error {
-  constructor(
-    message: string,
-    public status?: number,
-  ) {
-    super(message);
-  }
-}
-
-const isTemporaryApiFailure = (error: unknown): boolean => {
-  const status = error instanceof RankingsApiError ? error.status : undefined;
-  return status === undefined || status === 408 || status === 429 || (status >= 500 && status <= 599);
-};
 
 const isApiGameType = (value: unknown): value is ApiGameType => {
   return typeof value === 'string' && API_GAME_TYPES.includes(value as ApiGameType);
@@ -233,74 +220,6 @@ const generateSubmissionId = (): string => {
   }
 
   return `score_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`;
-};
-
-const buildQuery = (params: Record<string, string | number | undefined>): string => {
-  const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined) {
-      query.set(key, String(value));
-    }
-  });
-  const serialized = query.toString();
-  return serialized ? `?${serialized}` : '';
-};
-
-const wait = (durationMs: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, durationMs));
-};
-
-const apiRequest = async <T>(
-  path: string,
-  parse: (value: unknown) => T,
-  init: RequestInit = {},
-  policy: { attempts?: number; timeoutMs?: number } = {},
-): Promise<T> => {
-  if (!hasRankingsApi()) {
-    throw new RankingsApiError('Rankings API URL is not configured.');
-  }
-
-  let lastError: unknown;
-  const attempts = policy.attempts ?? API_ATTEMPTS;
-  const timeoutMs = policy.timeoutMs ?? API_TIMEOUT_MS;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(`${rankingsApiUrl}${path}`, {
-        ...init,
-        signal: controller.signal,
-        headers: {
-          accept: 'application/json',
-          ...(init.body ? { 'content-type': 'application/json' } : {}),
-          ...(init.headers || {}),
-        },
-      });
-
-      const body = await response.json().catch(() => null) as unknown;
-      if (!response.ok) {
-        const message = body && typeof body === 'object' && 'error' in body
-          ? String((body as { error: unknown }).error)
-          : 'Rankings API request failed.';
-        throw new RankingsApiError(message, response.status);
-      }
-
-      return parse(body);
-    } catch (error) {
-      lastError = error;
-      const status = error instanceof RankingsApiError ? error.status : undefined;
-      const retryable = status === undefined || status === 408 || (status >= 500 && status <= 599);
-      if (!retryable || attempt === attempts - 1) {
-        throw error;
-      }
-      await wait(250 * (attempt + 1));
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new RankingsApiError('Rankings API request failed.');
 };
 
 const parseStoredRankings = (stored: string | null): RankingEntry[] => {
@@ -418,7 +337,6 @@ const parsePendingScores = (stored: string | null): PendingScore[] => {
         && isApiGameType(score.gameType)
         && Number.isInteger(score.durationMs)
         && typeof score.createdAt === 'string'
-        && (score.playerToken === undefined || typeof score.playerToken === 'string')
         && (score.gameSessionId === undefined || typeof score.gameSessionId === 'string')
         && (score.gameSessionExpiresAt === undefined || (
           typeof score.gameSessionExpiresAt === 'string'
@@ -435,7 +353,6 @@ const parsePendingScores = (stored: string | null): PendingScore[] => {
         islandRegion: normalizeIslandRegion(score.gameType, score.islandRegion),
         durationMs: score.durationMs as number,
         createdAt: score.createdAt,
-        ...(score.playerToken ? { playerToken: score.playerToken } : {}),
         ...(score.gameSessionId ? { gameSessionId: score.gameSessionId } : {}),
         ...(score.gameSessionExpiresAt ? { gameSessionExpiresAt: score.gameSessionExpiresAt } : {}),
       }];
@@ -446,7 +363,13 @@ const parsePendingScores = (stored: string | null): PendingScore[] => {
 };
 
 const loadPendingScores = async (): Promise<PendingScore[]> => {
-  return parsePendingScores(await AsyncStorage.getItem(PENDING_SCORES_KEY));
+  const stored = await AsyncStorage.getItem(PENDING_SCORES_KEY);
+  const scores = parsePendingScores(stored);
+  const sanitized = JSON.stringify(scores);
+  if (stored !== null && stored !== sanitized) {
+    await AsyncStorage.setItem(PENDING_SCORES_KEY, sanitized);
+  }
+  return scores;
 };
 
 const writePendingScores = async (scores: PendingScore[]): Promise<void> => {
@@ -466,7 +389,7 @@ const postScore = async (score: PendingScore): Promise<RankingEntry> => {
   if (!score.gameSessionId) {
     throw new RankingsApiError('A verified game session is required.', 400);
   }
-  const playerToken = score.playerToken ?? await getPlayerToken();
+  const playerToken = await getPlayerToken();
   return apiRequest('/scores', parseRankingEntry, {
     method: 'POST',
     headers: { authorization: `Bearer ${playerToken}` },
@@ -632,7 +555,6 @@ export const saveScoreForMode = async (
     islandRegion: normalizeIslandRegion(gameType, metadata.islandRegion),
     durationMs,
     createdAt: new Date().toISOString(),
-    playerToken: await getPlayerToken(),
     ...(metadata.gameSession ? {
       gameSessionId: metadata.gameSession.id,
       gameSessionExpiresAt: metadata.gameSession.expiresAt,
@@ -719,15 +641,17 @@ export const fetchPlayerScoreHistory = async (
     }
   }
 
-  const identity = rankingIdentity(normalizedName);
   const cachedHistory = await loadLocalPlayerHistory(gameType);
-  const legacyRankings = cachedHistory.length === 0
-    ? gameType === 'island_rush'
-      ? (await Promise.all(
-          Object.values(IslandRegion).map((region) => loadLocalRankingsForGame(gameType, region)),
-        )).flat()
-      : await loadLocalRankingsForGame(gameType)
-    : cachedHistory;
+  if (cachedHistory.length > 0) {
+    return cachedHistory.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  const identity = rankingIdentity(normalizedName);
+  const legacyRankings = gameType === 'island_rush'
+    ? (await Promise.all(
+        Object.values(IslandRegion).map((region) => loadLocalRankingsForGame(gameType, region)),
+      )).flat()
+    : await loadLocalRankingsForGame(gameType);
   return legacyRankings
     .filter((entry) => rankingIdentity(entry.playerName) === identity)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));

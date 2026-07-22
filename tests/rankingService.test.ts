@@ -119,6 +119,9 @@ test('an offline score is queued and synced with the same id', async () => {
   });
   assert.equal(saved.queuedForSync, true);
   assert.equal(attempts, 2);
+  const queued = JSON.parse(values.get('strawberry_pending_scores_v1') ?? '[]') as Record<string, unknown>[];
+  assert.equal(queued.length, 1);
+  assert.equal('playerToken' in queued[0], false);
 
   let syncedBody: Record<string, unknown> | undefined;
   let syncedAuthorization: string | null = null;
@@ -142,6 +145,30 @@ test('an offline score is queued and synced with the same id', async () => {
   assert.equal(syncedBody?.gameSessionId, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
   assert.match(String(syncedAuthorization), /^Bearer [0-9a-f-]{36}$/i);
   assert.equal('playerToken' in (syncedBody ?? {}), false);
+});
+
+test('legacy pending scores are sanitized without losing a retryable score', async () => {
+  const rankingService = await rankingServicePromise;
+  values.set('strawberry_pending_scores_v1', JSON.stringify([{
+    submissionId: 'legacy_pending_score_0001',
+    playerName: '旧キュー',
+    score: 2,
+    gameType: 'strawberry_rush',
+    islandRegion: 'all',
+    durationMs: 30_000,
+    createdAt: '2026-07-22T00:00:00.000Z',
+    playerToken: '01234567-89ab-4cde-8f01-23456789abcd',
+    gameSessionId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    gameSessionExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+  }]));
+  globalThis.fetch = async () => { throw new TypeError('offline'); };
+
+  const result = await rankingService.syncPendingScores();
+  const retained = JSON.parse(values.get('strawberry_pending_scores_v1') ?? '[]') as Record<string, unknown>[];
+
+  assert.deepEqual(result, { synced: 0, pending: 1, discarded: 0 });
+  assert.equal(retained[0].submissionId, 'legacy_pending_score_0001');
+  assert.equal('playerToken' in retained[0], false);
 });
 
 test('a permanent API rejection is surfaced instead of queued', async () => {
@@ -264,6 +291,25 @@ test('private history survives an authoritative leaderboard refresh', async () =
 
   assert.ok(requestCount >= 2);
   assert.equal(history.some((entry) => entry.id === saved.entry.id), true);
+});
+
+test('cached private history remains available after the player changes their display name', async () => {
+  const rankingService = await rankingServicePromise;
+  const saved = await rankingService.saveScoreForMode(
+    GameMode.STRAWBERRY,
+    '変更前',
+    4,
+    { durationMs: 30_000 },
+  );
+  const originalWarn = console.warn;
+  console.warn = () => undefined;
+  globalThis.fetch = async () => { throw new TypeError('offline'); };
+
+  const history = await rankingService.fetchPlayerScoreHistory('変更後')
+    .finally(() => { console.warn = originalWarn; });
+
+  assert.equal(history.some((entry) => entry.id === saved.entry.id), true);
+  assert.equal(history[0].playerName, '変更前');
 });
 
 test('island rankings are requested, saved, and cached by region', async () => {
@@ -410,4 +456,35 @@ test('private history and deletion use the local bearer token instead of a playe
   assert.equal(requests[1].method, 'DELETE');
   assert.equal(requests[1].authorization, requests[0].authorization);
   assert.equal(values.has('player_private_token_v1'), false);
+});
+
+test('compatibility helpers preserve every game mode and ranking period', async () => {
+  const rankingService = await rankingServicePromise;
+  globalThis.fetch = async () => Response.json([]);
+
+  const rankings = await Promise.all([
+    rankingService.fetchRankings(),
+    rankingService.fetchIslandRankings(IslandRegion.OKINAWA),
+    rankingService.fetchFlagRankings(),
+    rankingService.fetchColorRankings(),
+    rankingService.fetchRankingsByPeriod(rankingService.RankingPeriod.WEEKLY),
+    rankingService.fetchIslandRankingsByPeriod(rankingService.RankingPeriod.MONTHLY, IslandRegion.SHIKOKU),
+    rankingService.fetchFlagRankingsByPeriod(rankingService.RankingPeriod.DAILY),
+    rankingService.fetchColorRankingsByPeriod(rankingService.RankingPeriod.ALL),
+  ]);
+  assert.equal(rankings.every((entries) => entries.length === 0), true);
+
+  const metadata = { durationMs: 30_000 };
+  const saved = await Promise.all([
+    rankingService.saveScore('互換いちご', 1, metadata),
+    rankingService.saveIslandScore('互換しま', 1, metadata),
+    rankingService.saveFlagScore('互換国旗', 1, metadata),
+    rankingService.saveColorScore('互換カラー', 1, metadata),
+  ]);
+  assert.deepEqual(saved.map((result) => result.entry.gameType), [
+    'strawberry_rush',
+    'island_rush',
+    'flag_rush',
+    'color_rush',
+  ]);
 });

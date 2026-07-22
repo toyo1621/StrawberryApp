@@ -14,7 +14,7 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       CI: true
     steps:
@@ -42,8 +42,8 @@ jobs:
       - name: Enforce native bundle budgets
         run: npm run check:native-build
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: End-to-end, responsive, accessibility, and performance tests
         run: npm run test:e2e

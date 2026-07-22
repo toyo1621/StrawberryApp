@@ -16,7 +16,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-api:
+    uses: ./.github/workflows/deploy-worker.yml
+    secrets: inherit
+
   build:
+    needs: release-api
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -35,8 +40,8 @@ jobs:
       - name: Quality checks
         run: npm run check && npm run doctor
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: End-to-end and accessibility tests
         run: npm run test:e2e
@@ -51,6 +56,7 @@ jobs:
         env:
           EXPO_PUBLIC_RANKINGS_API_URL: ${{ vars.EXPO_PUBLIC_RANKINGS_API_URL || secrets.EXPO_PUBLIC_RANKINGS_API_URL }}
           EXPECTED_API_VERSION: '4'
+          EXPECTED_RELEASE_ID: ${{ github.sha }}
 
       - name: Build web
         run: npm run build:web
@@ -99,3 +105,4 @@ jobs:
         run: node scripts/smoke-rankings-api.mjs
         env:
           EXPO_PUBLIC_RANKINGS_API_URL: ${{ vars.EXPO_PUBLIC_RANKINGS_API_URL || secrets.EXPO_PUBLIC_RANKINGS_API_URL }}
+          EXPECTED_RELEASE_ID: ${{ github.sha }}

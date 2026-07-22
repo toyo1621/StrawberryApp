@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -20,6 +21,7 @@ const EXPECTED_REGION_COUNTS: Record<IslandRegion, number> = {
   [IslandRegion.KYUSHU]: 149,
   [IslandRegion.OKINAWA]: 46,
 };
+const EXPECTED_DATASET_SHA256 = 'd4f1756148507453f2d735ceaa3fbb257a3efef20fec231048dae76065c4078c';
 
 test('the island catalog contains all 415 normalized records and SVGs', () => {
   assert.equal(ISLANDS.length, 415);
@@ -47,6 +49,16 @@ test('the island catalog contains all 415 normalized records and SVGs', () => {
     assert.match(svg, /^<svg[^>]+viewBox=['"]0 0 1024 1024['"][^>]*>/);
     assert.match(svg, /<path[^>]+d=['"][^'"]+['"][^>]*\/>/);
   }
+});
+
+test('the normalized island catalog and SVG collection match the reviewed dataset fingerprint', () => {
+  const hash = createHash('sha256');
+  for (const island of ISLANDS) {
+    hash.update(JSON.stringify(island));
+    hash.update('\n');
+    hash.update(readFileSync(path.resolve('src/assets/islands', island.file)));
+  }
+  assert.equal(hash.digest('hex'), EXPECTED_DATASET_SHA256);
 });
 
 test('island regions use the requested order and contain only their own records', () => {

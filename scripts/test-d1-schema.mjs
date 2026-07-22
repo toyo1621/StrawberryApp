@@ -30,7 +30,7 @@ const output = run([
   'execute',
   ...commonArgs,
   '--command',
-  "SELECT name, type FROM sqlite_master WHERE name IN ('game_sessions', 'idx_game_sessions_expires', 'idx_rankings_game_region_score_created', 'idx_rankings_owner_game_created', 'score_submission_buckets') ORDER BY name",
+  "SELECT name, type FROM sqlite_master WHERE name IN ('game_sessions', 'idx_game_sessions_expires', 'idx_rankings_game_region_score_created', 'idx_rankings_game_region_owner_score_created', 'idx_rankings_game_region_legacy_name_score_created', 'idx_rankings_owner_game_created', 'score_submission_buckets') ORDER BY name",
   '--json',
 ]);
 const response = JSON.parse(output);
@@ -39,6 +39,8 @@ const rows = response[0]?.results ?? [];
 assert.deepEqual(rows, [
   { name: 'game_sessions', type: 'table' },
   { name: 'idx_game_sessions_expires', type: 'index' },
+  { name: 'idx_rankings_game_region_legacy_name_score_created', type: 'index' },
+  { name: 'idx_rankings_game_region_owner_score_created', type: 'index' },
   { name: 'idx_rankings_game_region_score_created', type: 'index' },
   { name: 'idx_rankings_owner_game_created', type: 'index' },
   { name: 'score_submission_buckets', type: 'table' },
@@ -127,6 +129,13 @@ runUpgrade([
   '--file',
   resolve(root, 'worker/migrations/0009_verified_game_sessions.sql'),
 ]);
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--file',
+  resolve(root, 'worker/migrations/0010_rank_leaderboards_by_owner.sql'),
+]);
 
 const preservedOutput = runUpgrade([
   'd1',
@@ -189,6 +198,19 @@ assert.deepEqual(JSON.parse(sessionOutput)[0]?.results ?? [], [{
   consumed_at: null,
   submission_id: null,
 }]);
+
+const identityIndexesOutput = runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_rankings_game_region_%_score_created' ORDER BY name",
+  '--json',
+]);
+assert.deepEqual(JSON.parse(identityIndexesOutput)[0]?.results ?? [], [
+  { name: 'idx_rankings_game_region_legacy_name_score_created' },
+  { name: 'idx_rankings_game_region_owner_score_created' },
+]);
 
 assert.throws(() => runUpgrade([
   'd1',

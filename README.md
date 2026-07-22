@@ -10,7 +10,7 @@
 - 4種類のゲームモードと、島の8出題エリアを含むスコープ別ランキング
 - JST基準の全体・日別・週別・月別集計
 - サーバー発行の使い切りゲームセッションで検証したランキング投稿
-- 端末の秘密トークンで保護した全モードのスコア履歴と自己削除
+- 端末所有者単位の公開順位と、秘密トークンで保護した全モードのスコア履歴・自己削除
 - 通信失敗時のローカル保存と、起動・アプリ復帰時の期限内自動同期
 - ダークモード、振動設定、動きを減らすOS設定への対応
 - スクリーンリーダー向けラベル、見出し階層、選択状態、誤答通知、44px操作領域
@@ -52,14 +52,14 @@ npm run android # Androidエミュレーター
 ```bash
 npm run check            # lint、型、カバレッジ付き単体/Workerテスト、D1移行・統合、全依存監査
 npm run doctor           # 固定バージョンのExpo設定・依存整合性検査
-npm run test:e2e         # Desktop、Pixel 7、320px小型画面、axe、操作領域、性能
+npm run test:e2e         # Chromium/Firefox/WebKit、Pixel 7、320px、axe、操作領域、性能
 npm run build:native-bundles # iOS/AndroidのMetro本番バンドル
 npm run check:native-build   # Hermes 2.5 MiB、各export 16 MiB、415島の予算
 npm run build:web
-npm run check:web-build  # JS 950 KiB、島SVG 12 MiB、全体14 MiBの予算と415件完全性
+npm run check:web-build  # JS 700 KiB、島SVG 12 MiB、全体14 MiBの予算と415件完全性
 ```
 
-Pull Requestの `Quality` workflowとPages公開ゲートが同じ検査を実行します。毎時監視はWeb、ファビコン、全4ランキング、CORS、D1、テストスコアの登録・非公開履歴・削除まで確認し、失敗時はGitHub Issueを自動作成します。
+Pull Requestの `Quality` workflowとPages公開ゲートが同じ検査を実行します。15分監視はWeb、ファビコン、全4ランキング、CORS、D1、テストスコアの登録・非公開履歴・削除後の不在まで確認し、失敗時はGitHub Issueと設定済みの外部Webhookへ通知します。
 
 ## ディレクトリ
 
@@ -94,4 +94,4 @@ scripts/            検証、スモーク、移行補助
 
 ## データについて
 
-公開ランキングには入力したプレイヤー名、スコア、モード、島の出題地域、登録日時が表示されます。全履歴と削除は端末で生成した秘密トークンで認可し、サーバーにはSHA-256所有者ハッシュだけを保存します。ネイティブのトークンはSecureStore、Webではローカルストレージに保存します。詳細はアプリ内のプライバシーポリシーと [SECURITY.md](./SECURITY.md) に記載しています。
+公開ランキングには入力したプレイヤー名、スコア、モード、島の出題地域、登録日時が表示されます。順位の重複排除、全履歴、削除は端末で生成した秘密トークンの所有者単位で扱い、サーバーにはSHA-256所有者ハッシュだけを保存します。ネイティブのトークンはSecureStore、Webではローカルストレージだけに保存し、Async Storageの未送信キューには複製しません。詳細はアプリ内のプライバシーポリシーと [SECURITY.md](./SECURITY.md) に記載しています。
