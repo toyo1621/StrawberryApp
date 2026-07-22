@@ -204,8 +204,16 @@ const App: React.FC = () => {
       setIsSavingScore(true);
       setError(null);
       try {
-        const result = await saveScoreForMode(gameMode, playerName, score, { durationMs });
-        const updatedRankings = await fetchRankingsForModeWithStatus(gameMode);
+        const rankingRegion = gameMode === GameMode.ISLAND ? islandRegion : IslandRegion.ALL;
+        const result = await saveScoreForMode(gameMode, playerName, score, {
+          durationMs,
+          islandRegion: rankingRegion,
+        });
+        const updatedRankings = await fetchRankingsForModeWithStatus(
+          gameMode,
+          undefined,
+          rankingRegion,
+        );
         setRankingsByMode((current) => ({ ...current, [gameMode]: updatedRankings.entries }));
         if (result.queuedForSync) {
           setNotice('通信できなかったため端末に保存しました。次回オンライン時に自動で同期します。');
@@ -228,7 +236,7 @@ const App: React.FC = () => {
       gameStartedAtRef.current = null;
       gameplayDurationMsRef.current = null;
     }
-  }, [playerName, gameMode]);
+  }, [playerName, gameMode, islandRegion]);
 
   const handleRestart = useCallback(() => {
     gameStartedAtRef.current = null;
@@ -380,6 +388,7 @@ const App: React.FC = () => {
           <GameOverScreen 
             ranking={rankingsByMode[gameMode]}
             gameMode={gameMode}
+            islandRegion={islandRegion}
             currentPlayer={{ name: playerName, score: currentScore }} 
             onPlayAgain={handlePlayAgain}
             onGoHome={handleRestart}
