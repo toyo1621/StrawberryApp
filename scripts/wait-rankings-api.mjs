@@ -1,7 +1,8 @@
 import { matchesRankingsRelease } from './operational-contracts.mjs';
+import { RANKINGS_API_VERSION } from './generated/rankingContract.mjs';
 
 const apiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
-const expectedVersion = process.env.EXPECTED_API_VERSION || '4';
+const expectedVersion = process.env.EXPECTED_API_VERSION || String(RANKINGS_API_VERSION);
 const expectedReleaseId = process.env.EXPECTED_RELEASE_ID;
 const attempts = Number(process.env.API_WAIT_ATTEMPTS || 40);
 const intervalMs = Number(process.env.API_WAIT_INTERVAL_MS || 15_000);

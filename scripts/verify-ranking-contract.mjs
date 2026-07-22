@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import {
   API_GAME_TYPES,
   ISLAND_REGIONS,
+  RANKINGS_API_VERSION,
   RANKING_PERIODS,
 } from './generated/rankingContract.mjs';
 
@@ -46,7 +47,20 @@ verifyRegionChecks(resolve(migrationsDirectory, regionMigration), 2);
 requireValue(API_GAME_TYPES.length === 4, 'All four game types must remain explicit.');
 requireValue(RANKING_PERIODS[0] === 'all', 'The all-time period must remain the default.');
 
+const waitScript = readFileSync(resolve(root, 'scripts/wait-rankings-api.mjs'), 'utf8');
+requireValue(
+  waitScript.includes('String(RANKINGS_API_VERSION)'),
+  'The API release wait must default to the generated API version.',
+);
+for (const workflow of ['deploy-worker.yml', 'deploy-pages.yml']) {
+  const contents = readFileSync(resolve(root, '.github/workflows', workflow), 'utf8');
+  requireValue(
+    !contents.includes('EXPECTED_API_VERSION:'),
+    `${workflow} must not override the generated API version.`,
+  );
+}
+
 console.log(
-  `Ranking contract verified: ${API_GAME_TYPES.length} game types, `
+  `Ranking contract v${RANKINGS_API_VERSION} verified: ${API_GAME_TYPES.length} game types, `
   + `${ISLAND_REGIONS.length} regions, ${RANKING_PERIODS.length} periods, latest ${migrations.at(-1)}.`,
 );
