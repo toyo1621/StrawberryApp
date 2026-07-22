@@ -450,22 +450,22 @@ test('island rankings are requested, saved, and cached by region', async () => {
     return Response.json([{
       id: `ranking-${region}`,
       playerName: `${region}選手`,
-      score: region === IslandRegion.CHUGOKU ? 8 : 6,
+      score: region === IslandRegion.KYUSHU_NORTH ? 8 : 6,
       gameType: 'island_rush',
       islandRegion: region,
       createdAt: '2026-07-21T00:00:00.000Z',
     }]);
   };
 
-  const chugoku = await rankingService.fetchRankingsForModeWithStatus(
+  const kyushuNorth = await rankingService.fetchRankingsForModeWithStatus(
     GameMode.ISLAND,
     undefined,
-    IslandRegion.CHUGOKU,
+    IslandRegion.KYUSHU_NORTH,
   );
-  const shikoku = await rankingService.fetchRankingsForModeWithStatus(
+  const kyushuSouth = await rankingService.fetchRankingsForModeWithStatus(
     GameMode.ISLAND,
     undefined,
-    IslandRegion.SHIKOKU,
+    IslandRegion.KYUSHU_SOUTH,
   );
   await rankingService.saveScoreForMode(
     GameMode.ISLAND,
@@ -473,19 +473,19 @@ test('island rankings are requested, saved, and cached by region', async () => {
     5,
     {
       durationMs: 30_000,
-      islandRegion: IslandRegion.CHUGOKU,
-      gameSession: verifiedSession('island_rush', IslandRegion.CHUGOKU),
+      islandRegion: IslandRegion.KYUSHU_NORTH,
+      gameSession: verifiedSession('island_rush', IslandRegion.KYUSHU_NORTH),
     },
   );
 
-  assert.equal(chugoku.entries[0].islandRegion, IslandRegion.CHUGOKU);
-  assert.equal(shikoku.entries[0].islandRegion, IslandRegion.SHIKOKU);
-  assert.match(requests[0], /islandRegion=chugoku/);
-  assert.match(requests[1], /islandRegion=shikoku/);
-  assert.equal(values.has('island_game_rankings_chugoku'), true);
-  assert.equal(values.has('island_game_rankings_shikoku'), true);
+  assert.equal(kyushuNorth.entries[0].islandRegion, IslandRegion.KYUSHU_NORTH);
+  assert.equal(kyushuSouth.entries[0].islandRegion, IslandRegion.KYUSHU_SOUTH);
+  assert.match(requests[0], /islandRegion=kyushu_north/);
+  assert.match(requests[1], /islandRegion=kyushu_south/);
+  assert.equal(values.has('island_game_rankings_kyushu_north'), true);
+  assert.equal(values.has('island_game_rankings_kyushu_south'), true);
   assert.equal(values.has('island_game_rankings'), false);
-  assert.equal(postedBody?.islandRegion, IslandRegion.CHUGOKU);
+  assert.equal(postedBody?.islandRegion, IslandRegion.KYUSHU_NORTH);
 });
 
 test('one broken cache does not discard rankings from the other modes', async () => {

@@ -18,6 +18,8 @@ export const ISLAND_REGIONS = [
   'chubu_kinki',
   'chugoku',
   'shikoku',
+  'kyushu_north',
+  'kyushu_south',
   'kyushu',
   'okinawa',
 ] as const;

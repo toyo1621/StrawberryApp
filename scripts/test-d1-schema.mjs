@@ -136,6 +136,23 @@ runUpgrade([
   '--file',
   resolve(root, 'worker/migrations/0010_rank_leaderboards_by_owner.sql'),
 ]);
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  `INSERT INTO rankings (id, player_name, score, game_type, island_region, created_at, owner_hash)
+   VALUES ('existing-kyushu-score', '旧九州選手', 11, 'island_rush', 'kyushu', '2026-07-21T02:30:00.000Z', '${'d'.repeat(64)}');
+   INSERT INTO game_sessions (id, owner_hash, game_type, island_region, started_at, expires_at)
+   VALUES ('00000000-0000-4000-8000-000000000000', '${'d'.repeat(64)}', 'island_rush', 'kyushu', '2026-07-21T02:30:00.000Z', '2026-07-21T02:45:00.000Z')`,
+]);
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--file',
+  resolve(root, 'worker/migrations/0011_split_kyushu_regions.sql'),
+]);
 
 const preservedOutput = runUpgrade([
   'd1',
@@ -155,6 +172,15 @@ assert.deepEqual(preserved, [
     island_region: 'kanto',
     created_at: '2026-07-21T00:00:00.000Z',
     owner_hash: 'a'.repeat(64),
+  },
+  {
+    id: 'existing-kyushu-score',
+    player_name: '旧九州選手',
+    score: 11,
+    game_type: 'island_rush',
+    island_region: 'kyushu',
+    created_at: '2026-07-21T02:30:00.000Z',
+    owner_hash: 'd'.repeat(64),
   },
   {
     id: 'existing-shikoku-score',
@@ -182,22 +208,45 @@ runUpgrade([
   ...upgradeArgs,
   '--command',
   `INSERT INTO game_sessions (id, owner_hash, game_type, island_region, started_at, expires_at)
-   VALUES ('01234567-89ab-4cde-8f01-23456789abcd', '${'b'.repeat(64)}', 'island_rush', 'okinawa', '2026-07-21T03:00:00.000Z', '2026-07-21T03:15:00.000Z')`,
+   VALUES
+     ('01234567-89ab-4cde-8f01-23456789abcd', '${'b'.repeat(64)}', 'island_rush', 'okinawa', '2026-07-21T03:00:00.000Z', '2026-07-21T03:15:00.000Z'),
+     ('11111111-1111-4111-8111-111111111111', '${'b'.repeat(64)}', 'island_rush', 'kyushu_north', '2026-07-21T03:00:00.000Z', '2026-07-21T03:15:00.000Z'),
+     ('22222222-2222-4222-8222-222222222222', '${'b'.repeat(64)}', 'island_rush', 'kyushu_south', '2026-07-21T03:00:00.000Z', '2026-07-21T03:15:00.000Z')`,
 ]);
 const sessionOutput = runUpgrade([
   'd1',
   'execute',
   ...upgradeArgs,
   '--command',
-  "SELECT game_type, island_region, consumed_at, submission_id FROM game_sessions",
+  "SELECT game_type, island_region, consumed_at, submission_id FROM game_sessions ORDER BY island_region",
   '--json',
 ]);
-assert.deepEqual(JSON.parse(sessionOutput)[0]?.results ?? [], [{
-  game_type: 'island_rush',
-  island_region: 'okinawa',
-  consumed_at: null,
-  submission_id: null,
-}]);
+assert.deepEqual(JSON.parse(sessionOutput)[0]?.results ?? [], [
+  {
+    game_type: 'island_rush',
+    island_region: 'kyushu',
+    consumed_at: null,
+    submission_id: null,
+  },
+  {
+    game_type: 'island_rush',
+    island_region: 'kyushu_north',
+    consumed_at: null,
+    submission_id: null,
+  },
+  {
+    game_type: 'island_rush',
+    island_region: 'kyushu_south',
+    consumed_at: null,
+    submission_id: null,
+  },
+  {
+    game_type: 'island_rush',
+    island_region: 'okinawa',
+    consumed_at: null,
+    submission_id: null,
+  },
+]);
 
 const identityIndexesOutput = runUpgrade([
   'd1',
