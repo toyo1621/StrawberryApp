@@ -104,8 +104,10 @@ test('a fresh leaderboard read uses the player token to request primary consiste
   const playerToken = '01234567-89ab-4cde-8f01-23456789abcd';
   values.set('player_private_token_v1', playerToken);
   let authorization: string | null = null;
+  let cacheMode: RequestCache | undefined;
   globalThis.fetch = async (_input, init) => {
     authorization = new Headers(init?.headers).get('authorization');
+    cacheMode = init?.cache;
     return Response.json([]);
   };
 
@@ -117,6 +119,7 @@ test('a fresh leaderboard read uses the player token to request primary consiste
   );
 
   assert.equal(authorization, `Bearer ${playerToken}`);
+  assert.equal(cacheMode, 'no-store');
 });
 
 test('a game without a verified session remains local and is not submitted', async () => {

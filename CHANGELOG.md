@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- スコア保存直後のランキング再取得をBearer付きprimary readへ切り替え、エッジキャッシュやD1 replicaの反映待ちで直前の記録が欠ける問題を修正
+- スコア保存直後のランキング再取得をBearer付きprimary readとブラウザ `no-store` へ切り替え、匿名HTTPキャッシュ、エッジキャッシュ、D1 replicaの反映待ちで直前の記録が欠ける問題を修正
 - 地理院地図を参照しtoyo1621が独自制作した415島SVGの出典・制作工程をREADME、アプリ内規約、専用文書へ明記
 - 参照されない旧35島SVGを削除し、実装データとアセット集合の完全一致テストを追加
 - 公開ランキングにD1 read replication、30秒colo cache、5分以内のstale fallback、同時cold read集約を追加
