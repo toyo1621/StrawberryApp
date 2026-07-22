@@ -34,7 +34,7 @@
 
 ## 依存関係
 
-通常の変更では `npm ci` を使い、lockfileを必ずレビューします。CIの `npm run audit:high` はhigh/criticalを公開前に拒否します。依存更新時は `npm audit`、単体テスト、E2E、本番相当ビルドを実行します。
+通常の変更では `npm ci` を使い、lockfileを必ずレビューします。CIの `npm run audit:high` は配布対象の本番依存にあるhigh/criticalを公開前に拒否します。開発依存は `npm audit` で別途確認し、上流修正版が利用可能になった時点で互換性を検証して更新します。依存更新時は単体テスト、E2E、本番相当ビルドを実行します。
 
 ## 既知の限界
 
