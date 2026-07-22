@@ -101,24 +101,61 @@ runUpgrade([
   '--file',
   resolve(root, 'worker/migrations/0007_split_island_rankings_by_region.sql'),
 ]);
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  `INSERT INTO rankings (id, player_name, score, game_type, island_region, created_at)
+   VALUES
+     ('existing-shikoku-score', '四国選手', 8, 'island_rush', 'shikoku', '2026-07-21T01:00:00.000Z'),
+     ('existing-strawberry-score', 'いちご選手', 20, 'strawberry_rush', 'all', '2026-07-21T02:00:00.000Z')`,
+]);
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--file',
+  resolve(root, 'worker/migrations/0008_move_legacy_island_rankings_to_kanto.sql'),
+]);
 
 const preservedOutput = runUpgrade([
   'd1',
   'execute',
   ...upgradeArgs,
   '--command',
-  "SELECT id, player_name, score, game_type, island_region, created_at, owner_hash FROM rankings WHERE id = 'existing-island-score'",
+  "SELECT id, player_name, score, game_type, island_region, created_at, owner_hash FROM rankings WHERE id LIKE 'existing-%-score' ORDER BY id",
   '--json',
 ]);
 const preserved = JSON.parse(preservedOutput)[0]?.results ?? [];
-assert.deepEqual(preserved, [{
-  id: 'existing-island-score',
-  player_name: '既存選手',
-  score: 12,
-  game_type: 'island_rush',
-  island_region: 'all',
-  created_at: '2026-07-21T00:00:00.000Z',
-  owner_hash: 'a'.repeat(64),
-}]);
+assert.deepEqual(preserved, [
+  {
+    id: 'existing-island-score',
+    player_name: '既存選手',
+    score: 12,
+    game_type: 'island_rush',
+    island_region: 'kanto',
+    created_at: '2026-07-21T00:00:00.000Z',
+    owner_hash: 'a'.repeat(64),
+  },
+  {
+    id: 'existing-shikoku-score',
+    player_name: '四国選手',
+    score: 8,
+    game_type: 'island_rush',
+    island_region: 'shikoku',
+    created_at: '2026-07-21T01:00:00.000Z',
+    owner_hash: null,
+  },
+  {
+    id: 'existing-strawberry-score',
+    player_name: 'いちご選手',
+    score: 20,
+    game_type: 'strawberry_rush',
+    island_region: 'all',
+    created_at: '2026-07-21T02:00:00.000Z',
+    owner_hash: null,
+  },
+]);
 
-console.log('D1 migrations, existing-score preservation, and ranking-region/privacy/rate-limit schema verified.');
+console.log('D1 migrations, legacy Kanto reassignment, and ranking-region/privacy/rate-limit schema verified.');
