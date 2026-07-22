@@ -42,7 +42,7 @@
 
 ## バックアップと復元
 
-Worker公開workflowはD1 migrationの直前にTime Travel bookmarkとランキング件数を取得します。migration後の件数が一致しない場合はWorker公開前に停止し、GitHub Actions Step Summaryへ件数と復元コマンドを記録します。公開後はCloudflareの各エッジで期待するGit SHAとAPI v4が確認できるまで5秒間隔・最大2分待ち、伝播前の旧応答をリリース失敗と誤判定しません。
+Worker公開workflowはD1 migrationの直前にTime Travel bookmarkとランキング件数を取得します。migration後の件数が一致しない場合はWorker公開前に停止し、GitHub Actions Step Summaryへ件数と復元コマンドを記録します。公開後はCloudflareの各エッジで期待するGit SHAとAPI v4が5秒間隔で3回連続確認できるまで最大2分待ち、続くスモークも契約不一致を再試行するため、伝播中の旧応答をリリース失敗と誤判定しません。
 
 ```bash
 npx wrangler d1 time-travel info strawberry-rankings \

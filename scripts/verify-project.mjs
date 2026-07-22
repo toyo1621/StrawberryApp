@@ -113,7 +113,7 @@ requireValue(
   workerReleaseWaitIndex > -1
     && workerSmokeIndex > workerReleaseWaitIndex
     && workerWorkflow.includes('run: npm run wait:rankings-api')
-    && workerWorkflow.includes('API_WAIT_INTERVAL_MS'),
+    && workerWorkflow.includes("API_WAIT_CONSECUTIVE_SUCCESSES: '3'"),
   'The Worker release workflow must wait for edge propagation before its production smoke test.',
 );
 

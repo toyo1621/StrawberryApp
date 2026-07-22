@@ -98,6 +98,7 @@ jobs:
           EXPECTED_RELEASE_ID: ${{ github.sha }}
           API_WAIT_ATTEMPTS: '24'
           API_WAIT_INTERVAL_MS: '5000'
+          API_WAIT_CONSECUTIVE_SUCCESSES: '3'
 
       - name: Verify production API
         run: npm run smoke:rankings-api
