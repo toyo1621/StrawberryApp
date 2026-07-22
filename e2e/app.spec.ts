@@ -77,7 +77,7 @@ test('a player can start and answer every mode without page errors or external f
   const externalFlagRequests: string[] = [];
   const pageErrors: string[] = [];
   page.on('request', (request) => {
-    if (request.url().includes('cdn.jsdelivr.net')) {
+    if (new URL(request.url()).hostname === 'cdn.jsdelivr.net') {
       externalFlagRequests.push(request.url());
     }
   });
