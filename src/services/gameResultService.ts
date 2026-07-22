@@ -1,4 +1,9 @@
-import { GameMode, IslandRegion, type RankingEntry } from '../types';
+import {
+  GameMode,
+  IslandRegion,
+  RankingPeriod,
+  type RankingEntry,
+} from '../types';
 import {
   fetchRankingsForModeWithStatus,
   saveScoreForMode,
@@ -55,8 +60,9 @@ export const saveGameResult = async ({
     try {
       const refreshed = await fetchRankingsForModeWithStatus(
         gameMode,
-        undefined,
+        RankingPeriod.ALL,
         rankingRegion,
+        { requireFresh: true },
       );
       rankings = refreshed.entries;
       if (refreshed.stale) {

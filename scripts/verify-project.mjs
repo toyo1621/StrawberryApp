@@ -54,10 +54,11 @@ requireValue(!sourceFiles.includes('cdn.jsdelivr.net'), 'Runtime source must not
 const leaderboardSource = await readFile(new URL('../worker/src/leaderboards.ts', import.meta.url), 'utf8');
 requireValue(
   leaderboardSource.includes("withSession.call(database, 'first-unconstrained')")
+    && leaderboardSource.includes("withSession.call(database, 'first-primary')")
     && leaderboardSource.includes('caches.default')
     && leaderboardSource.includes('WITH owner_ranked AS')
     && leaderboardSource.includes('legacy_ranked AS'),
-  'Replica-backed, cached, owner/legacy indexed leaderboard reads are incomplete.',
+  'Cached replica reads and primary-consistent post-write reads are incomplete.',
 );
 
 const wrangler = await readFile(new URL('../worker/wrangler.toml', import.meta.url), 'utf8');

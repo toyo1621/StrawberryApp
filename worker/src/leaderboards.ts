@@ -3,6 +3,7 @@ import {
   parseIslandRegion,
   parseRankingPeriod,
 } from './rankingValidation';
+import { getBearerPlayerToken } from './identity';
 import type { Env, RankingEntry, RankingRow } from './types';
 import { mapRanking } from './types';
 
@@ -102,9 +103,19 @@ const getPublicReadSession = (database: D1Database): Pick<D1Database, 'prepare'>
     : database;
 };
 
+const getPrimaryReadSession = (database: D1Database): Pick<D1Database, 'prepare'> => {
+  const withSession = (database as D1Database & {
+    withSession?: D1Database['withSession'];
+  }).withSession;
+  return typeof withSession === 'function'
+    ? withSession.call(database, 'first-primary')
+    : database;
+};
+
 const queryLeaderboard = async (
   query: LeaderboardQuery,
   env: Env,
+  readFromPrimary = false,
 ): Promise<LeaderboardSnapshot> => {
   const params: (string | number)[] = [query.gameType, query.islandRegion];
   let where = 'game_type = ? AND island_region = ?';
@@ -113,7 +124,9 @@ const queryLeaderboard = async (
     params.push(query.start);
   }
 
-  const database = getPublicReadSession(env.DB);
+  const database = readFromPrimary
+    ? getPrimaryReadSession(env.DB)
+    : getPublicReadSession(env.DB);
   const result = await database.prepare(
     `
       WITH owner_ranked AS (
@@ -290,9 +303,13 @@ export const fetchLeaderboard = async (
   context?: ExecutionContext,
 ): Promise<LeaderboardResult> => {
   const query = parseLeaderboardQuery(request);
+  const readFromPrimary = getBearerPlayerToken(request, false) !== null;
   const cache = getEdgeCache();
   if (!cache || !canUseCache(request, query)) {
-    return { ...await queryLeaderboard(query, env), cacheStatus: 'bypass' };
+    return {
+      ...await queryLeaderboard(query, env, readFromPrimary),
+      cacheStatus: 'bypass',
+    };
   }
 
   const key = buildCacheKey(request.url, query.gameType, query.islandRegion, query.period);

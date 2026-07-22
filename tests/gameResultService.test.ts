@@ -67,6 +67,7 @@ test('a verified score and refreshed leaderboard produce one successful outcome'
   const { saveGameResult } = await gameResultServicePromise;
   values.set('player_private_token_v1', playerToken);
   let savedEntry: Record<string, unknown> | null = null;
+  let leaderboardAuthorization: string | null = null;
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     if (url.includes('/scores')) {
@@ -81,7 +82,10 @@ test('a verified score and refreshed leaderboard produce one successful outcome'
       };
       return Response.json(savedEntry, { status: 201 });
     }
-    return Response.json(savedEntry ? [savedEntry] : []);
+    leaderboardAuthorization = new Headers(init?.headers).get('authorization');
+    return Response.json(
+      leaderboardAuthorization === `Bearer ${playerToken}` && savedEntry ? [savedEntry] : [],
+    );
   };
 
   const outcome = await saveGameResult({
@@ -101,6 +105,7 @@ test('a verified score and refreshed leaderboard produce one successful outcome'
   });
 
   assert.equal(outcome.rankings?.length, 1);
+  assert.equal(leaderboardAuthorization, `Bearer ${playerToken}`);
   assert.match(outcome.notice, /ランキングにスコアを保存/);
   assert.equal(outcome.warning, null);
 });
