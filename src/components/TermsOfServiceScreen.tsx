@@ -26,7 +26,7 @@ const sections: InfoSection[] = [
   },
   {
     title: '4. スコアの取扱い',
-    paragraphs: ['明らかに不正、重複、禁止事項に該当すると判断した記録は、事前通知なく非表示または削除する場合があります。プレイヤー名は公開情報として扱われます。この端末から登録した記録は、マイページから削除できます。'],
+    paragraphs: ['ランキングには、開始時にサーバーから発行した使い切りゲームセッションで検証できた記録だけを送信します。明らかに不正、重複、禁止事項に該当すると判断した記録は、事前通知なく非表示または削除する場合があります。プレイヤー名は公開情報として扱われます。この端末から登録した記録は、マイページから削除できます。'],
   },
   {
     title: '5. 免責と責任',
@@ -41,7 +41,7 @@ const sections: InfoSection[] = [
 const TermsOfServiceScreen: React.FC<TermsOfServiceScreenProps> = ({ onBack, darkMode = false }) => (
   <InfoScreen
     title="利用規約"
-    updatedAt="2026年7月21日"
+    updatedAt="2026年7月22日"
     sections={sections}
     onBack={onBack}
     darkMode={darkMode}

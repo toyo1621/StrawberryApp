@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  createColorRound,
   countryCodeToFlagEmoji,
   describeEmoji,
+  getDistinctColorCandidates,
   getColorCategory,
   progressPercent,
   shuffle,
 } from '../src/domain/game';
+import { COLORS } from '../src/constants';
 
 test('shuffle is deterministic with an injected random source and does not mutate input', () => {
   const source = [1, 2, 3, 4];
@@ -46,4 +49,26 @@ test('color categories preserve every documented boundary', () => {
   assert.equal(getColorCategory('120'), 'grayish');
   assert.equal(getColorCategory('121'), 'achromatic');
   assert.equal(getColorCategory('invalid'), 'achromatic');
+});
+
+test('every color has a visually distinct distractor in its preferred category', () => {
+  for (const target of COLORS) {
+    const candidates = getDistinctColorCandidates(COLORS, target);
+    assert.ok(candidates.length > 0, `${target.name} must have a distractor`);
+    for (const candidate of candidates) {
+      assert.notEqual(candidate.id, target.id);
+      assert.notEqual(candidate.hex.toUpperCase(), target.hex.toUpperCase());
+    }
+  }
+});
+
+test('color rounds are deterministic and never render two identical choices', () => {
+  const values = [0.01, 0.4, 0.9];
+  let index = 0;
+  const round = createColorRound(COLORS, () => values[index++]);
+
+  assert.equal(round.correctIndex, 1);
+  assert.equal(round.choices[round.correctIndex].id, round.target.id);
+  assert.notEqual(round.choices[0].id, round.choices[1].id);
+  assert.notEqual(round.choices[0].hex.toUpperCase(), round.choices[1].hex.toUpperCase());
 });

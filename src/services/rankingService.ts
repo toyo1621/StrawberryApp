@@ -30,13 +30,23 @@ export { RankingPeriod } from '../types';
 export interface ScoreMetadata {
   durationMs: number;
   islandRegion?: IslandRegion;
+  gameSession?: RankingGameSession | null;
 }
+
+export type RankingGameSession = {
+  id: string;
+  gameType: ApiGameType;
+  islandRegion: IslandRegion;
+  startedAt: string;
+  expiresAt: string;
+};
 
 export type ScoreSaveResult = {
   entry: RankingEntry;
   destination: 'remote' | 'local';
   queuedForSync: boolean;
   droppedPendingScores: number;
+  verifiedForRanking: boolean;
 };
 
 export type RankingFetchResult = {
@@ -66,6 +76,8 @@ type PendingScore = {
   durationMs: number;
   createdAt: string;
   playerToken?: string;
+  gameSessionId?: string;
+  gameSessionExpiresAt?: string;
 };
 
 const RANKING_LIMIT = 30;
@@ -75,6 +87,7 @@ const PENDING_SYNC_BATCH_SIZE = 3;
 const API_TIMEOUT_MS = 6_000;
 const API_ATTEMPTS = 2;
 const PENDING_SCORES_KEY = 'strawberry_pending_scores_v1';
+const PLAYER_HISTORY_KEY_PREFIX = 'strawberry_player_history_v2';
 
 const BASE_STORAGE_KEYS: Record<ApiGameType, string> = {
   strawberry_rush: 'strawberry_game_rankings',
@@ -114,6 +127,7 @@ const ALL_STORAGE_KEYS = [
   ...Object.values(IslandRegion)
     .filter((region) => region !== IslandRegion.ALL)
     .map((region) => getStorageKey('island_rush', region)),
+  ...API_GAME_TYPES.map((gameType) => `${PLAYER_HISTORY_KEY_PREFIX}_${gameType}`),
 ];
 
 const rankingsApiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
@@ -182,6 +196,28 @@ const parseRankingEntry = (value: unknown): RankingEntry => {
   return entry;
 };
 
+const parseGameSession = (value: unknown): RankingGameSession => {
+  if (!value || typeof value !== 'object') {
+    throw new RankingsApiError('The rankings API returned an invalid game session.');
+  }
+  const session = value as Partial<RankingGameSession>;
+  if (!(typeof session.id === 'string'
+    && isApiGameType(session.gameType)
+    && typeof session.startedAt === 'string'
+    && Number.isFinite(Date.parse(session.startedAt))
+    && typeof session.expiresAt === 'string'
+    && Number.isFinite(Date.parse(session.expiresAt)))) {
+    throw new RankingsApiError('The rankings API returned an invalid game session.');
+  }
+  return {
+    id: session.id,
+    gameType: session.gameType,
+    islandRegion: normalizeIslandRegion(session.gameType, session.islandRegion),
+    startedAt: session.startedAt,
+    expiresAt: session.expiresAt,
+  };
+};
+
 const parseDeleteResult = (value: unknown): { deleted: number } => {
   if (!value || typeof value !== 'object' || !Number.isInteger((value as { deleted?: unknown }).deleted)) {
     throw new RankingsApiError('The rankings API returned an invalid response.');
@@ -218,15 +254,18 @@ const apiRequest = async <T>(
   path: string,
   parse: (value: unknown) => T,
   init: RequestInit = {},
+  policy: { attempts?: number; timeoutMs?: number } = {},
 ): Promise<T> => {
   if (!hasRankingsApi()) {
     throw new RankingsApiError('Rankings API URL is not configured.');
   }
 
   let lastError: unknown;
-  for (let attempt = 0; attempt < API_ATTEMPTS; attempt += 1) {
+  const attempts = policy.attempts ?? API_ATTEMPTS;
+  const timeoutMs = policy.timeoutMs ?? API_TIMEOUT_MS;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(`${rankingsApiUrl}${path}`, {
@@ -252,7 +291,7 @@ const apiRequest = async <T>(
       lastError = error;
       const status = error instanceof RankingsApiError ? error.status : undefined;
       const retryable = status === undefined || status === 408 || (status >= 500 && status <= 599);
-      if (!retryable || attempt === API_ATTEMPTS - 1) {
+      if (!retryable || attempt === attempts - 1) {
         throw error;
       }
       await wait(250 * (attempt + 1));
@@ -298,6 +337,31 @@ const writeLocalRankingsForGame = async (
   }
 };
 
+const getPlayerHistoryStorageKey = (gameType: ApiGameType): string => (
+  `${PLAYER_HISTORY_KEY_PREFIX}_${gameType}`
+);
+
+const loadLocalPlayerHistory = async (gameType: ApiGameType): Promise<RankingEntry[]> => {
+  return parseStoredRankings(await AsyncStorage.getItem(getPlayerHistoryStorageKey(gameType)));
+};
+
+const mergeIntoLocalPlayerHistory = async (
+  gameType: ApiGameType,
+  incoming: RankingEntry[],
+): Promise<void> => {
+  const current = await loadLocalPlayerHistory(gameType);
+  const byId = new Map(current.map((entry) => [entry.id, entry]));
+  incoming.forEach((entry) => byId.set(entry.id, entry));
+  const merged = [...byId.values()]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, LOCAL_CACHE_LIMIT);
+  try {
+    await AsyncStorage.setItem(getPlayerHistoryStorageKey(gameType), JSON.stringify(merged));
+  } catch (error) {
+    console.warn('Failed to cache player history.', error);
+  }
+};
+
 const mergeIntoLocalCache = async (
   gameType: ApiGameType,
   islandRegion: IslandRegion,
@@ -312,21 +376,24 @@ const mergeIntoLocalCache = async (
   await writeLocalRankingsForGame(gameType, islandRegion, merged);
 };
 
-const mergeEntriesIntoLocalCaches = async (
+const replaceLocalLeaderboardSnapshot = async (
   gameType: ApiGameType,
-  entries: RankingEntry[],
+  islandRegion: IslandRegion,
+  incoming: RankingEntry[],
 ): Promise<void> => {
-  if (gameType !== 'island_rush') {
-    await mergeIntoLocalCache(gameType, IslandRegion.ALL, entries);
-    return;
-  }
-
-  await Promise.all(Object.values(IslandRegion).map(async (region) => {
-    const regionalEntries = entries.filter((entry) => entry.islandRegion === region);
-    if (regionalEntries.length > 0) {
-      await mergeIntoLocalCache(gameType, region, regionalEntries);
-    }
-  }));
+  const pendingIds = new Set(
+    (await loadPendingScores())
+      .filter((score) => score.gameType === gameType && score.islandRegion === islandRegion)
+      .map((score) => score.submissionId),
+  );
+  const current = await loadLocalRankingsForGame(gameType, islandRegion);
+  const pendingEntries = current.filter((entry) => pendingIds.has(entry.id));
+  const byId = new Map(incoming.map((entry) => [entry.id, entry]));
+  pendingEntries.forEach((entry) => byId.set(entry.id, entry));
+  const snapshot = [...byId.values()]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, LOCAL_CACHE_LIMIT);
+  await writeLocalRankingsForGame(gameType, islandRegion, snapshot);
 };
 
 const parsePendingScores = (stored: string | null): PendingScore[] => {
@@ -351,7 +418,12 @@ const parsePendingScores = (stored: string | null): PendingScore[] => {
         && isApiGameType(score.gameType)
         && Number.isInteger(score.durationMs)
         && typeof score.createdAt === 'string'
-        && (score.playerToken === undefined || typeof score.playerToken === 'string'))) {
+        && (score.playerToken === undefined || typeof score.playerToken === 'string')
+        && (score.gameSessionId === undefined || typeof score.gameSessionId === 'string')
+        && (score.gameSessionExpiresAt === undefined || (
+          typeof score.gameSessionExpiresAt === 'string'
+          && Number.isFinite(Date.parse(score.gameSessionExpiresAt))
+        )))) {
         return [];
       }
 
@@ -364,6 +436,8 @@ const parsePendingScores = (stored: string | null): PendingScore[] => {
         durationMs: score.durationMs as number,
         createdAt: score.createdAt,
         ...(score.playerToken ? { playerToken: score.playerToken } : {}),
+        ...(score.gameSessionId ? { gameSessionId: score.gameSessionId } : {}),
+        ...(score.gameSessionExpiresAt ? { gameSessionExpiresAt: score.gameSessionExpiresAt } : {}),
       }];
     });
   } catch {
@@ -389,12 +463,16 @@ const enqueuePendingScore = async (score: PendingScore): Promise<number> => {
 };
 
 const postScore = async (score: PendingScore): Promise<RankingEntry> => {
+  if (!score.gameSessionId) {
+    throw new RankingsApiError('A verified game session is required.', 400);
+  }
   const playerToken = score.playerToken ?? await getPlayerToken();
   return apiRequest('/scores', parseRankingEntry, {
     method: 'POST',
     headers: { authorization: `Bearer ${playerToken}` },
     body: JSON.stringify({
       submissionId: score.submissionId,
+      gameSessionId: score.gameSessionId,
       playerName: score.playerName,
       score: score.score,
       gameType: score.gameType,
@@ -417,9 +495,18 @@ export const syncPendingScores = async (): Promise<SyncResult> => {
 
   for (let index = 0; index < batch.length; index += 1) {
     const score = batch[index];
+    if (
+      !score.gameSessionId
+      || !score.gameSessionExpiresAt
+      || Date.parse(score.gameSessionExpiresAt) <= Date.now()
+    ) {
+      discarded += 1;
+      continue;
+    }
     try {
       const entry = await postScore(score);
       await mergeIntoLocalCache(score.gameType, score.islandRegion, [entry]);
+      await mergeIntoLocalPlayerHistory(score.gameType, [entry]);
       synced += 1;
     } catch (error) {
       if (!isTemporaryApiFailure(error)) {
@@ -454,7 +541,7 @@ export const fetchRankingsForModeWithStatus = async (
         parseRankingEntries,
       );
       if (period === RankingPeriod.ALL) {
-        await mergeIntoLocalCache(gameType, rankingRegion, rankings);
+        await replaceLocalLeaderboardSnapshot(gameType, rankingRegion, rankings);
       }
       return { entries: rankings, source: 'remote', stale: false };
     } catch (error) {
@@ -521,6 +608,7 @@ const saveLocalScore = async (pending: PendingScore): Promise<RankingEntry> => {
     createdAt: pending.createdAt,
   };
   await mergeIntoLocalCache(pending.gameType, pending.islandRegion, [entry]);
+  await mergeIntoLocalPlayerHistory(pending.gameType, [entry]);
   return entry;
 };
 
@@ -545,13 +633,29 @@ export const saveScoreForMode = async (
     durationMs,
     createdAt: new Date().toISOString(),
     playerToken: await getPlayerToken(),
+    ...(metadata.gameSession ? {
+      gameSessionId: metadata.gameSession.id,
+      gameSessionExpiresAt: metadata.gameSession.expiresAt,
+    } : {}),
   };
 
-  if (hasRankingsApi()) {
+  const hasUsableSession = Boolean(
+    pending.gameSessionId
+    && pending.gameSessionExpiresAt
+    && Date.parse(pending.gameSessionExpiresAt) > Date.now(),
+  );
+  if (hasRankingsApi() && hasUsableSession) {
     try {
       const entry = await postScore(pending);
       await mergeIntoLocalCache(pending.gameType, pending.islandRegion, [entry]);
-      return { entry, destination: 'remote', queuedForSync: false, droppedPendingScores: 0 };
+      await mergeIntoLocalPlayerHistory(pending.gameType, [entry]);
+      return {
+        entry,
+        destination: 'remote',
+        queuedForSync: false,
+        droppedPendingScores: 0,
+        verifiedForRanking: true,
+      };
     } catch (error) {
       if (!isTemporaryApiFailure(error)) {
         throw error;
@@ -559,7 +663,13 @@ export const saveScoreForMode = async (
       console.warn('Queued a score after an API failure.', error);
       const droppedPendingScores = await enqueuePendingScore(pending);
       const entry = await saveLocalScore(pending);
-      return { entry, destination: 'local', queuedForSync: true, droppedPendingScores };
+      return {
+        entry,
+        destination: 'local',
+        queuedForSync: true,
+        droppedPendingScores,
+        verifiedForRanking: true,
+      };
     }
   }
 
@@ -568,7 +678,25 @@ export const saveScoreForMode = async (
     destination: 'local',
     queuedForSync: false,
     droppedPendingScores: 0,
+    verifiedForRanking: false,
   };
+};
+
+export const createRankingGameSession = async (
+  mode: GameMode,
+  islandRegion: IslandRegion = IslandRegion.ALL,
+): Promise<RankingGameSession | null> => {
+  if (!hasRankingsApi()) {
+    return null;
+  }
+  const gameType = GAME_MODE_CONFIG[mode].apiType;
+  const rankingRegion = normalizeIslandRegion(gameType, islandRegion);
+  const playerToken = await getPlayerToken();
+  return apiRequest('/game-sessions', parseGameSession, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${playerToken}` },
+    body: JSON.stringify({ gameType, islandRegion: rankingRegion }),
+  }, { attempts: 1, timeoutMs: 3_000 });
 };
 
 export const fetchPlayerScoreHistory = async (
@@ -584,7 +712,7 @@ export const fetchPlayerScoreHistory = async (
         parseRankingEntries,
         { headers: { authorization: `Bearer ${playerToken}` } },
       );
-      await mergeEntriesIntoLocalCaches(gameType, history);
+      await mergeIntoLocalPlayerHistory(gameType, history);
       return history;
     } catch (error) {
       console.warn('Using cached score history after an API failure.', error);
@@ -592,12 +720,15 @@ export const fetchPlayerScoreHistory = async (
   }
 
   const identity = rankingIdentity(normalizedName);
-  const rankings = gameType === 'island_rush'
-    ? (await Promise.all(
-        Object.values(IslandRegion).map((region) => loadLocalRankingsForGame(gameType, region)),
-      )).flat()
-    : await loadLocalRankingsForGame(gameType);
-  return rankings
+  const cachedHistory = await loadLocalPlayerHistory(gameType);
+  const legacyRankings = cachedHistory.length === 0
+    ? gameType === 'island_rush'
+      ? (await Promise.all(
+          Object.values(IslandRegion).map((region) => loadLocalRankingsForGame(gameType, region)),
+        )).flat()
+      : await loadLocalRankingsForGame(gameType)
+    : cachedHistory;
+  return legacyRankings
     .filter((entry) => rankingIdentity(entry.playerName) === identity)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 };

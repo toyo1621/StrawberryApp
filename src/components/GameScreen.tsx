@@ -267,7 +267,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
             <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
               🎂 ホールケーキはどっち？
             </Text>
-            <Text style={styles.pointsTextPurple}>
+            <Text style={[styles.pointsTextPurple, darkMode && styles.pointsTextPurpleDark]}>
               🎂 5点ゲット！
             </Text>
           </>
@@ -276,7 +276,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
             <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>
               🍰 ケーキはどっち？ 🍰
             </Text>
-            <Text style={styles.pointsTextYellow}>
+            <Text style={[styles.pointsTextYellow, darkMode && styles.pointsTextYellowDark]}>
               🍰 3点ゲット！
             </Text>
           </>
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4b5563',
   },
   feverTextDark: {
-    color: '#fbbf24',
+    color: '#fde047',
   },
   timeBar: {
     height: '100%',
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
   feverText: {
     fontSize: 24,
     fontWeight: FONT_WEIGHT_BOLD,
-    color: '#facc15',
+    color: '#854d0e',
     fontFamily: MARU_GOTHIC_FONT,
   },
   gameArea: {
@@ -451,16 +451,22 @@ const styles = StyleSheet.create({
   pointsTextPurple: {
     fontSize: 18,
     fontWeight: FONT_WEIGHT_BOLD,
-    color: '#9333ea',
+    color: '#7e22ce',
     marginBottom: 16,
     fontFamily: MARU_GOTHIC_FONT,
+  },
+  pointsTextPurpleDark: {
+    color: '#d8b4fe',
   },
   pointsTextYellow: {
     fontSize: 18,
     fontWeight: FONT_WEIGHT_BOLD,
-    color: '#facc15',
+    color: '#854d0e',
     marginBottom: 16,
     fontFamily: MARU_GOTHIC_FONT,
+  },
+  pointsTextYellowDark: {
+    color: '#fde047',
   },
   choicesContainer: {
     flexDirection: 'row',

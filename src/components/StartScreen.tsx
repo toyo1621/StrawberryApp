@@ -22,7 +22,7 @@ import RankingList from './ranking/RankingList';
 import StatusBanner from './ui/StatusBanner';
 
 type StartScreenProps = {
-  onStart: (name: string, mode: GameMode, islandRegion: IslandRegion) => void;
+  onStart: (name: string, mode: GameMode, islandRegion: IslandRegion) => void | Promise<void>;
   rankings: RankingsByMode;
   isLoading?: boolean;
   onShowRules: () => void;
@@ -35,6 +35,7 @@ type StartScreenProps = {
   notice?: string | null;
   onDismissNotice?: () => void;
   darkMode?: boolean;
+  isPreparingGame?: boolean;
 };
 
 const StartScreen: React.FC<StartScreenProps> = ({
@@ -51,6 +52,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
   notice,
   onDismissNotice,
   darkMode = false,
+  isPreparingGame = false,
 }) => {
   const [name, setName] = useState(savedPlayerName);
   const [inputError, setInputError] = useState('');
@@ -136,7 +138,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
     setInputError('');
     try {
       await savePlayerName(normalizedName);
-      onStart(normalizedName, selectedMode, selectedIslandRegion);
+      await onStart(normalizedName, selectedMode, selectedIslandRegion);
     } catch {
       setInputError('プレイヤー名を端末に保存できませんでした。空き容量とブラウザ設定を確認してください。');
     }
@@ -251,10 +253,12 @@ const StartScreen: React.FC<StartScreenProps> = ({
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel={`${config.shortLabel}モードでゲームを開始`}
+            accessibilityState={{ disabled: isPreparingGame, busy: isPreparingGame }}
+            disabled={isPreparingGame}
             onPress={handleSubmit}
-            style={[styles.startButton, { backgroundColor: actionAccent }]}
+            style={[styles.startButton, { backgroundColor: actionAccent, opacity: isPreparingGame ? 0.65 : 1 }]}
           >
-            <Text style={styles.startButtonText}>ゲーム開始</Text>
+            <Text style={styles.startButtonText}>{isPreparingGame ? '準備中...' : 'ゲーム開始'}</Text>
           </TouchableOpacity>
         </View>
 

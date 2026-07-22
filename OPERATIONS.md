@@ -11,7 +11,7 @@
 
 ## 監視
 
-- `.github/workflows/monitor-production.yml` が毎時、Webシェル、ファビコン、全4モードと島8地域、CORS、API v3、D1接続を検査します。専用トークンのテストスコアを登録し、非公開履歴で確認後に必ず削除します。
+- `.github/workflows/monitor-production.yml` が毎時、Webシェル・実JS bundle・ファビコン・5秒以内の応答、全4モードと島8地域、CORS、API v4・release ID、D1接続、API各要求4秒以内を検査します。専用トークンでゲームセッションを発行し、テストスコアを登録、非公開履歴で確認後に必ず削除します。
 - Pages公開workflowはデプロイ直後に同じ検査を行います。
 - Worker Observabilityは全リクエストを対象に有効化し、5xxをリクエストID付きJSONログで記録します。
 - 失敗時は `production-monitor` ラベルのGitHub Issueを自動作成または追記し、復旧時に自動クローズします。Cloudflare Observabilityでは5xx、リクエストID、レイテンシを確認します。
@@ -34,27 +34,28 @@
 5. 影響範囲、開始時刻、暫定対応、復旧時刻を記録します。
 6. 復旧後にWeb/APIスモークを実行し、4モード読込と登録・履歴・削除の往復確認を行います。
 
-クライアントはAPI障害時に最大50件を端末へ保持し、起動ごとに3件ずつ同期します。同じ投稿IDを再利用するため、タイムアウト後の再送でも二重登録されません。
+クライアントは開始後のAPI障害時に最大50件を端末へ保持し、セッションの15分期限内に起動・アプリ復帰ごとに3件ずつ同期します。同じ投稿IDを再利用するため、タイムアウト後の再送でも二重登録されません。セッションなし・期限切れの記録は公開せず端末履歴だけに残します。
 
 ## バックアップと復元
 
-ランキングテーブルを変更する前にD1をエクスポートします。
+Worker公開workflowはD1 migrationの直前にTime Travel bookmarkを取得し、GitHub Actions Step Summaryへ復元コマンドとともに記録します。
 
 ```bash
-npx wrangler d1 export strawberry-rankings --remote \
-  --config worker/wrangler.toml \
-  --output strawberry-rankings-backup.sql
+npx wrangler d1 time-travel info strawberry-rankings \
+  --config worker/wrangler.toml --json
+npx wrangler d1 time-travel restore strawberry-rankings \
+  --config worker/wrangler.toml --bookmark <bookmark>
 ```
 
-バックアップには公開名が含まれるため、安全なローカル領域に置き、Issue、CI artifact、リポジトリへ添付しません。復元は別の検証用D1でSQLを適用し、モード別件数と上位結果を照合してから本番で実施します。
+Time Travelの利用可能期間はCloudflareプランに依存するため、長期保管が必要な変更では `wrangler d1 export` も暗号化した管理領域へ取得します。SQLには公開名が含まれるためIssue、CI artifact、リポジトリへ添付しません。復元は書込停止、対象bookmark、モード・地域別件数を確認してから実行し、直後にAPI smokeを行います。
 
-`score_submission_buckets` は復元対象ではありません。15分以内に削除する一時データであり、マイグレーション時に再作成できます。
+`score_submission_buckets` と `game_sessions` は短期データです。復元後に期限切れ行を削除でき、ランキング本体の件数照合とは分けて扱います。
 
 ## ロールバック
 
 - UI不具合: 原因コミットをrevertして `main` へpushし、Pagesのpost-deploy smokeまで確認します。
-- Worker不具合: 直前の成功コミットをcheckoutし、`npm run worker:deploy` 後にAPI smokeを実行します。
-- D1不具合: 書き込みを止めるWorkerへ戻し、事前バックアップから検証済み手順で復元します。
+- Worker不具合: Cloudflareの直前成功versionへ戻すか、直前コミットをrelease tag付きで再公開し、`x-release-id` とAPI smokeを照合します。
+- D1不具合: 書き込みを止めるWorkerへ戻し、workflow記録の事前bookmarkからTime Travel復元します。
 - `RATE_LIMIT_SALT` 漏えい: 新しいランダム値へローテーションし、Cloudflare tokenも影響範囲に応じて失効します。
 
 ## 定期作業
@@ -63,4 +64,4 @@ npx wrangler d1 export strawberry-rankings --remote \
 - リリース時: D1バックアップ、変更順序、スモーク、ロールバック対象コミットを記録。
 - 四半期: Cloudflare/GitHubトークン、GitHubセキュリティ設定、ストア資格情報、プライバシー記載、依存更新を棚卸し。
 
-専用APMや24時間オンコールはMVPの範囲外です。利用規模や重要度が上がった時点で、外部通知先、エラー率・p95レイテンシの閾値通知、D1定期バックアップを追加します。
+専用APMや24時間オンコール、月間SLOの自動集計はMVPの範囲外です。毎時monitor履歴が到達性の証拠で、単一要求のWeb 5秒/API 4秒閾値を強制します。利用規模や重要度が上がった時点で、外部通知先、エラー率・p95レイテンシ集計を追加します。

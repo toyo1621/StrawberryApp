@@ -30,13 +30,15 @@ const output = run([
   'execute',
   ...commonArgs,
   '--command',
-  "SELECT name, type FROM sqlite_master WHERE name IN ('idx_rankings_game_region_score_created', 'idx_rankings_owner_game_created', 'score_submission_buckets') ORDER BY name",
+  "SELECT name, type FROM sqlite_master WHERE name IN ('game_sessions', 'idx_game_sessions_expires', 'idx_rankings_game_region_score_created', 'idx_rankings_owner_game_created', 'score_submission_buckets') ORDER BY name",
   '--json',
 ]);
 const response = JSON.parse(output);
 const rows = response[0]?.results ?? [];
 
 assert.deepEqual(rows, [
+  { name: 'game_sessions', type: 'table' },
+  { name: 'idx_game_sessions_expires', type: 'index' },
   { name: 'idx_rankings_game_region_score_created', type: 'index' },
   { name: 'idx_rankings_owner_game_created', type: 'index' },
   { name: 'score_submission_buckets', type: 'table' },
@@ -118,6 +120,13 @@ runUpgrade([
   '--file',
   resolve(root, 'worker/migrations/0008_move_legacy_island_rankings_to_kanto.sql'),
 ]);
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--file',
+  resolve(root, 'worker/migrations/0009_verified_game_sessions.sql'),
+]);
 
 const preservedOutput = runUpgrade([
   'd1',
@@ -158,4 +167,36 @@ assert.deepEqual(preserved, [
   },
 ]);
 
-console.log('D1 migrations, legacy Kanto reassignment, and ranking-region/privacy/rate-limit schema verified.');
+runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  `INSERT INTO game_sessions (id, owner_hash, game_type, island_region, started_at, expires_at)
+   VALUES ('01234567-89ab-4cde-8f01-23456789abcd', '${'b'.repeat(64)}', 'island_rush', 'okinawa', '2026-07-21T03:00:00.000Z', '2026-07-21T03:15:00.000Z')`,
+]);
+const sessionOutput = runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  "SELECT game_type, island_region, consumed_at, submission_id FROM game_sessions",
+  '--json',
+]);
+assert.deepEqual(JSON.parse(sessionOutput)[0]?.results ?? [], [{
+  game_type: 'island_rush',
+  island_region: 'okinawa',
+  consumed_at: null,
+  submission_id: null,
+}]);
+
+assert.throws(() => runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  `INSERT INTO game_sessions (id, owner_hash, game_type, island_region, started_at, expires_at)
+   VALUES ('fedcba98-7654-4321-8fed-cba987654321', '${'c'.repeat(64)}', 'flag_rush', 'okinawa', '2026-07-21T03:00:00.000Z', '2026-07-21T03:15:00.000Z')`,
+]));
+
+console.log('D1 migrations, legacy Kanto reassignment, and ranking-region/privacy/rate-limit/session schema verified.');
