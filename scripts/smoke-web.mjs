@@ -1,3 +1,8 @@
+import {
+  extractJavaScriptPaths,
+  hasHealthyJavaScriptBundles,
+} from './operational-contracts.mjs';
+
 const webUrl = (process.env.WEB_URL || '').replace(/\/+$/, '');
 const maximumDurationMs = Number(process.env.MAX_WEB_REQUEST_DURATION_MS || 5_000);
 
@@ -32,22 +37,26 @@ for (let attempt = 1; attempt <= 5; attempt += 1) {
       throw new Error('Web app did not return the expected application shell.');
     }
 
-    const scriptPath = html.match(/<script[^>]+src="([^"]+\.js)"/)?.[1];
-    if (!scriptPath) {
+    const scriptPaths = extractJavaScriptPaths(html);
+    if (scriptPaths.length === 0) {
       throw new Error('Web app shell does not reference its JavaScript bundle.');
     }
-    const scriptResponse = await fetch(new URL(scriptPath, response.url), {
-      headers: { accept: 'text/javascript' },
-      signal: AbortSignal.timeout(10_000),
-    });
-    const scriptBytes = await scriptResponse.arrayBuffer();
-    if (
-      !scriptResponse.ok
-      || !scriptResponse.headers.get('content-type')?.includes('javascript')
-      || scriptBytes.byteLength < 100_000
-    ) {
+    const scriptBundles = await Promise.all(scriptPaths.map(async (scriptPath) => {
+      const scriptResponse = await fetch(new URL(scriptPath, response.url), {
+        headers: { accept: 'text/javascript' },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const scriptBytes = await scriptResponse.arrayBuffer();
+      return {
+        ok: scriptResponse.ok,
+        contentType: scriptResponse.headers.get('content-type') || '',
+        byteLength: scriptBytes.byteLength,
+      };
+    }));
+    if (!hasHealthyJavaScriptBundles(scriptBundles)) {
       throw new Error('Web app JavaScript bundle is missing or invalid.');
     }
+    const totalScriptBytes = scriptBundles.reduce((total, script) => total + script.byteLength, 0);
 
     const faviconResponse = await fetch(`${webUrl}/favicon.ico`, {
       headers: { accept: 'image/*' },
@@ -65,7 +74,7 @@ for (let attempt = 1; attempt <= 5; attempt += 1) {
 
     console.log(
       `Web smoke check passed (${response.url}, ${durationMs} ms, `
-      + `${(scriptBytes.byteLength / 1024).toFixed(1)} KiB JS, favicon verified).`,
+      + `${(totalScriptBytes / 1024).toFixed(1)} KiB initial JS, favicon verified).`,
     );
     process.exit(0);
   } catch (error) {
