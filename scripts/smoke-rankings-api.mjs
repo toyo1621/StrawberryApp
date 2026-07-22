@@ -10,7 +10,7 @@ const expectedReleaseId = process.env.EXPECTED_RELEASE_ID;
 const maximumRequestDurationMs = Number(process.env.MAX_API_REQUEST_DURATION_MS || 4_000);
 const requireMonitorHeartbeat = process.env.REQUIRE_MONITOR_HEARTBEAT === 'true';
 const maximumHeartbeatAgeMs = Number(process.env.MAX_MONITOR_HEARTBEAT_AGE_MS || 25 * 60_000);
-const contractAttempts = 8;
+const contractAttempts = 24;
 const allowedOrigin = 'https://toyo1621.github.io';
 const gameTypes = API_GAME_TYPES;
 const islandRegions = ISLAND_REGIONS;
@@ -89,7 +89,7 @@ const assertOk = async (path, init, validateBody) => {
     } catch (error) {
       lastError = error;
       if (attempt < contractAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, Math.min(attempt * 500, 2_000)));
+        await new Promise((resolve) => setTimeout(resolve, Math.min(attempt * 1_000, 5_000)));
       }
     }
   }
