@@ -3,6 +3,7 @@ import { isSyntheticCleanupComplete } from './operational-contracts.mjs';
 const apiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
 const expectedReleaseId = process.env.EXPECTED_RELEASE_ID;
 const maximumRequestDurationMs = Number(process.env.MAX_API_REQUEST_DURATION_MS || 4_000);
+const contractAttempts = 8;
 const allowedOrigin = 'https://toyo1621.github.io';
 const gameTypes = ['strawberry_rush', 'island_rush', 'flag_rush', 'color_rush'];
 const islandRegions = [
@@ -52,47 +53,61 @@ const fetchWithRetry = async (path, init = {}, attempts = 4) => {
   throw lastError;
 };
 
-const assertOk = async (path, init) => {
-  const { response, durationMs } = await fetchWithRetry(path, init);
-  if (response.headers.get('x-content-type-options') !== 'nosniff') {
-    throw new Error(`${path} is missing the nosniff security header.`);
+const assertOk = async (path, init, validateBody) => {
+  let lastError;
+  for (let attempt = 1; attempt <= contractAttempts; attempt += 1) {
+    try {
+      const { response, durationMs } = await fetchWithRetry(path, init, 1);
+      if (response.headers.get('x-content-type-options') !== 'nosniff') {
+        throw new Error(`${path} is missing the nosniff security header.`);
+      }
+      if (
+        response.headers.get('strict-transport-security') !== 'max-age=31536000; includeSubDomains'
+        || response.headers.get('x-frame-options') !== 'DENY'
+        || !response.headers.get('content-security-policy')?.includes("default-src 'none'")
+        || !response.headers.get('x-request-id')
+        || !response.headers.get('x-release-id')
+      ) {
+        throw new Error(`${path} is missing hardened transport or response metadata.`);
+      }
+      if (response.headers.get('x-api-version') !== '4') {
+        throw new Error(`${path} is not serving API version 4.`);
+      }
+      if (
+        expectedReleaseId
+        && response.headers.get('x-release-id') !== expectedReleaseId
+      ) {
+        throw new Error(
+          `${path} is serving release ${response.headers.get('x-release-id')}, expected ${expectedReleaseId}.`,
+        );
+      }
+      if (durationMs > maximumRequestDurationMs) {
+        throw new Error(`${path} exceeded the ${maximumRequestDurationMs} ms latency budget.`);
+      }
+
+      const body = await response.json();
+      await validateBody?.(body, response.headers);
+      return { body, headers: response.headers, durationMs };
+    } catch (error) {
+      lastError = error;
+      if (attempt < contractAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(attempt * 500, 2_000)));
+      }
+    }
   }
-  if (
-    response.headers.get('strict-transport-security') !== 'max-age=31536000; includeSubDomains'
-    || response.headers.get('x-frame-options') !== 'DENY'
-    || !response.headers.get('content-security-policy')?.includes("default-src 'none'")
-    || !response.headers.get('x-request-id')
-  ) {
-    throw new Error(`${path} is missing hardened transport or response metadata.`);
-  }
-  if (response.headers.get('x-api-version') !== '4') {
-    throw new Error(`${path} is not serving API version 4.`);
-  }
-  if (durationMs > maximumRequestDurationMs) {
-    throw new Error(`${path} exceeded the ${maximumRequestDurationMs} ms latency budget.`);
-  }
-  return { body: await response.json(), headers: response.headers, durationMs };
+  throw lastError;
 };
 
 const durations = [];
-const healthResult = await assertOk('/health');
+const healthResult = await assertOk('/health', undefined, (body) => {
+  if (body.ok !== true || body.version !== 4 || typeof body.release !== 'string') {
+    throw new Error('/health did not return the expected versioned status.');
+  }
+  if (expectedReleaseId && body.release !== expectedReleaseId) {
+    throw new Error(`/health is serving release ${body.release}, expected ${expectedReleaseId}.`);
+  }
+});
 durations.push(healthResult.durationMs);
-if (
-  healthResult.body.ok !== true
-  || healthResult.body.version !== 4
-  || typeof healthResult.body.release !== 'string'
-) {
-  throw new Error('/health did not return the expected versioned status.');
-}
-if (
-  expectedReleaseId
-  && (
-    healthResult.body.release !== expectedReleaseId
-    || healthResult.headers.get('x-release-id') !== expectedReleaseId
-  )
-) {
-  throw new Error(`/health is serving release ${healthResult.body.release}, expected ${expectedReleaseId}.`);
-}
 if (healthResult.headers.get('cache-control') !== 'no-store') {
   throw new Error('/health must not be cached.');
 }
