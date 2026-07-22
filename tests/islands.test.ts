@@ -6,6 +6,7 @@ import test from 'node:test';
 import { ISLANDS } from '../src/data/islands';
 import {
   createIslandRound,
+  getIslandRegionLabel,
   getIslandsForRegion,
   ISLAND_REGION_OPTIONS,
 } from '../src/domain/islands';
@@ -18,10 +19,12 @@ const EXPECTED_REGION_COUNTS: Record<IslandRegion, number> = {
   [IslandRegion.CHUBU_KINKI]: 25,
   [IslandRegion.CHUGOKU]: 89,
   [IslandRegion.SHIKOKU]: 72,
+  [IslandRegion.KYUSHU_NORTH]: 90,
+  [IslandRegion.KYUSHU_SOUTH]: 59,
   [IslandRegion.KYUSHU]: 149,
   [IslandRegion.OKINAWA]: 46,
 };
-const EXPECTED_DATASET_SHA256 = 'd4f1756148507453f2d735ceaa3fbb257a3efef20fec231048dae76065c4078c';
+const EXPECTED_DATASET_SHA256 = '3b8e1692f78551782767d19e344a7d639bd7e9d7e33860737dc3d9072155a8fa';
 
 test('the island catalog contains all 415 normalized records and SVGs', () => {
   assert.equal(ISLANDS.length, 415);
@@ -68,7 +71,7 @@ test('the normalized island catalog and SVG collection match the reviewed datase
 test('island regions use the requested order and contain only their own records', () => {
   assert.deepEqual(
     ISLAND_REGION_OPTIONS.map((option) => option.label),
-    ['日本全国', '北海道・東北', '関東', '中部・近畿', '中国', '四国', '九州', '沖縄'],
+    ['日本全国', '北海道・東北', '関東', '中部・近畿', '中国', '四国', '九州北部', '九州南部', '沖縄'],
   );
 
   for (const option of ISLAND_REGION_OPTIONS) {
@@ -79,6 +82,26 @@ test('island regions use the requested order and contain only their own records'
       assert.ok(pool.every((island) => island.region === option.value));
     }
   }
+});
+
+test('Kyushu is split by prefecture while preserving the legacy 149-island pool', () => {
+  const north = getIslandsForRegion(IslandRegion.KYUSHU_NORTH);
+  const south = getIslandsForRegion(IslandRegion.KYUSHU_SOUTH);
+  const legacy = getIslandsForRegion(IslandRegion.KYUSHU);
+
+  assert.deepEqual(
+    [...new Set(north.map((island) => island.prefecture))],
+    ['福岡県', '佐賀県', '長崎県'],
+  );
+  assert.deepEqual(
+    [...new Set(south.map((island) => island.prefecture))],
+    ['熊本県', '大分県', '宮崎県', '鹿児島県'],
+  );
+  assert.deepEqual(
+    legacy.map((island) => island.id),
+    [...north, ...south].map((island) => island.id),
+  );
+  assert.equal(getIslandRegionLabel(IslandRegion.KYUSHU), '旧九州');
 });
 
 test('island rounds always contain two different choices and target one of them', () => {

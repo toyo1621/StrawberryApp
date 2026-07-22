@@ -121,24 +121,22 @@ test('island mode filters all 415 islands by the selected area', async ({ page }
   await page.getByRole('button', { name: '島モードを選択' }).click();
 
   const nationwide = page.getByRole('button', { name: '日本全国を出題エリアに選択、415島' });
-  const chugoku = page.getByRole('button', { name: '中国を出題エリアに選択、89島' });
-  const shikoku = page.getByRole('button', { name: '四国を出題エリアに選択、72島' });
-  const okinawa = page.getByRole('button', { name: '沖縄を出題エリアに選択、46島' });
+  const kyushuNorth = page.getByRole('button', { name: '九州北部を出題エリアに選択、90島' });
+  const kyushuSouth = page.getByRole('button', { name: '九州南部を出題エリアに選択、59島' });
   await expect(nationwide).toHaveAttribute('aria-pressed', 'true');
-  await expect(chugoku).toHaveAttribute('aria-pressed', 'false');
-  await expect(shikoku).toHaveAttribute('aria-pressed', 'false');
-  await expect(okinawa).toHaveAttribute('aria-pressed', 'false');
+  await expect(kyushuNorth).toHaveAttribute('aria-pressed', 'false');
+  await expect(kyushuSouth).toHaveAttribute('aria-pressed', 'false');
   expect(await page.evaluate(
     () => performance.getEntriesByType('resource').filter((entry) => entry.name.includes('.svg')).length,
   )).toBe(0);
 
-  await okinawa.click();
-  await expect(okinawa).toHaveAttribute('aria-pressed', 'true');
+  await kyushuNorth.click();
+  await expect(kyushuNorth).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('プレイヤー名').fill('島地域テスト');
   await page.getByRole('button', { name: '島モードでゲームを開始' }).click();
 
-  await expect(page.getByText('沖縄・46島')).toBeVisible();
-  await expect(page.getByText(/（沖縄県）/)).toBeVisible();
+  await expect(page.getByText('九州北部・90島')).toBeVisible();
+  await expect(page.getByText(/（(?:福岡県|佐賀県|長崎県)）/)).toBeVisible();
   const choices = page.getByRole('button', { name: /選択肢[12]、/ });
   await expect(choices).toHaveCount(2);
   for (const choice of await choices.all()) {
@@ -156,7 +154,7 @@ test('island mode filters all 415 islands by the selected area', async ({ page }
   expect(hasHorizontalOverflow).toBe(false);
 });
 
-test('island rankings follow the selected nationwide, Chugoku, and Shikoku scope', async ({ page }) => {
+test('island rankings follow the selected nationwide and split Kyushu scope', async ({ page }) => {
   await page.addInitScript(() => {
     const entry = (id: string, playerName: string, score: number, islandRegion: string) => ({
       id,
@@ -171,12 +169,12 @@ test('island rankings follow the selected nationwide, Chugoku, and Shikoku scope
       JSON.stringify([entry('island-all', '全国ランキング選手', 10, 'all')]),
     );
     window.localStorage.setItem(
-      'island_game_rankings_chugoku',
-      JSON.stringify([entry('island-chugoku', '中国ランキング選手', 8, 'chugoku')]),
+      'island_game_rankings_kyushu_north',
+      JSON.stringify([entry('island-kyushu-north', '九州北部ランキング選手', 8, 'kyushu_north')]),
     );
     window.localStorage.setItem(
-      'island_game_rankings_shikoku',
-      JSON.stringify([entry('island-shikoku', '四国ランキング選手', 6, 'shikoku')]),
+      'island_game_rankings_kyushu_south',
+      JSON.stringify([entry('island-kyushu-south', '九州南部ランキング選手', 6, 'kyushu_south')]),
     );
   });
 
@@ -185,15 +183,15 @@ test('island rankings follow the selected nationwide, Chugoku, and Shikoku scope
   await expect(page.getByRole('heading', { name: '日本全国ランキング' })).toBeVisible();
   await expect(page.getByText('全国ランキング選手')).toBeVisible();
 
-  await page.getByRole('button', { name: '中国を出題エリアに選択、89島' }).click();
-  await expect(page.getByRole('heading', { name: '中国ランキング' })).toBeVisible();
-  await expect(page.getByText('中国ランキング選手')).toBeVisible();
+  await page.getByRole('button', { name: '九州北部を出題エリアに選択、90島' }).click();
+  await expect(page.getByRole('heading', { name: '九州北部ランキング' })).toBeVisible();
+  await expect(page.getByText('九州北部ランキング選手')).toBeVisible();
   await expect(page.getByText('全国ランキング選手')).toHaveCount(0);
 
-  await page.getByRole('button', { name: '四国を出題エリアに選択、72島' }).click();
-  await expect(page.getByRole('heading', { name: '四国ランキング' })).toBeVisible();
-  await expect(page.getByText('四国ランキング選手')).toBeVisible();
-  await expect(page.getByText('中国ランキング選手')).toHaveCount(0);
+  await page.getByRole('button', { name: '九州南部を出題エリアに選択、59島' }).click();
+  await expect(page.getByRole('heading', { name: '九州南部ランキング' })).toBeVisible();
+  await expect(page.getByText('九州南部ランキング選手')).toBeVisible();
+  await expect(page.getByText('九州北部ランキング選手')).toHaveCount(0);
 });
 
 test('settings and all-mode score history are reachable', async ({ page }) => {

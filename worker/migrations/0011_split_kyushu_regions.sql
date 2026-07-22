@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS rankings (
+CREATE TABLE rankings_kyushu_regions (
   id TEXT PRIMARY KEY,
   player_name TEXT NOT NULL,
   score INTEGER NOT NULL DEFAULT 0,
@@ -14,37 +14,35 @@ CREATE TABLE IF NOT EXISTS rankings (
   CHECK (owner_hash IS NULL OR length(owner_hash) = 64)
 );
 
-CREATE INDEX IF NOT EXISTS idx_rankings_game_region_score_created
+INSERT INTO rankings_kyushu_regions (
+  id,
+  player_name,
+  score,
+  game_type,
+  island_region,
+  created_at,
+  owner_hash
+)
+SELECT id, player_name, score, game_type, island_region, created_at, owner_hash
+FROM rankings;
+
+DROP TABLE rankings;
+ALTER TABLE rankings_kyushu_regions RENAME TO rankings;
+
+CREATE INDEX idx_rankings_game_region_score_created
   ON rankings (game_type, island_region, score DESC, created_at ASC);
-
-CREATE INDEX IF NOT EXISTS idx_rankings_player_game_region_created
+CREATE INDEX idx_rankings_player_game_region_created
   ON rankings (player_name, game_type, island_region, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_rankings_game_region_owner_score_created
+CREATE INDEX idx_rankings_game_region_owner_score_created
   ON rankings (game_type, island_region, owner_hash, score DESC, created_at ASC)
   WHERE owner_hash IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_rankings_game_region_legacy_name_score_created
+CREATE INDEX idx_rankings_game_region_legacy_name_score_created
   ON rankings (game_type, island_region, lower(trim(player_name)), score DESC, created_at ASC)
   WHERE owner_hash IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_rankings_owner_game_created
+CREATE INDEX idx_rankings_owner_game_created
   ON rankings (owner_hash, game_type, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS score_submission_buckets (
-  identity_hash TEXT NOT NULL,
-  window_start INTEGER NOT NULL,
-  submission_count INTEGER NOT NULL DEFAULT 1,
-  expires_at TEXT NOT NULL,
-  PRIMARY KEY (identity_hash, window_start),
-  CHECK (length(identity_hash) = 64),
-  CHECK (submission_count BETWEEN 1 AND 8)
-);
-
-CREATE INDEX IF NOT EXISTS idx_score_submission_buckets_expires
-  ON score_submission_buckets (expires_at);
-
-CREATE TABLE IF NOT EXISTS game_sessions (
+CREATE TABLE game_sessions_kyushu_regions (
   id TEXT PRIMARY KEY,
   owner_hash TEXT NOT NULL,
   game_type TEXT NOT NULL,
@@ -61,8 +59,23 @@ CREATE TABLE IF NOT EXISTS game_sessions (
   CHECK (consumed_at IS NULL OR submission_id IS NOT NULL)
 );
 
-CREATE INDEX IF NOT EXISTS idx_game_sessions_expires
-  ON game_sessions (expires_at);
+INSERT INTO game_sessions_kyushu_regions (
+  id,
+  owner_hash,
+  game_type,
+  island_region,
+  started_at,
+  expires_at,
+  consumed_at,
+  submission_id
+)
+SELECT id, owner_hash, game_type, island_region, started_at, expires_at, consumed_at, submission_id
+FROM game_sessions;
 
-CREATE INDEX IF NOT EXISTS idx_game_sessions_owner_started
+DROP TABLE game_sessions;
+ALTER TABLE game_sessions_kyushu_regions RENAME TO game_sessions;
+
+CREATE INDEX idx_game_sessions_expires
+  ON game_sessions (expires_at);
+CREATE INDEX idx_game_sessions_owner_started
   ON game_sessions (owner_hash, started_at DESC);

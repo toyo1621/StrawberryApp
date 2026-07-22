@@ -1,4 +1,5 @@
 import {
+  ISLAND_REGIONS,
   parseGameType,
   parseIslandRegion,
   parseRankingPeriod,
@@ -14,17 +15,6 @@ const CACHE_FRESH_MS = 30 * 1000;
 const CACHE_RETENTION_SECONDS = 5 * 60;
 const CACHE_VERSION = 'v1';
 const RANKING_PERIODS = ['all', 'daily', 'weekly', 'monthly'] as const;
-const ISLAND_REGIONS = [
-  'all',
-  'hokkaido_tohoku',
-  'kanto',
-  'chubu_kinki',
-  'chugoku',
-  'shikoku',
-  'kyushu',
-  'okinawa',
-] as const;
-
 type CacheStatus = 'bypass' | 'hit' | 'miss' | 'stale';
 
 type LeaderboardSnapshot = {
