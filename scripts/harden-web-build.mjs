@@ -3,7 +3,13 @@ import path from 'node:path';
 
 const indexPath = path.resolve('web-build/index.html');
 const apiUrl = process.env.EXPO_PUBLIC_RANKINGS_API_URL?.trim();
+const releaseId = process.env.EXPO_PUBLIC_RELEASE_ID?.trim() || 'development';
+const requireProductionReleaseId = process.env.REQUIRE_PRODUCTION_RELEASE_ID === 'true';
 const connectSources = ["'self'"];
+
+if (requireProductionReleaseId && !/^[0-9a-f]{40}$/.test(releaseId)) {
+  throw new Error('A 40-character production release ID is required for this web build.');
+}
 
 if (apiUrl) {
   const parsedApiUrl = new URL(apiUrl);
@@ -44,5 +50,10 @@ const hardenedHtml = html.replace(
   `    <meta charset="utf-8" />\n${securityMeta}`,
 );
 await writeFile(indexPath, hardenedHtml, 'utf8');
+await writeFile(
+  path.resolve('web-build/release.json'),
+  `${JSON.stringify({ release: releaseId, apiVersion: 4 })}\n`,
+  'utf8',
+);
 
-console.log(`Web security metadata added (${connectSources.join(', ')}).`);
+console.log(`Web security metadata and release ${releaseId} added (${connectSources.join(', ')}).`);

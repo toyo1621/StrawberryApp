@@ -31,7 +31,7 @@ export type GameScoreProfile = {
 
 const DEFAULT_GAME_TYPE: GameType = 'strawberry_rush';
 const MAX_PLAYER_NAME_LENGTH = 12;
-const CONTROL_OR_MARKUP_PATTERN = /[\u0000-\u001f\u007f<>]/;
+const CONTROL_OR_MARKUP_PATTERN = /[<>\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
 const SUBMISSION_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/;
 const PLAYER_TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const GAME_SESSION_ID_PATTERN = PLAYER_TOKEN_PATTERN;
@@ -161,7 +161,7 @@ const validateScorePlayerName = (value: unknown): string => {
   if (!playerName) {
     throw new ValidationError(400, 'Player name is required.');
   }
-  if (playerName.length > MAX_PLAYER_NAME_LENGTH) {
+  if ([...playerName].length > MAX_PLAYER_NAME_LENGTH) {
     throw new ValidationError(400, `Player name must be ${MAX_PLAYER_NAME_LENGTH} characters or fewer.`);
   }
   if (CONTROL_OR_MARKUP_PATTERN.test(playerName)) {
@@ -253,7 +253,9 @@ export const validatePlayerToken = (value: unknown): string => {
 
 export const validatePlayerName = (value: unknown): string => {
   const playerName = normalizePlayerName(value);
-  if (!playerName || playerName.length > MAX_PLAYER_NAME_LENGTH || CONTROL_OR_MARKUP_PATTERN.test(playerName)) {
+  if (!playerName
+    || [...playerName].length > MAX_PLAYER_NAME_LENGTH
+    || CONTROL_OR_MARKUP_PATTERN.test(playerName)) {
     throw new ValidationError(400, 'Invalid player name.');
   }
   return playerName;

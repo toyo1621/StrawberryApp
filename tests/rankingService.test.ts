@@ -11,7 +11,7 @@ const localStorage = {
   getItem: (key: string) => values.get(key) ?? null,
   key: (index: number) => [...values.keys()][index] ?? null,
   removeItem: (key: string) => values.delete(key),
-  setItem: (key: string, value: string) => values.set(key, String(value)),
+  setItem: (key: string, value: string) => { values.set(key, String(value)); },
 };
 
 Object.defineProperty(globalThis, 'window', {
@@ -578,4 +578,129 @@ test('compatibility helpers preserve every game mode and ranking period', async 
     'flag_rush',
     'color_rush',
   ]);
+});
+
+test('online ranking opt-out keeps pending scores on the device without network access', async () => {
+  const rankingService = await rankingServicePromise;
+  values.set('strawberry_pending_scores_v1', JSON.stringify([{
+    submissionId: 'privacy_paused_score_0001',
+    playerName: '端末のみ',
+    score: 3,
+    gameType: 'strawberry_rush',
+    islandRegion: 'all',
+    durationMs: 30_000,
+    createdAt: '2026-07-22T00:00:00.000Z',
+    gameSessionId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    gameSessionExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+  }]));
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    return Response.json([]);
+  };
+
+  const result = await rankingService.syncPendingScores({ onlineRankingsEnabled: false });
+
+  assert.deepEqual(result, { synced: 0, pending: 1, discarded: 0 });
+  assert.equal(requests, 0);
+  assert.equal(JSON.parse(values.get('strawberry_pending_scores_v1') ?? '[]').length, 1);
+});
+
+test('disabling ranking participation can discard every unsent score explicitly', async () => {
+  const rankingService = await rankingServicePromise;
+  values.set('strawberry_pending_scores_v1', JSON.stringify([{
+    submissionId: 'privacy_discard_score_0001',
+    playerName: '削除待ち',
+    score: 3,
+    gameType: 'strawberry_rush',
+    islandRegion: 'all',
+    durationMs: 30_000,
+    createdAt: '2026-07-22T00:00:00.000Z',
+  }]));
+
+  assert.equal(await rankingService.discardPendingRankingScores(), 1);
+  assert.equal(values.has('strawberry_pending_scores_v1'), false);
+});
+
+test('an offline-only score fails clearly when its only durable storage is unavailable', async () => {
+  const rankingService = await rankingServicePromise;
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = () => {
+    throw new Error('storage full');
+  };
+  try {
+    await assert.rejects(
+      rankingService.saveScoreForMode(
+        GameMode.COLOR,
+        '保存失敗',
+        2,
+        { durationMs: 30_000 },
+      ),
+      /storage full/,
+    );
+  } finally {
+    localStorage.setItem = originalSetItem;
+  }
+});
+
+test('a remotely accepted score succeeds even when its local cache cannot be written', async () => {
+  const rankingService = await rankingServicePromise;
+  values.set('player_private_token_v1', 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
+  globalThis.fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return Response.json({
+      id: body.submissionId,
+      playerName: body.playerName,
+      score: body.score,
+      gameType: body.gameType,
+      islandRegion: body.islandRegion,
+      createdAt: '2026-07-22T00:00:00.000Z',
+    }, { status: 201 });
+  };
+  const originalSetItem = localStorage.setItem;
+  const originalWarn = console.warn;
+  localStorage.setItem = (key, value) => {
+    if (key.includes('rankings') || key.includes('history')) {
+      throw new Error('cache unavailable');
+    }
+    originalSetItem(key, value);
+  };
+  console.warn = () => undefined;
+  try {
+    const result = await rankingService.saveScoreForMode(
+      GameMode.STRAWBERRY,
+      '送信成功',
+      4,
+      { durationMs: 30_000, gameSession: verifiedSession('strawberry_rush') },
+    );
+    assert.equal(result.destination, 'remote');
+    assert.equal(result.verifiedForRanking, true);
+  } finally {
+    localStorage.setItem = originalSetItem;
+    console.warn = originalWarn;
+  }
+});
+
+test('concurrent local scores are merged without a lost update', async () => {
+  const rankingService = await rankingServicePromise;
+
+  await Promise.all([
+    rankingService.saveScoreForMode(
+      GameMode.COLOR,
+      '同時1',
+      1,
+      { durationMs: 30_000 },
+    ),
+    rankingService.saveScoreForMode(
+      GameMode.COLOR,
+      '同時2',
+      2,
+      { durationMs: 30_000 },
+    ),
+  ]);
+
+  const leaderboard = JSON.parse(values.get('color_game_rankings') ?? '[]') as unknown[];
+  const history = JSON.parse(values.get('strawberry_player_history_v2_color_rush') ?? '[]') as unknown[];
+  assert.equal(leaderboard.length, 2);
+  assert.equal(history.length, 2);
 });

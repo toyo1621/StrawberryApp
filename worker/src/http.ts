@@ -7,10 +7,16 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:8081',
   'http://localhost:19006',
 ];
+const SAFE_REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,96}$/;
 
 export const getReleaseId = (env?: Env) => (
   env?.CF_VERSION_METADATA?.tag || env?.CF_VERSION_METADATA?.id || 'development'
 );
+
+export const getRequestId = (request: Request): string => {
+  const candidate = request.headers.get('cf-ray') ?? '';
+  return SAFE_REQUEST_ID_PATTERN.test(candidate) ? candidate : crypto.randomUUID();
+};
 
 export class HttpError extends Error {
   constructor(
@@ -54,6 +60,15 @@ export const setCorsHeaders = (headers: Headers, origin?: string, env?: Env): vo
   headers.append('vary', 'Origin');
 };
 
+export const setSecurityHeaders = (headers: Headers): void => {
+  headers.set('content-security-policy', "default-src 'none'; frame-ancestors 'none'");
+  headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+  headers.set('referrer-policy', 'no-referrer');
+  headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains');
+  headers.set('x-content-type-options', 'nosniff');
+  headers.set('x-frame-options', 'DENY');
+};
+
 export const json = (
   data: unknown,
   init: ResponseInit = {},
@@ -62,9 +77,7 @@ export const json = (
 ): Response => {
   const headers = new Headers(init.headers);
   headers.set('content-type', 'application/json; charset=utf-8');
-  headers.set('x-content-type-options', 'nosniff');
-  headers.set('referrer-policy', 'no-referrer');
-  headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+  setSecurityHeaders(headers);
   headers.set('x-api-version', '4');
   headers.set('x-release-id', getReleaseId(env));
   setCorsHeaders(headers, origin, env);

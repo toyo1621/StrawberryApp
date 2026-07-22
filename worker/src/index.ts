@@ -1,11 +1,13 @@
 import { cleanupRateLimitBuckets } from './identity';
 import {
   getReleaseId,
+  getRequestId,
   HttpError,
   isAllowedOrigin,
   json,
   requireAllowedBrowserOrigin,
   setCorsHeaders,
+  setSecurityHeaders,
 } from './http';
 import {
   fetchLeaderboard,
@@ -24,6 +26,16 @@ import {
   saveScore,
 } from './scoreSubmissions';
 import type { Env } from './types';
+
+const ALLOWED_METHODS_BY_PATH = new Map<string, string[]>([
+  ['/health', ['GET']],
+  ['/game-sessions', ['POST']],
+  ['/rankings', ['GET']],
+  ['/scores', ['POST']],
+  ['/players/me/best', ['GET']],
+  ['/players/me/history', ['GET']],
+  ['/players/me/scores', ['DELETE']],
+]);
 
 export type { Env } from './types';
 export { cleanupRateLimitBuckets } from './identity';
@@ -51,19 +63,47 @@ const runAfterResponse = async (
 };
 
 const handleOptions = (
+  request: Request,
   origin: string | undefined,
   env: Env,
   requestId: string,
 ): Response => {
+  const path = new URL(request.url).pathname;
+  const allowedMethods = ALLOWED_METHODS_BY_PATH.get(path);
+  if (!allowedMethods) {
+    return json(
+      { error: 'Not found' },
+      { status: 404, headers: noStoreHeaders(requestId) },
+      origin,
+      env,
+    );
+  }
   if (origin && !isAllowedOrigin(origin, env)) {
-    return new Response(null, {
-      status: 403,
-      headers: { 'x-content-type-options': 'nosniff', 'x-request-id': requestId },
-    });
+    return json(
+      { error: 'Origin is not allowed.' },
+      { status: 403, headers: noStoreHeaders(requestId) },
+      origin,
+      env,
+    );
+  }
+  const requestedMethod = request.headers.get('access-control-request-method')?.toUpperCase();
+  if (requestedMethod && !allowedMethods.includes(requestedMethod)) {
+    return json(
+      { error: 'Method not allowed' },
+      {
+        status: 405,
+        headers: { ...noStoreHeaders(requestId), allow: [...allowedMethods, 'OPTIONS'].join(', ') },
+      },
+      origin,
+      env,
+    );
   }
   const headers = new Headers();
   setCorsHeaders(headers, origin, env);
-  headers.set('x-content-type-options', 'nosniff');
+  setSecurityHeaders(headers);
+  headers.set('allow', [...allowedMethods, 'OPTIONS'].join(', '));
+  headers.set('x-api-version', '4');
+  headers.set('x-release-id', getReleaseId(env));
   headers.set('x-request-id', requestId);
   return new Response(null, { status: 204, headers });
 };
@@ -163,6 +203,21 @@ const routeRequest = async (
     }
 
     default:
+      if (ALLOWED_METHODS_BY_PATH.has(url.pathname)) {
+        const allowedMethods = ALLOWED_METHODS_BY_PATH.get(url.pathname) ?? [];
+        return json(
+          { error: 'Method not allowed' },
+          {
+            status: 405,
+            headers: {
+              ...noStoreHeaders(requestId),
+              allow: [...allowedMethods, 'OPTIONS'].join(', '),
+            },
+          },
+          origin,
+          env,
+        );
+      }
       return json(
         { error: 'Not found' },
         { status: 404, headers: noStoreHeaders(requestId) },
@@ -179,10 +234,10 @@ export default {
     context?: ExecutionContext,
   ): Promise<Response> {
     const origin = request.headers.get('origin') ?? undefined;
-    const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
+    const requestId = getRequestId(request);
 
     if (request.method === 'OPTIONS') {
-      return handleOptions(origin, env, requestId);
+      return handleOptions(request, origin, env, requestId);
     }
 
     const url = new URL(request.url);

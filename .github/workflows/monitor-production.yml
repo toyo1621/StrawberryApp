@@ -31,6 +31,12 @@ jobs:
         env:
           EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev
 
+      - name: Check web and API release consistency
+        run: node scripts/smoke-release-consistency.mjs
+        env:
+          WEB_URL: https://toyo1621.github.io/StrawberryApp
+          EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev
+
   alert:
     if: failure()
     needs: smoke

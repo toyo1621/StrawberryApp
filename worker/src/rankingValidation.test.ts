@@ -84,6 +84,11 @@ test('rejects unsupported game types and periods', () => {
 test('rejects overlong or unsafe player names', () => {
   assert.throws(() => validateScoreSubmission(validScore({ playerName: '1234567890123' })));
   assert.throws(() => validateScoreSubmission(validScore({ playerName: '<script>' })));
+  assert.doesNotThrow(() => validateScoreSubmission(validScore({ playerName: '🍓'.repeat(12) })));
+  assert.throws(() => validateScoreSubmission(validScore({ playerName: '🍓'.repeat(13) })));
+  assert.throws(() => validateScoreSubmission(validScore({ playerName: '安全\u202e偽装' })));
+  assert.throws(() => validateScoreSubmission(validScore({ playerName: '名前\u200b' })));
+  assert.throws(() => validateScoreSubmission(validScore({ playerName: '名前\u061c' })));
 });
 
 test('rejects impossible scores', () => {

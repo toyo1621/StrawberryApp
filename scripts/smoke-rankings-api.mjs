@@ -57,6 +57,14 @@ const assertOk = async (path, init) => {
   if (response.headers.get('x-content-type-options') !== 'nosniff') {
     throw new Error(`${path} is missing the nosniff security header.`);
   }
+  if (
+    response.headers.get('strict-transport-security') !== 'max-age=31536000; includeSubDomains'
+    || response.headers.get('x-frame-options') !== 'DENY'
+    || !response.headers.get('content-security-policy')?.includes("default-src 'none'")
+    || !response.headers.get('x-request-id')
+  ) {
+    throw new Error(`${path} is missing hardened transport or response metadata.`);
+  }
   if (response.headers.get('x-api-version') !== '4') {
     throw new Error(`${path} is not serving API version 4.`);
   }
@@ -176,6 +184,9 @@ if (
   preflight.status !== 204
   || preflight.headers.get('access-control-allow-origin') !== allowedOrigin
   || !preflight.headers.get('access-control-allow-headers')?.includes('authorization')
+  || preflight.headers.get('x-api-version') !== '4'
+  || !preflight.headers.get('x-release-id')
+  || preflight.headers.get('x-frame-options') !== 'DENY'
 ) {
   throw new Error('Allowed CORS preflight failed.');
 }
@@ -187,6 +198,37 @@ const rejectedPreflight = await fetch(`${apiUrl}/scores`, {
 });
 if (rejectedPreflight.status !== 403) {
   throw new Error('Disallowed CORS preflight was not rejected.');
+}
+
+const unknownPreflight = await fetch(`${apiUrl}/missing`, {
+  method: 'OPTIONS',
+  headers: { origin: allowedOrigin, 'access-control-request-method': 'GET' },
+  signal: AbortSignal.timeout(8_000),
+});
+if (unknownPreflight.status !== 404) {
+  throw new Error('An unknown CORS preflight was not rejected.');
+}
+
+const unsupportedPreflightMethod = await fetch(`${apiUrl}/scores`, {
+  method: 'OPTIONS',
+  headers: { origin: allowedOrigin, 'access-control-request-method': 'GET' },
+  signal: AbortSignal.timeout(8_000),
+});
+if (
+  unsupportedPreflightMethod.status !== 405
+  || unsupportedPreflightMethod.headers.get('allow') !== 'POST, OPTIONS'
+) {
+  throw new Error('A known path accepted an unsupported CORS method.');
+}
+
+const unsupportedMethod = await fetch(`${apiUrl}/rankings`, {
+  method: 'POST',
+  headers: { origin: allowedOrigin, 'content-type': 'application/json' },
+  body: '{}',
+  signal: AbortSignal.timeout(8_000),
+});
+if (unsupportedMethod.status !== 405 || unsupportedMethod.headers.get('allow') !== 'GET, OPTIONS') {
+  throw new Error('Known API paths do not expose the expected method contract.');
 }
 
 const playerToken = crypto.randomUUID();

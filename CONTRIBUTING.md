@@ -28,8 +28,9 @@ npm run check
 npm run doctor
 npm run test:e2e
 npm run build:native-bundles && npm run check:native-build
-EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.dev npm run build:web
-npm run check:web-build
+EXPO_PUBLIC_RANKINGS_API_URL=https://strawberry-rankings-api.toyo1621.workers.dev \
+EXPO_PUBLIC_RELEASE_ID="$(git rev-parse HEAD)" npm run build:web
+EXPO_PUBLIC_RELEASE_ID="$(git rev-parse HEAD)" npm run check:web-build
 npx wrangler deploy --dry-run --config worker/wrangler.toml
 ```
 
@@ -37,11 +38,11 @@ npx wrangler deploy --dry-run --config worker/wrangler.toml
 
 | 種別 | 対象 |
 | --- | --- |
-| `tests/` | シャッフル、色分類、締切タイマー、ゲーム/Worker得点契約、ランキング、再試行、排他制御付きキャッシュ/キュー |
-| `worker/src/*.test.ts` | 入力拒否、Bearer所有権、ゲームセッション、CORS、冪等性、原子的連投、40並列cache miss、stale fallback、JST、削除 |
+| `tests/` | シャッフル、色分類、締切タイマー、ゲーム/Worker得点契約、Unicode名前、ランキング、保存結果、設定、戻る層級、再試行、排他制御付きキャッシュ/キュー |
+| `worker/src/*.test.ts` | 入力拒否、Bearer所有権、ゲームセッション、CORS、HTTPメソッド・security header、冪等性、原子的連投、40並列cache miss、stale fallback、JST、削除 |
 | `test:db` | 空のローカルD1へ全migrationを適用し、地域再分類、所有者・セッション・制限スキーマと公開順位のクエリ計画を照合 |
 | `test:integration` | 実ローカルWorker/D1でセッション、batch登録、32並列読込、同時再送、順位、履歴、削除をHTTP検査 |
-| `e2e/` | 全モード、主要画面、ダーク、Chromium/Firefox/WebKit、Pixel 7/320px、axe、ARIA、主操作順序、削除、性能 |
+| `e2e/` | 全モード、主要画面、ダーク、オンライン参加停止、Unicode入力拒否、Chromium/Firefox/WebKit、Pixel 7/320px、axe、ARIA、主操作順序、削除、性能 |
 
 バグ修正には再現テストを追加します。ゲームルールを変える場合は純粋ロジック、Workerの成立性検証、アプリ内ルール、`ARCHITECTURE.md` を同じ変更に含めます。
 

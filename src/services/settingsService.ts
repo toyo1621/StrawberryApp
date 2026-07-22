@@ -5,14 +5,24 @@ const SETTINGS_KEY = 'app_settings';
 export interface AppSettings {
   darkMode: boolean;
   hapticsEnabled: boolean;
+  onlineRankingsEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   darkMode: false,
   hapticsEnabled: true,
+  onlineRankingsEnabled: true,
 };
 
-export const loadSettings = async (): Promise<AppSettings> => {
+let settingsWriteTail: Promise<void> = Promise.resolve();
+
+const withSettingsWriteLock = <T>(operation: () => Promise<T>): Promise<T> => {
+  const result = settingsWriteTail.then(operation, operation);
+  settingsWriteTail = result.then(() => undefined, () => undefined);
+  return result;
+};
+
+const readSettings = async (): Promise<AppSettings> => {
   const stored = await AsyncStorage.getItem(SETTINGS_KEY);
   if (!stored) {
     return { ...DEFAULT_SETTINGS };
@@ -25,6 +35,8 @@ export const loadSettings = async (): Promise<AppSettings> => {
       || typeof parsed !== 'object'
       || (parsed.darkMode !== undefined && typeof parsed.darkMode !== 'boolean')
       || (parsed.hapticsEnabled !== undefined && typeof parsed.hapticsEnabled !== 'boolean')
+      || (parsed.onlineRankingsEnabled !== undefined
+        && typeof parsed.onlineRankingsEnabled !== 'boolean')
     ) {
       throw new Error('Invalid settings shape.');
     }
@@ -37,17 +49,28 @@ export const loadSettings = async (): Promise<AppSettings> => {
   }
 };
 
-export const saveSettings = async (settings: AppSettings): Promise<void> => {
+export const loadSettings = async (): Promise<AppSettings> => {
+  await settingsWriteTail;
+  return readSettings();
+};
+
+const writeSettings = async (settings: AppSettings): Promise<void> => {
   await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 };
 
+export const saveSettings = (settings: AppSettings): Promise<void> => (
+  withSettingsWriteLock(() => writeSettings(settings))
+);
+
 export const updateSettings = async (updates: Partial<AppSettings>): Promise<AppSettings> => {
-  const currentSettings = await loadSettings();
-  const newSettings = { ...currentSettings, ...updates };
-  await saveSettings(newSettings);
-  return newSettings;
+  return withSettingsWriteLock(async () => {
+    const currentSettings = await readSettings();
+    const newSettings = { ...currentSettings, ...updates };
+    await writeSettings(newSettings);
+    return newSettings;
+  });
 };
 
 export const clearSettings = async (): Promise<void> => {
-  await AsyncStorage.removeItem(SETTINGS_KEY);
+  await withSettingsWriteLock(() => AsyncStorage.removeItem(SETTINGS_KEY));
 };

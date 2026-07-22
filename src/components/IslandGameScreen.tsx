@@ -165,7 +165,16 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({
       <View
         accessibilityRole="progressbar"
         accessibilityLabel="残り時間"
-        accessibilityValue={{ min: 0, max: RULES.initialTimeTicks, now: Math.min(timeLeft, RULES.initialTimeTicks) }}
+        aria-valuemin={0}
+        aria-valuemax={ticksToSeconds(RULES.initialTimeTicks)}
+        aria-valuenow={ticksToSeconds(Math.min(timeLeft, RULES.initialTimeTicks))}
+        aria-valuetext={`残り${displayTime}秒`}
+        accessibilityValue={{
+          min: 0,
+          max: ticksToSeconds(RULES.initialTimeTicks),
+          now: ticksToSeconds(Math.min(timeLeft, RULES.initialTimeTicks)),
+          text: `残り${displayTime}秒`,
+        }}
         style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}
       >
         <View

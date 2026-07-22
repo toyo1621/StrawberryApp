@@ -815,18 +815,44 @@ test('handles CORS preflights and unknown routes explicitly', async () => {
   const env = createEnv();
   const allowed = await worker.fetch(new Request('https://api.test/scores', {
     method: 'OPTIONS',
-    headers: { origin: 'https://toyo1621.github.io' },
+    headers: {
+      origin: 'https://toyo1621.github.io',
+      'access-control-request-method': 'POST',
+    },
   }), env);
   const rejected = await worker.fetch(new Request('https://api.test/scores', {
     method: 'OPTIONS',
     headers: { origin: 'https://example.com' },
   }), env);
   const missing = await worker.fetch(new Request('https://api.test/missing'), env);
+  const missingPreflight = await worker.fetch(new Request('https://api.test/missing', {
+    method: 'OPTIONS',
+    headers: { origin: 'https://toyo1621.github.io' },
+  }), env);
+  const wrongPreflightMethod = await worker.fetch(new Request('https://api.test/scores', {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'https://toyo1621.github.io',
+      'access-control-request-method': 'GET',
+    },
+  }), env);
+  const wrongMethod = await worker.fetch(new Request('https://api.test/rankings', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{}',
+  }), env);
 
   assert.equal(allowed.status, 204);
   assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://toyo1621.github.io');
+  assert.equal(allowed.headers.get('x-api-version'), '4');
+  assert.equal(allowed.headers.get('x-release-id'), 'development');
   assert.equal(rejected.status, 403);
   assert.equal(missing.status, 404);
+  assert.equal(missingPreflight.status, 404);
+  assert.equal(wrongPreflightMethod.status, 405);
+  assert.equal(wrongPreflightMethod.headers.get('allow'), 'POST, OPTIONS');
+  assert.equal(wrongMethod.status, 405);
+  assert.equal(wrongMethod.headers.get('allow'), 'GET, OPTIONS');
   assert.deepEqual(await missing.json(), { error: 'Not found' });
 });
 
@@ -846,13 +872,19 @@ test('returns a sanitized 500 response when an uncached leaderboard query fails'
 });
 
 test('health check verifies the database and returns security headers', async () => {
-  const response = await worker.fetch(new Request('https://api.test/health'), createEnv());
+  const response = await worker.fetch(new Request('https://api.test/health', {
+    headers: { 'cf-ray': '../unsafe request id' },
+  }), createEnv());
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(response.headers.get('vary'), 'Origin');
   assert.equal(response.headers.get('x-api-version'), '4');
   assert.equal(response.headers.get('x-release-id'), 'development');
+  assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains');
+  assert.equal(response.headers.get('x-frame-options'), 'DENY');
+  assert.equal(response.headers.get('content-security-policy'), "default-src 'none'; frame-ancestors 'none'");
+  assert.match(response.headers.get('x-request-id') ?? '', /^[0-9a-f-]{36}$/);
   assert.deepEqual(await response.json(), {
     ok: true,
     service: 'strawberry-rankings-api',

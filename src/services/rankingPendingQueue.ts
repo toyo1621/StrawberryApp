@@ -113,3 +113,11 @@ export const clearPendingScores = (): Promise<void> => (
     await AsyncStorage.removeItem(PENDING_SCORES_KEY);
   })
 );
+
+export const discardPendingScores = (): Promise<number> => (
+  withPendingQueueLock(async () => {
+    const current = await readPendingScores();
+    await AsyncStorage.removeItem(PENDING_SCORES_KEY);
+    return current.length;
+  })
+);

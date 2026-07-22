@@ -1,10 +1,12 @@
 import {
   extractJavaScriptPaths,
   hasHealthyJavaScriptBundles,
+  isReleaseMetadata,
 } from './operational-contracts.mjs';
 
 const webUrl = (process.env.WEB_URL || '').replace(/\/+$/, '');
 const maximumDurationMs = Number(process.env.MAX_WEB_REQUEST_DURATION_MS || 5_000);
+const expectedReleaseId = process.env.EXPECTED_RELEASE_ID;
 
 if (!webUrl) {
   console.error('WEB_URL is required.');
@@ -67,6 +69,16 @@ for (let attempt = 1; attempt <= 5; attempt += 1) {
       throw new Error('Web app favicon is missing or empty.');
     }
 
+    const releaseResponse = await fetch(`${webUrl}/release.json?_smoke=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const release = releaseResponse.ok ? await releaseResponse.json() : null;
+    if (!releaseResponse.ok || !isReleaseMetadata(release, expectedReleaseId)) {
+      throw new Error('Web release metadata is missing or incompatible.');
+    }
+
     const durationMs = Date.now() - startedAt;
     if (durationMs > maximumDurationMs) {
       throw new Error(`Web smoke exceeded the ${maximumDurationMs} ms latency budget (${durationMs} ms).`);
@@ -74,7 +86,7 @@ for (let attempt = 1; attempt <= 5; attempt += 1) {
 
     console.log(
       `Web smoke check passed (${response.url}, ${durationMs} ms, `
-      + `${(totalScriptBytes / 1024).toFixed(1)} KiB initial JS, favicon verified).`,
+      + `${(totalScriptBytes / 1024).toFixed(1)} KiB initial JS, release ${release.release}).`,
     );
     process.exit(0);
   } catch (error) {

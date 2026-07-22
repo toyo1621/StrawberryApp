@@ -12,6 +12,8 @@ export type AppTheme = {
   dangerBackground: string;
   success: string;
   successBackground: string;
+  info: string;
+  infoBackground: string;
 };
 
 export const LIGHT_THEME: AppTheme = {
@@ -28,6 +30,8 @@ export const LIGHT_THEME: AppTheme = {
   dangerBackground: '#fff1f2',
   success: '#166534',
   successBackground: '#f0fdf4',
+  info: '#1e40af',
+  infoBackground: '#eff6ff',
 };
 
 export const DARK_THEME: AppTheme = {
@@ -44,6 +48,8 @@ export const DARK_THEME: AppTheme = {
   dangerBackground: '#4c1d2a',
   success: '#bbf7d0',
   successBackground: '#173c2a',
+  info: '#bfdbfe',
+  infoBackground: '#172554',
 };
 
 export const getTheme = (darkMode: boolean): AppTheme => darkMode ? DARK_THEME : LIGHT_THEME;

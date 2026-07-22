@@ -40,7 +40,7 @@ test('home and policy screens have no detectable accessibility violations', asyn
   await expectNoAccessibilityViolations(page);
 
   await page.getByRole('button', { name: '前の画面に戻る' }).click();
-  await page.getByRole('button', { name: 'マイページを開く' }).click();
+  await expect(page.getByRole('heading', { name: 'マイページ' })).toBeVisible();
   await page.getByRole('button', { name: '利用規約を開く' }).click();
   await expect(page.getByRole('heading', { name: '利用規約' })).toBeVisible();
   await expectNoAccessibilityViolations(page);
@@ -99,6 +99,7 @@ test('a player can start and answer every mode without page errors or external f
 
     const choices = page.getByRole('button', { name: /選択肢[12]、/ });
     await expect(choices).toHaveCount(2);
+    await expect(page.getByRole('progressbar', { name: '残り時間' })).toHaveAttribute('aria-valuetext', /残り\d+\.\d秒/);
     await expectNoAccessibilityViolations(page);
     expect(await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
@@ -202,12 +203,15 @@ test('settings and all-mode score history are reachable', async ({ page }) => {
 
   await page.getByRole('button', { name: '設定を開く' }).click();
   const darkMode = page.getByLabel('ダークモード');
+  const onlineRankings = page.getByLabel('オンラインランキングへ参加');
   await darkMode.click();
   await expect(darkMode).toBeChecked();
+  await onlineRankings.click();
+  await expect(onlineRankings).not.toBeChecked();
   await expectNoAccessibilityViolations(page);
   await page.getByRole('button', { name: '前の画面に戻る' }).click();
 
-  await page.getByRole('button', { name: 'マイページを開く' }).click();
+  await expect(page.getByRole('heading', { name: 'マイページ' })).toBeVisible();
   await page.getByRole('button', { name: '色モードを選択' }).click();
   await expect(page.getByRole('button', { name: '色モードのスコア履歴を表示' })).toBeVisible();
   await expectNoAccessibilityViolations(page);
@@ -220,9 +224,20 @@ test('settings and all-mode score history are reachable', async ({ page }) => {
 
   await page.getByRole('button', { name: 'データ削除をキャンセル' }).click();
   await page.getByRole('button', { name: 'ホームに戻る' }).click();
+  await expect(page.getByText('オンラインランキングはオフです。スコアはこの端末だけに保存されます。')).toBeVisible();
   await page.getByLabel('プレイヤー名').fill('ダークテスト');
   await page.getByRole('button', { name: '色モードを選択' }).click();
   await page.getByRole('button', { name: '色モードでゲームを開始' }).click();
+  await expectNoAccessibilityViolations(page);
+});
+
+test('unsafe invisible player-name controls are rejected before a game starts', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('プレイヤー名').fill(`安全\u202e偽装`);
+  await page.getByRole('button', { name: 'いちごモードでゲームを開始' }).click();
+
+  await expect(page.getByText('使用できない文字が含まれています。')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'いちごつめ！' })).toBeVisible();
   await expectNoAccessibilityViolations(page);
 });
 

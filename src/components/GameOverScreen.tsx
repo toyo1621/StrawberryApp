@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { FONT_WEIGHT_BOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
 import { getIslandRegionLabel } from '../domain/islands';
-import { rankingIdentity } from '../domain/rankings';
+import { getRankingPositionByEntryId } from '../domain/rankings';
 import { GAME_MODE_CONFIG } from '../gameConfig';
 import { fetchRankingsForModeWithStatus } from '../services/rankingService';
 import { getTheme } from '../theme';
@@ -15,13 +15,16 @@ type GameOverScreenProps = {
   ranking: RankingEntry[];
   gameMode: GameMode;
   islandRegion: IslandRegion;
-  currentPlayer: { name: string; score: number };
+  currentPlayer: { id: string | null; name: string; score: number };
   onPlayAgain: () => void;
   onGoHome: () => void;
   error?: string | null;
   onDismissError?: () => void;
+  notice?: string | null;
+  onDismissNotice?: () => void;
   darkMode?: boolean;
   isPreparingGame?: boolean;
+  isSavingScore?: boolean;
 };
 
 const GameOverScreen: React.FC<GameOverScreenProps> = ({
@@ -33,8 +36,11 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
   onGoHome,
   error,
   onDismissError,
+  notice,
+  onDismissNotice,
   darkMode = false,
   isPreparingGame = false,
+  isSavingScore = false,
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState(RankingPeriod.ALL);
   const [periodRanking, setPeriodRanking] = useState<RankingEntry[]>([]);
@@ -85,14 +91,13 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
   }, [gameMode, rankingRegion, selectedPeriod]);
 
   const currentRanking = selectedPeriod === RankingPeriod.ALL ? ranking : periodRanking;
-  const rank = useMemo(() => {
-    const playerIdentity = rankingIdentity(currentPlayer.name);
-    const index = currentRanking.findIndex((entry) => (
-      rankingIdentity(entry.playerName) === playerIdentity
-      && entry.score === currentPlayer.score
-    ));
-    return index >= 0 ? index + 1 : null;
-  }, [currentPlayer.name, currentPlayer.score, currentRanking]);
+  const rank = useMemo(
+    () => getRankingPositionByEntryId(currentRanking, currentPlayer.id),
+    [currentPlayer.id, currentRanking],
+  );
+  const rankingResultLabel = isSavingScore
+    ? 'ランキング反映中'
+    : rank ? `${selectedPeriod === RankingPeriod.ALL ? '全体' : '選択期間'} ${rank}位` : '上位30位に未掲載';
 
   return (
     <ScrollView
@@ -114,9 +119,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
           >
             {currentPlayer.score}<Text style={styles.scoreUnit}> {config.unit}</Text>
           </Text>
-          <Text style={[styles.resultText, { color: theme.textMuted }]}>
-            {rank ? `${selectedPeriod === RankingPeriod.ALL ? '全体' : '選択期間'} ${rank}位` : 'ランキング集計中'}
-          </Text>
+          <Text style={[styles.resultText, { color: theme.textMuted }]}>{rankingResultLabel}</Text>
         </View>
 
         <View style={styles.rankingSection}>
@@ -135,13 +138,20 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
             accent={accent}
             loading={isLoadingPeriod}
             limit={30}
-            highlightedPlayerName={currentPlayer.name}
-            highlightedScore={currentPlayer.score}
+            highlightedEntryId={currentPlayer.id}
             darkMode={darkMode}
           />
           {periodError && <StatusBanner message={periodError} darkMode={darkMode} />}
         </View>
 
+        {notice && (
+          <StatusBanner
+            message={notice}
+            tone="success"
+            onDismiss={onDismissNotice}
+            darkMode={darkMode}
+          />
+        )}
         {error && <StatusBanner message={error} onDismiss={onDismissError} darkMode={darkMode} />}
 
         <View style={styles.actions}>

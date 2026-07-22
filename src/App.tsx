@@ -11,13 +11,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { strawberryJuiceImage } from './assets/images/strawberryJuiceAsset';
 import { GameState, GameMode, IslandRegion } from './types';
+import { getUniquePlayerRankings } from './domain/rankings';
 import ErrorBoundary from './components/ErrorBoundary';
 import StartScreen from './components/StartScreen';
 import {
   deletePlayerRankingData,
   createRankingGameSession,
-  fetchRankingsForModeWithStatus,
-  saveScoreForMode,
+  discardPendingRankingScores,
 } from './services/rankingService';
 import type { RankingGameSession } from './services/rankingService';
 import { clearPlayerName } from './services/playerService';
@@ -25,6 +25,9 @@ import { clearSettings, DEFAULT_SETTINGS } from './services/settingsService';
 import type { AppSettings } from './services/settingsService';
 import { createEmptyRankings } from './gameConfig';
 import { useAppData } from './hooks/useAppData';
+import { useScreenAnnouncement } from './hooks/useScreenAnnouncement';
+import { useHardwareBackNavigation } from './hooks/useHardwareBackNavigation';
+import { saveGameResult } from './services/gameResultService';
 import { appStyles as styles } from './App.styles';
 
 const GameScreen = lazy(() => import('./components/GameScreen'));
@@ -68,7 +71,9 @@ const App: React.FC = () => {
   const gameStartedAtRef = useRef<number | null>(null);
   const gameplayDurationMsRef = useRef<number | null>(null);
   const gameSessionRef = useRef<RankingGameSession | null>(null);
+  const currentResultIdRef = useRef<string | null>(null);
   const reduceMotionRef = useRef(false);
+  useScreenAnnouncement(gameState);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
@@ -109,20 +114,26 @@ const App: React.FC = () => {
     setPlayerName(name);
     setGameMode(mode);
     setIslandRegion(selectedIslandRegion);
-    setCurrentScore(0);
+    setCurrentScore(0); currentResultIdRef.current = null;
     setMemoryAnswer('');
     setFirstDistractor('');
+    setError(null);
+    setNotice(null);
     const rankingRegion = mode === GameMode.ISLAND ? selectedIslandRegion : IslandRegion.ALL;
     try {
-      gameSessionRef.current = await prepareGameSession(mode, rankingRegion);
-      if (!gameSessionRef.current) {
+      gameSessionRef.current = settings.onlineRankingsEnabled
+        ? await prepareGameSession(mode, rankingRegion)
+        : null;
+      if (!settings.onlineRankingsEnabled) {
+        setNotice('オンラインランキングはオフです。このゲームのスコアは端末だけに保存されます。');
+      } else if (!gameSessionRef.current) {
         setNotice('オフラインで開始しました。このゲームのスコアは端末だけに保存されます。');
       }
       enterGame(mode);
     } finally {
       setIsPreparingGame(false);
     }
-  }, [enterGame, isPreparingGame, prepareGameSession, setNotice, setPlayerName]);
+  }, [enterGame, isPreparingGame, prepareGameSession, setError, setNotice, setPlayerName, settings.onlineRankingsEnabled]);
 
   const handleMemoryGame = useCallback((score: number, lastDistractor: string, firstDistractor: string) => {
     gameplayDurationMsRef.current = Math.max(
@@ -148,37 +159,36 @@ const App: React.FC = () => {
       Date.now() - (gameStartedAtRef.current ?? Date.now()),
     );
 
-    // スコアを保存（モードに応じて）
     if (playerName && score > 0) {
       setIsSavingScore(true);
       setError(null);
       try {
-        const rankingRegion = gameMode === GameMode.ISLAND ? islandRegion : IslandRegion.ALL;
-        const result = await saveScoreForMode(gameMode, playerName, score, {
-          durationMs,
-          islandRegion: rankingRegion,
-          gameSession: gameSessionRef.current,
-        });
-        const updatedRankings = await fetchRankingsForModeWithStatus(
+        const result = await saveGameResult({
           gameMode,
-          undefined,
-          rankingRegion,
-        );
-        setRankingsByMode((current) => ({ ...current, [gameMode]: updatedRankings.entries }));
-        if (result.queuedForSync) {
-          setNotice('通信できなかったため端末に保存しました。次回オンライン時に自動で同期します。');
-        } else if (!result.verifiedForRanking) {
-          setNotice('オフラインで開始したため、スコアは端末履歴だけに保存しました。');
+          islandRegion,
+          playerName,
+          score,
+          durationMs,
+          gameSession: gameSessionRef.current,
+          onlineRankingsEnabled: settings.onlineRankingsEnabled,
+        });
+        currentResultIdRef.current = result.entry.id;
+        if (result.rankings) {
+          setRankingsByMode((current) => ({ ...current, [gameMode]: result.rankings ?? [] }));
+        } else {
+          setRankingsByMode((current) => ({
+            ...current,
+            [gameMode]: getUniquePlayerRankings([
+              ...current[gameMode],
+              result.entry,
+            ]),
+          }));
         }
-        if (updatedRankings.stale) {
-          setNotice('通信できないため端末に保存したランキングを表示しています。');
-        }
-        if (result.droppedPendingScores > 0) {
-          setError('端末の保存待ち上限を超えたため、最も古いスコアを送信待ちから除外しました。');
-        }
-      } catch (error) {
-        console.error('Failed to save score:', error);
-        setError('スコアの保存に失敗しました。ランキングは更新されませんでした。');
+        setNotice(result.notice);
+        setError(result.warning);
+      } catch (saveError) {
+        console.error('Failed to save score:', saveError);
+        setError('スコアを保存できませんでした。端末の空き容量と通信状態を確認してください。');
       } finally {
         gameSessionRef.current = null;
         gameStartedAtRef.current = null;
@@ -186,36 +196,49 @@ const App: React.FC = () => {
         setIsSavingScore(false);
       }
     } else {
+      if (score === 0) {
+        setNotice('0点のためランキングには送信されませんでした。');
+      }
       gameSessionRef.current = null;
       gameStartedAtRef.current = null;
       gameplayDurationMsRef.current = null;
     }
-  }, [gameMode, islandRegion, playerName, setError, setNotice, setRankingsByMode]);
+  }, [gameMode, islandRegion, playerName, setError, setNotice, setRankingsByMode, settings.onlineRankingsEnabled]);
 
   const handleRestart = useCallback(() => {
     gameSessionRef.current = null;
     gameStartedAtRef.current = null;
-    gameplayDurationMsRef.current = null;
+    gameplayDurationMsRef.current = null; currentResultIdRef.current = null;
     setGameState(GameState.START);
   }, []);
+  const handleHardwareBack = useCallback((destination: GameState) => {
+    if (destination === GameState.START) {handleRestart();} else {setGameState(destination);}
+  }, [handleRestart]);
+  useHardwareBackNavigation(gameState, handleHardwareBack);
 
   const handlePlayAgain = useCallback(async () => {
     if (isPreparingGame) {return;}
     setIsPreparingGame(true);
-    setCurrentScore(0);
+    setCurrentScore(0); currentResultIdRef.current = null;
     setMemoryAnswer('');
     setFirstDistractor('');
+    setError(null);
+    setNotice(null);
     const rankingRegion = gameMode === GameMode.ISLAND ? islandRegion : IslandRegion.ALL;
     try {
-      gameSessionRef.current = await prepareGameSession(gameMode, rankingRegion);
-      if (!gameSessionRef.current) {
+      gameSessionRef.current = settings.onlineRankingsEnabled
+        ? await prepareGameSession(gameMode, rankingRegion)
+        : null;
+      if (!settings.onlineRankingsEnabled) {
+        setNotice('オンラインランキングはオフです。このゲームのスコアは端末だけに保存されます。');
+      } else if (!gameSessionRef.current) {
         setNotice('オフラインで開始しました。このゲームのスコアは端末だけに保存されます。');
       }
       enterGame(gameMode);
     } finally {
       setIsPreparingGame(false);
     }
-  }, [enterGame, gameMode, islandRegion, isPreparingGame, prepareGameSession, setNotice]);
+  }, [enterGame, gameMode, islandRegion, isPreparingGame, prepareGameSession, setError, setNotice, settings.onlineRankingsEnabled]);
 
   const handleShowRules = useCallback(() => {
     setGameState(GameState.RULES);
@@ -238,7 +261,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleBackFromPrivacyPolicy = useCallback(() => {
-    setGameState(GameState.START);
+    setGameState(GameState.MY_PAGE);
   }, []);
 
   const handleShowTermsOfService = useCallback(() => {
@@ -246,7 +269,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleBackFromTermsOfService = useCallback(() => {
-    setGameState(GameState.START);
+    setGameState(GameState.MY_PAGE);
   }, []);
 
   const handleShowSettings = useCallback(() => {
@@ -254,12 +277,19 @@ const App: React.FC = () => {
   }, []);
 
   const handleBackFromSettings = useCallback(() => {
-    setGameState(GameState.START);
+    setGameState(GameState.MY_PAGE);
   }, []);
 
-  const handleSettingsChanged = useCallback((newSettings: AppSettings) => {
+  const handleSettingsChanged = useCallback(async (newSettings: AppSettings) => {
     setSettings(newSettings);
-  }, [setSettings]);
+    if (!newSettings.onlineRankingsEnabled) {
+      gameSessionRef.current = null;
+      const discarded = await discardPendingRankingScores();
+      if (discarded > 0) {
+        setNotice(`${discarded}件の公開送信待ちを解除しました。端末履歴は残ります。`);
+      }
+    }
+  }, [setNotice, setSettings]);
 
   const handleNameChanged = useCallback((name: string) => {
     setPlayerName(name);
@@ -345,13 +375,16 @@ const App: React.FC = () => {
             ranking={rankingsByMode[gameMode]}
             gameMode={gameMode}
             islandRegion={islandRegion}
-            currentPlayer={{ name: playerName, score: currentScore }} 
+            currentPlayer={{ id: currentResultIdRef.current, name: playerName, score: currentScore }}
             onPlayAgain={handlePlayAgain}
             onGoHome={handleRestart}
             error={error}
             onDismissError={() => setError(null)}
+            notice={notice}
+            onDismissNotice={() => setNotice(null)}
             darkMode={settings.darkMode}
             isPreparingGame={isPreparingGame}
+            isSavingScore={isSavingScore}
             />
             {isSavingScore && (
               <View style={styles.savingOverlay}>
@@ -382,6 +415,7 @@ const App: React.FC = () => {
               onDismissNotice={() => setNotice(null)}
               darkMode={settings.darkMode}
               isPreparingGame={isPreparingGame}
+              onlineRankingsEnabled={settings.onlineRankingsEnabled}
             />
             {isSavingScore && (
               <View style={styles.savingOverlay}>
