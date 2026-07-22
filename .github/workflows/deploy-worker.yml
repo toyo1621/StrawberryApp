@@ -1,6 +1,7 @@
 name: Deploy Rankings Worker
 
 on:
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -45,8 +46,41 @@ jobs:
             echo "- Captured before migration for commit: \`$GITHUB_SHA\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Capture ranking count before migration
+        id: ranking-count-before
+        shell: bash
+        run: |
+          set -euo pipefail
+          table_json="$(npx wrangler d1 execute strawberry-rankings --remote --config worker/wrangler.toml --command "SELECT COUNT(*) AS present FROM sqlite_master WHERE type = 'table' AND name = 'rankings'" --json)"
+          table_present="$(jq -er 'if type == "array" then .[0].results[0].present else .results[0].present end' <<<"$table_json")"
+
+          if [[ "$table_present" == "1" ]]; then
+            count_json="$(npx wrangler d1 execute strawberry-rankings --remote --config worker/wrangler.toml --command "SELECT COUNT(*) AS total FROM rankings" --json)"
+            ranking_count="$(jq -er 'if type == "array" then .[0].results[0].total else .results[0].total end' <<<"$count_json")"
+          else
+            ranking_count=0
+          fi
+
+          echo "count=$ranking_count" >> "$GITHUB_OUTPUT"
+          echo "- Ranking rows before migration: $ranking_count" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Apply D1 migrations
         run: npm run d1:migrate
+
+      - name: Verify ranking count after migration
+        shell: bash
+        env:
+          RANKING_COUNT_BEFORE: ${{ steps.ranking-count-before.outputs.count }}
+        run: |
+          set -euo pipefail
+          count_json="$(npx wrangler d1 execute strawberry-rankings --remote --config worker/wrangler.toml --command "SELECT COUNT(*) AS total FROM rankings" --json)"
+          ranking_count_after="$(jq -er 'if type == "array" then .[0].results[0].total else .results[0].total end' <<<"$count_json")"
+          echo "- Ranking rows after migration: $ranking_count_after" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$ranking_count_after" != "$RANKING_COUNT_BEFORE" ]]; then
+            echo "Ranking row count changed during migration: $RANKING_COUNT_BEFORE -> $ranking_count_after" >&2
+            exit 1
+          fi
 
       - name: Deploy Worker
         run: npm run worker:deploy -- --tag "$GITHUB_SHA" --message "GitHub Actions run $GITHUB_RUN_ID"

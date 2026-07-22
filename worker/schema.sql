@@ -20,8 +20,13 @@ CREATE INDEX IF NOT EXISTS idx_rankings_game_region_score_created
 CREATE INDEX IF NOT EXISTS idx_rankings_player_game_region_created
   ON rankings (player_name, game_type, island_region, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_rankings_game_region_player_identity_created
-  ON rankings (game_type, island_region, lower(trim(player_name)), created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rankings_game_region_owner_score_created
+  ON rankings (game_type, island_region, owner_hash, score DESC, created_at ASC)
+  WHERE owner_hash IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_rankings_game_region_legacy_name_score_created
+  ON rankings (game_type, island_region, lower(trim(player_name)), score DESC, created_at ASC)
+  WHERE owner_hash IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_rankings_owner_game_created
   ON rankings (owner_hash, game_type, created_at DESC);

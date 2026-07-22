@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const buildDir = path.resolve('web-build');
 const islandSourceDir = path.resolve('src/assets/islands');
-const MAX_JS_BYTES = 950 * 1024;
+const MAX_JS_BYTES = 700 * 1024;
 const MAX_TOTAL_BYTES = 14 * 1024 * 1024;
 const MAX_ISLAND_ASSET_BYTES = 12 * 1024 * 1024;
 const MAX_SINGLE_ISLAND_ASSET_BYTES = 80 * 1024;

@@ -126,7 +126,9 @@ class FakeStatement {
           && (!periodStart || entry.createdAt >= periodStart)
         ))
         .forEach((entry) => {
-          const identity = entry.playerName.trim().toLocaleLowerCase();
+          const identity = entry.ownerHash
+            ? `owner:${entry.ownerHash}`
+            : `legacy:${entry.playerName.trim().toLocaleLowerCase()}`;
           const current = bestByPlayer.get(identity);
           if (
             !current
@@ -505,6 +507,71 @@ test('keeps nationwide, Chugoku, and Shikoku island rankings separate', async ()
     (await shikoku.json() as RankingRecord[]).map((entry) => [entry.playerName, entry.islandRegion]),
     [['四国選手', 'shikoku']],
   );
+});
+
+test('ranks verified players by owner while preserving legacy name deduplication', async () => {
+  const env = createEnv();
+  const db = env.DB as unknown as FakeD1Database;
+  db.rankings.push(
+    {
+      id: 'owner-a-old',
+      playerName: '同じ名前',
+      score: 4,
+      gameType: 'strawberry_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:00:00.000Z',
+      ownerHash: 'a'.repeat(64),
+    },
+    {
+      id: 'owner-b',
+      playerName: '同じ名前',
+      score: 8,
+      gameType: 'strawberry_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:01:00.000Z',
+      ownerHash: 'b'.repeat(64),
+    },
+    {
+      id: 'owner-a-new',
+      playerName: '改名後',
+      score: 10,
+      gameType: 'strawberry_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:02:00.000Z',
+      ownerHash: 'a'.repeat(64),
+    },
+    {
+      id: 'legacy-low',
+      playerName: ' 旧選手 ',
+      score: 3,
+      gameType: 'strawberry_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:03:00.000Z',
+      ownerHash: null,
+    },
+    {
+      id: 'legacy-high',
+      playerName: '旧選手',
+      score: 6,
+      gameType: 'strawberry_rush',
+      islandRegion: 'all',
+      createdAt: '2026-07-22T00:04:00.000Z',
+      ownerHash: null,
+    },
+  );
+
+  const response = await worker.fetch(
+    new Request('https://api.test/rankings?gameType=strawberry_rush&period=all'),
+    env,
+  );
+  const body = await response.json() as RankingRecord[];
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.map(({ id, playerName, score }) => ({ id, playerName, score })), [
+    { id: 'owner-a-new', playerName: '改名後', score: 10 },
+    { id: 'owner-b', playerName: '同じ名前', score: 8 },
+    { id: 'legacy-high', playerName: '旧選手', score: 6 },
+  ]);
 });
 
 test('treats a retried submission as idempotent', async () => {

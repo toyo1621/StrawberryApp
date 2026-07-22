@@ -14,6 +14,7 @@
     "tests/**/*.ts",
     "src/domain/**/*.ts",
     "src/services/rankingService.ts",
+    "src/services/rankingsApiClient.ts",
     "src/services/playerIdentityStorageCore.ts",
     "src/gameConfig.ts",
     "src/gameRules.ts",

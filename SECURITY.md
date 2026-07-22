@@ -19,7 +19,7 @@
 - 投稿IDを主キーにした冪等登録と内容・所有者競合の検出
 - D1の一意な分単位バケットをUPSERTする原子的な8セッション/分の連投制限
 - IPアドレスとUser-Agentを秘密ソルト付きSHA-256にし、元データを保存せず、バケットを15分ごとのcronで削除
-- 128-bitランダム端末トークンのBearer認可。ネイティブではSecureStoreへ保存し、D1にはSHA-256所有者ハッシュだけを保存して履歴列挙と削除を所有者へ限定
+- 128-bitランダム端末トークンのBearer認可。ネイティブではSecureStoreだけへ保存し、未送信Async Storageキューへ複製しない。D1にはSHA-256所有者ハッシュだけを保存して公開順位、履歴列挙、削除を所有者へ限定
 - SQLはD1 prepared statementのbindだけで実行
 - APIの `nosniff`、Referrer Policy、Permissions Policy、CORS、Cache-Control
 - 5xxでは内部詳細を返さず、リクエストID付き構造化ログを記録

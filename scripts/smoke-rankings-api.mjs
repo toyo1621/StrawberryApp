@@ -1,3 +1,5 @@
+import { isSyntheticCleanupComplete } from './operational-contracts.mjs';
+
 const apiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
 const expectedReleaseId = process.env.EXPECTED_RELEASE_ID;
 const maximumRequestDurationMs = Number(process.env.MAX_API_REQUEST_DURATION_MS || 4_000);
@@ -146,6 +148,7 @@ if (rejectedPreflight.status !== 403) {
 const playerToken = crypto.randomUUID();
 const submissionId = crypto.randomUUID();
 const authorization = `Bearer ${playerToken}`;
+let syntheticScoreCreated = false;
 
 try {
   const session = await assertOk('/game-sessions', {
@@ -179,6 +182,7 @@ try {
   if (created.body.id !== submissionId) {
     throw new Error('Synthetic score submission returned the wrong ID.');
   }
+  syntheticScoreCreated = true;
 
   const history = await assertOk('/players/me/history?gameType=strawberry_rush&limit=5', {
     headers: { authorization },
@@ -193,8 +197,17 @@ try {
     headers: { authorization, origin: allowedOrigin },
   });
   durations.push(deleted.durationMs);
-  if (!Number.isInteger(deleted.body.deleted)) {
-    throw new Error('Synthetic score cleanup returned an invalid result.');
+  const historyAfterDelete = await assertOk('/players/me/history?gameType=strawberry_rush&limit=5', {
+    headers: { authorization },
+  });
+  durations.push(historyAfterDelete.durationMs);
+  if (!isSyntheticCleanupComplete({
+    syntheticScoreCreated,
+    deleted: deleted.body.deleted,
+    history: historyAfterDelete.body,
+    submissionId,
+  })) {
+    throw new Error('Synthetic score cleanup did not remove the created score.');
   }
 }
 

@@ -1,0 +1,63 @@
+name: Mobile Store Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Store platform to build
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+      submit:
+        description: Submit the completed build to the selected store
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-store-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: mobile-production
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate project and native bundles
+        run: npm run check && npm run doctor && npm run build:native-bundles && npm run check:native-build
+
+      - name: Validate EAS project ownership
+        run: |
+          test -n "$EXPO_TOKEN"
+          npx --yes eas-cli@19.1.0 account:view --non-interactive
+          node --input-type=module -e "const config=(await import('./app.config.js')).default.expo; if(!config.extra?.eas?.projectId) throw new Error('Run eas init once and commit extra.eas.projectId before a store build.');"
+
+      - name: Build signed store artifact
+        run: npx --yes eas-cli@19.1.0 build --platform "${{ inputs.platform }}" --profile production --non-interactive --wait
+
+      - name: Submit latest store artifact
+        if: inputs.submit
+        run: npx --yes eas-cli@19.1.0 submit --platform "${{ inputs.platform }}" --profile production --latest --non-interactive --wait

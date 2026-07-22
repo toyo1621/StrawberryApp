@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 16.0.0",
+    "version": "19.1.0",
     "appVersionSource": "remote"
   },
   "build": {
@@ -12,7 +12,10 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_RANKINGS_API_URL": "https://strawberry-rankings-api.toyo1621.workers.dev"
+      }
     }
   },
   "submit": {

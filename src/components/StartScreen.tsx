@@ -5,6 +5,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
@@ -62,6 +63,8 @@ const StartScreen: React.FC<StartScreenProps> = ({
   const [periodRanking, setPeriodRanking] = useState<RankingEntry[]>([]);
   const [periodError, setPeriodError] = useState('');
   const [isLoadingPeriod, setIsLoadingPeriod] = useState(false);
+  const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
+  const compactViewport = viewportWidth <= 360 && viewportHeight <= 650;
   const theme = getTheme(darkMode);
   const config = GAME_MODE_CONFIG[selectedMode];
   const accent = darkMode ? config.accentDark : config.accent;
@@ -147,11 +150,15 @@ const StartScreen: React.FC<StartScreenProps> = ({
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, compactViewport && styles.scrollContentCompact]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={[
+        styles.surface,
+        compactViewport && styles.surfaceCompact,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}>
         <View style={styles.header}>
           <Text accessible={false} style={styles.heroEmoji}>{config.emoji}</Text>
           <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: accent }]}>{config.title}</Text>
@@ -185,34 +192,6 @@ const StartScreen: React.FC<StartScreenProps> = ({
           >
             <Text style={[styles.secondaryButtonText, { color: theme.text }]}>マイページ</Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.rankingSection}>
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>
-                {selectedMode === GameMode.ISLAND ? `${islandRegionLabel}ランキング` : 'ランキング'}
-              </Text>
-              <Text style={[styles.sectionCaption, { color: theme.textMuted }]}>
-                {config.shortLabel}モード{selectedMode === GameMode.ISLAND ? `・${islandRegionLabel}` : ''}
-              </Text>
-            </View>
-            <Text style={[styles.rankingMark, { color: accent }]}>{config.rankingTitle}</Text>
-          </View>
-          <PeriodTabs
-            value={selectedPeriod}
-            onChange={setSelectedPeriod}
-            accent={actionAccent}
-            darkMode={darkMode}
-          />
-          <RankingList
-            entries={currentRanking}
-            unit={config.unit}
-            accent={accent}
-            loading={isLoading || isLoadingPeriod}
-            darkMode={darkMode}
-          />
-          {periodError && <StatusBanner message={periodError} darkMode={darkMode} />}
         </View>
 
         <View style={styles.startSection}>
@@ -262,6 +241,34 @@ const StartScreen: React.FC<StartScreenProps> = ({
           </TouchableOpacity>
         </View>
 
+        <View style={styles.rankingSection}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>
+                {selectedMode === GameMode.ISLAND ? `${islandRegionLabel}ランキング` : 'ランキング'}
+              </Text>
+              <Text style={[styles.sectionCaption, { color: theme.textMuted }]}>
+                {config.shortLabel}モード{selectedMode === GameMode.ISLAND ? `・${islandRegionLabel}` : ''}
+              </Text>
+            </View>
+            <Text style={[styles.rankingMark, { color: accent }]}>{config.rankingTitle}</Text>
+          </View>
+          <PeriodTabs
+            value={selectedPeriod}
+            onChange={setSelectedPeriod}
+            accent={actionAccent}
+            darkMode={darkMode}
+          />
+          <RankingList
+            entries={currentRanking}
+            unit={config.unit}
+            accent={accent}
+            loading={isLoading || isLoadingPeriod}
+            darkMode={darkMode}
+          />
+          {periodError && <StatusBanner message={periodError} darkMode={darkMode} />}
+        </View>
+
         {notice && (
           <StatusBanner
             message={notice}
@@ -286,6 +293,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
+  scrollContentCompact: {
+    paddingVertical: 8,
+  },
   surface: {
     width: '100%',
     maxWidth: 560,
@@ -293,6 +303,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 20,
     gap: 20,
+  },
+  surfaceCompact: {
+    padding: 14,
+    gap: 14,
   },
   header: { alignItems: 'center' },
   heroEmoji: { fontSize: 44, lineHeight: 52 },

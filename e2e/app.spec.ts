@@ -46,6 +46,33 @@ test('home and policy screens have no detectable accessibility violations', asyn
   await expectNoAccessibilityViolations(page);
 });
 
+test('the primary game action appears before the leaderboard without initial scrolling', async ({ page }) => {
+  await page.goto('/');
+  const startButton = page.getByRole('button', { name: 'いちごモードでゲームを開始' });
+  const leaderboard = page.getByRole('heading', { name: 'ランキング' });
+  await expect(startButton).toBeVisible();
+  await expect(leaderboard).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const start = document.querySelector('[aria-label="いちごモードでゲームを開始"]');
+    const ranking = [...document.querySelectorAll('[role="heading"]')]
+      .find((element) => element.textContent === 'ランキング');
+    const startBox = start?.getBoundingClientRect();
+    const rankingBox = ranking?.getBoundingClientRect();
+    return {
+      scrollY: window.scrollY,
+      startBottom: startBox?.bottom ?? Number.POSITIVE_INFINITY,
+      startTop: startBox?.top ?? Number.POSITIVE_INFINITY,
+      rankingTop: rankingBox?.top ?? Number.NEGATIVE_INFINITY,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(layout.scrollY).toBe(0);
+  expect(layout.startTop).toBeLessThan(layout.rankingTop);
+  expect(layout.startBottom).toBeLessThanOrEqual(layout.viewportHeight);
+});
+
 test('a player can start and answer every mode without page errors or external flag requests', async ({ page }) => {
   const externalFlagRequests: string[] = [];
   const pageErrors: string[] = [];
@@ -217,7 +244,8 @@ test('incorrect answers provide visible and assertive text feedback', async ({ p
   await expect(incorrectMessage).toHaveAttribute('aria-live', 'assertive');
 });
 
-test('home stays within layout and script performance budgets', async ({ page }) => {
+test('home stays within layout and script performance budgets', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Resource transfer sizes are enforced in Chromium builds.');
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'いちごつめ！' })).toBeVisible();
 
@@ -231,7 +259,7 @@ test('home stays within layout and script performance budgets', async ({ page })
     };
   });
 
-  expect(metrics.encodedScriptBytes).toBeLessThan(900_000);
+  expect(metrics.encodedScriptBytes).toBeLessThan(750_000);
   expect(metrics.navigationMs).toBeLessThan(5_000);
   expect(metrics.hasHorizontalOverflow).toBe(false);
 });

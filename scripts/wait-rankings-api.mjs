@@ -1,5 +1,8 @@
+import { matchesRankingsRelease } from './operational-contracts.mjs';
+
 const apiUrl = (process.env.EXPO_PUBLIC_RANKINGS_API_URL || '').replace(/\/+$/, '');
 const expectedVersion = process.env.EXPECTED_API_VERSION || '4';
+const expectedReleaseId = process.env.EXPECTED_RELEASE_ID;
 const attempts = Number(process.env.API_WAIT_ATTEMPTS || 40);
 const intervalMs = Number(process.env.API_WAIT_INTERVAL_MS || 15_000);
 
@@ -24,16 +27,19 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
     });
     const body = response.ok ? await response.json() : null;
     const headerVersion = response.headers.get('x-api-version');
-    if (
-      response.ok
-      && headerVersion === expectedVersion
-      && String(body?.version) === expectedVersion
-      && body?.ok === true
-    ) {
-      console.log(`Rankings API v${expectedVersion} is ready (${body.release}).`);
+    const headerReleaseId = response.headers.get('x-release-id');
+    if (matchesRankingsRelease({
+      ok: response.ok,
+      headerVersion,
+      headerReleaseId,
+      body,
+      expectedVersion,
+      expectedReleaseId,
+    })) {
+      console.log(`Rankings API v${expectedVersion} is ready at release ${body.release}.`);
       process.exit(0);
     }
-    lastStatus = `HTTP ${response.status}, API ${headerVersion ?? 'unknown'}`;
+    lastStatus = `HTTP ${response.status}, API ${headerVersion ?? 'unknown'}, release ${headerReleaseId ?? 'unknown'}`;
   } catch (error) {
     lastStatus = error instanceof Error ? error.message : String(error);
   }
@@ -44,5 +50,8 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
   }
 }
 
-console.error(`Rankings API v${expectedVersion} did not become ready: ${lastStatus}`);
+console.error(
+  `Rankings API v${expectedVersion}`
+  + `${expectedReleaseId ? ` release ${expectedReleaseId}` : ''} did not become ready: ${lastStatus}`,
+);
 process.exit(1);

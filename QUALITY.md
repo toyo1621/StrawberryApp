@@ -9,9 +9,9 @@
 3. アプリ純粋ロジック、通信・保存、Worker境界の単体テストと最低カバレッジ
 4. 空のローカルD1への全migration適用、スキーマ照合、実Worker/D1のHTTP統合試験
 5. Expo Doctor、iOS/Android本番Hermesバンドルと2.5 MiB/bytecode・16 MiB/export予算
-6. Desktop Chrome、Pixel 7、320 x 568小型画面のPlaywright E2E
+6. Desktop Chromium/Firefox/WebKit、Pixel 7 Chromium、320 x 568小型画面のPlaywright E2E
 7. 全4ゲーム・主要情報画面のaxe WCAG A/AA、ライト/ダーク、ARIA状態、live region、44px操作領域
-8. Web本番ビルド、CSP/Referrer Policy、950 KiB/JS・12 MiB/島SVG・14 MiB/全体の静的予算、415 SVG完全性、Worker dry-run
+8. Web本番ビルド、CSP/Referrer Policy、700 KiB/JS・12 MiB/島SVG・14 MiB/全体の静的予算、415 SVG完全性、Worker dry-run
 
 カバレッジ下限はアプリソースが行90%・分岐78%・関数78%、Worker本体が行85%・分岐78%・関数90%です。閾値未満はNode test runnerが失敗させます。
 
@@ -19,16 +19,16 @@
 
 ## Release Gate
 
-`main` のPages workflowはAPI v4互換性と品質チェック後にだけartifactを公開し、WebとAPIの本番スモークを行います。Worker workflowはTime Travel復元点、D1 migration、Git SHA release、API v4のセッション発行・地域別取得・登録・履歴・削除スモークを直列化します。
+`main` のPages workflowは再利用可能なWorker workflowを先に呼び、Time Travel復元点、D1 migration、同じGit SHAのWorker、API v4のrelease ID照合、品質チェック、Pages公開、本番スモークを直列化します。APIとPagesのSHAが一致しなければ公開しません。
 
-毎時監視は次を外形確認します。
+15分監視は次を外形確認します。
 
 - Web HTML、言語、実JS bundle、ファビコン、5秒の応答閾値
 - API/D1 health、v4、release ID、security/cache headers、4秒の要求閾値
 - 全4モードと島8地域のランキング応答形
 - 許可/拒否CORS preflight
-- 専用トークンによるテスト投稿、非公開履歴、削除
-- 失敗Issueの作成・追記、復旧時の自動クローズ
+- 専用トークンによるテスト投稿、非公開履歴、1件以上の削除、削除後の不在
+- 失敗Issueの作成・追記、任意の外部Webhook通知、復旧時の自動クローズ
 
 ## Deterministic Contracts
 
@@ -36,6 +36,7 @@
 - 回答ロック300ms、最大5分、1回答の最大点からWorkerの得点上限を横断テストします。
 - 投稿IDは再送しても同じD1主キーを使います。
 - オフラインキューは50件、上限超過を利用者へ通知し、次回起動時に3件ずつ同期します。
+- オフラインキューは秘密トークンを保存せず、旧キューの資格情報も読込時に除去します。
 - 起動処理と4モード取得は部分成功し、remote/cache/localと失敗を画面で区別します。
 
 ## Manual Evidence

@@ -290,7 +290,10 @@ const fetchRankings = async (request: Request, env: Env) => {
           island_region,
           created_at,
           ROW_NUMBER() OVER (
-            PARTITION BY lower(trim(player_name))
+            PARTITION BY CASE
+              WHEN owner_hash IS NOT NULL THEN 'owner:' || owner_hash
+              ELSE 'legacy:' || lower(trim(player_name))
+            END
             ORDER BY score DESC, created_at ASC
           ) AS rn
         FROM rankings

@@ -23,6 +23,12 @@ requireValue(
   /^\d+\.\d+\.\d+$/.test(packageJson.devDependencies?.['expo-doctor'] || ''),
   'Expo Doctor must be pinned to an exact version.',
 );
+const easConfig = JSON.parse(await readFile(new URL('../eas.json', import.meta.url), 'utf8'));
+requireValue(/^\d+\.\d+\.\d+$/.test(easConfig?.cli?.version || ''), 'EAS CLI must be pinned exactly.');
+requireValue(
+  easConfig?.build?.production?.env?.EXPO_PUBLIC_RANKINGS_API_URL === 'https://strawberry-rankings-api.toyo1621.workers.dev',
+  'The native production build must use the production rankings API.',
+);
 requireValue(
   packageJson.scripts?.['build:web']?.includes('harden-web-build.mjs')
     && packageJson.scripts?.['build:web:e2e']?.includes('harden-web-build.mjs'),
@@ -50,24 +56,57 @@ requireValue(schema.includes('owner_hash'), 'Private history ownership is missin
 requireValue(schema.includes('island_region'), 'Island ranking regions are missing from the D1 schema.');
 requireValue(schema.includes('score_submission_buckets'), 'Atomic rate-limit buckets are missing from the D1 schema.');
 requireValue(schema.includes('game_sessions'), 'Verified game sessions are missing from the D1 schema.');
+requireValue(
+  schema.includes('idx_rankings_game_region_owner_score_created')
+    && schema.includes('idx_rankings_game_region_legacy_name_score_created'),
+  'Owner-ranked leaderboard indexes are missing from the D1 schema.',
+);
 
 const qualityWorkflow = await readFile(new URL('../.github/workflows/quality.yml', import.meta.url), 'utf8');
 requireValue(qualityWorkflow.includes('pull_request:'), 'The pull request quality workflow is missing.');
 requireValue(qualityWorkflow.includes('build:native-bundles'), 'Native bundle compilation is missing from CI.');
 requireValue(qualityWorkflow.includes('check:native-build'), 'Native bundle budgets are missing from CI.');
 requireValue(qualityWorkflow.includes('npm run doctor'), 'The pinned Expo Doctor check is missing from CI.');
+requireValue(
+  qualityWorkflow.includes('chromium firefox webkit'),
+  'Cross-browser Playwright installation is missing from CI.',
+);
 
 const pagesWorkflow = await readFile(new URL('../.github/workflows/deploy-pages.yml', import.meta.url), 'utf8');
 requireValue(pagesWorkflow.includes('npm run check && npm run doctor'), 'Expo Doctor is missing from the Pages release gate.');
+requireValue(
+  pagesWorkflow.includes('uses: ./.github/workflows/deploy-worker.yml')
+    && pagesWorkflow.includes('EXPECTED_RELEASE_ID: ${{ github.sha }}'),
+  'Pages must deploy and verify the Worker from the same Git SHA.',
+);
+
+const workerWorkflow = await readFile(new URL('../.github/workflows/deploy-worker.yml', import.meta.url), 'utf8');
+requireValue(workerWorkflow.includes('workflow_call:'), 'The Worker release workflow must be reusable by Pages.');
+requireValue(
+  workerWorkflow.includes('Verify ranking count after migration'),
+  'The Worker release workflow must verify that D1 migrations preserve ranking rows.',
+);
 
 const monitorWorkflow = await readFile(new URL('../.github/workflows/monitor-production.yml', import.meta.url), 'utf8');
 requireValue(monitorWorkflow.includes('issues: write'), 'Production monitor incident permissions are missing.');
 requireValue(monitorWorkflow.includes('production-monitor'), 'Production monitor issue automation is missing.');
+requireValue(
+  monitorWorkflow.includes('2,17,32,47 * * * *')
+    && monitorWorkflow.includes('MONITOR_ALERT_WEBHOOK_URL'),
+  'The 15-minute monitor or optional external alert channel is missing.',
+);
+
+const mobileWorkflow = await readFile(new URL('../.github/workflows/mobile-release.yml', import.meta.url), 'utf8');
+requireValue(
+  mobileWorkflow.includes('eas-cli@19.1.0') && mobileWorkflow.includes('EXPO_TOKEN'),
+  'The pinned EAS mobile release workflow is incomplete.',
+);
 
 const workflowSources = await Promise.all([
   'quality.yml',
   'deploy-pages.yml',
   'deploy-worker.yml',
+  'mobile-release.yml',
   'monitor-production.yml',
 ].map((file) => readFile(new URL(`../.github/workflows/${file}`, import.meta.url), 'utf8')));
 requireValue(
@@ -88,6 +127,7 @@ await stat(new URL('../worker/migrations/0006_align_score_contract.sql', import.
 await stat(new URL('../worker/migrations/0007_split_island_rankings_by_region.sql', import.meta.url));
 await stat(new URL('../worker/migrations/0008_move_legacy_island_rankings_to_kanto.sql', import.meta.url));
 await stat(new URL('../worker/migrations/0009_verified_game_sessions.sql', import.meta.url));
+await stat(new URL('../worker/migrations/0010_rank_leaderboards_by_owner.sql', import.meta.url));
 
 if (failures.length > 0) {
   throw new Error(`Project verification failed:\n- ${failures.join('\n- ')}`);
