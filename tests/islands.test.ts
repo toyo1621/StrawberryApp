@@ -33,9 +33,13 @@ test('the island catalog contains all 415 normalized records and SVGs', () => {
   );
 
   const islandAssetDirectory = path.resolve('src/assets/islands');
-  const importedAssets = readdirSync(islandAssetDirectory)
+  const allSvgAssets = readdirSync(islandAssetDirectory)
+    .filter((file) => file.endsWith('.svg'))
+    .sort();
+  const importedAssets = allSvgAssets
     .filter((file) => /^island-\d{3}\.svg$/.test(file));
   assert.equal(importedAssets.length, 415);
+  assert.deepEqual(allSvgAssets, importedAssets, 'Only normalized island SVGs may remain.');
 
   for (const island of ISLANDS) {
     assert.ok(island.name);

@@ -78,6 +78,27 @@ test('game session startup fails fast without retrying', async () => {
   assert.equal(attempts, 1);
 });
 
+test('leaderboard reads retry a throttled response using Retry-After', async () => {
+  const rankingService = await rankingServicePromise;
+  let attempts = 0;
+  globalThis.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      return Response.json(
+        { error: 'Too many requests.' },
+        { status: 429, headers: { 'retry-after': '0' } },
+      );
+    }
+    return Response.json([]);
+  };
+
+  const result = await rankingService.fetchRankingsForModeWithStatus(GameMode.STRAWBERRY);
+
+  assert.equal(attempts, 2);
+  assert.deepEqual(result.entries, []);
+  assert.equal(result.source, 'remote');
+});
+
 test('a game without a verified session remains local and is not submitted', async () => {
   const rankingService = await rankingServicePromise;
   let requests = 0;
@@ -145,6 +166,76 @@ test('an offline score is queued and synced with the same id', async () => {
   assert.equal(syncedBody?.gameSessionId, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
   assert.match(String(syncedAuthorization), /^Bearer [0-9a-f-]{36}$/i);
   assert.equal('playerToken' in (syncedBody ?? {}), false);
+});
+
+test('a score queued during synchronization is not overwritten by the sync result', async () => {
+  const rankingService = await rankingServicePromise;
+  values.set('strawberry_pending_scores_v1', JSON.stringify([{
+    submissionId: 'sync_in_progress_score_0001',
+    playerName: '同期中',
+    score: 2,
+    gameType: 'strawberry_rush',
+    islandRegion: 'all',
+    durationMs: 30_000,
+    createdAt: '2026-07-22T00:00:00.000Z',
+    gameSessionId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    gameSessionExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+  }]));
+
+  let releaseSync!: () => void;
+  let markSyncStarted!: () => void;
+  let markNewScoreAttempted!: () => void;
+  const syncRelease = new Promise<void>((resolve) => { releaseSync = resolve; });
+  const syncStarted = new Promise<void>((resolve) => { markSyncStarted = resolve; });
+  const newScoreAttempted = new Promise<void>((resolve) => { markNewScoreAttempted = resolve; });
+  let newScoreAttempts = 0;
+  globalThis.fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.playerName === '同期中') {
+      markSyncStarted();
+      await syncRelease;
+      return Response.json({
+        id: body.submissionId,
+        playerName: body.playerName,
+        score: body.score,
+        gameType: body.gameType,
+        islandRegion: body.islandRegion,
+        createdAt: '2026-07-22T00:00:30.000Z',
+      }, { status: 201 });
+    }
+    newScoreAttempts += 1;
+    if (newScoreAttempts === 2) {
+      markNewScoreAttempted();
+    }
+    throw new TypeError('offline');
+  };
+
+  const originalWarn = console.warn;
+  console.warn = () => undefined;
+  try {
+    const syncing = rankingService.syncPendingScores();
+    await syncStarted;
+    const saving = rankingService.saveScoreForMode(
+      GameMode.STRAWBERRY,
+      '同時追加',
+      3,
+      { durationMs: 30_000, gameSession: verifiedSession('strawberry_rush') },
+    );
+    await newScoreAttempted;
+    releaseSync();
+
+    const [syncResult, saveResult] = await Promise.all([syncing, saving]);
+    const retained = JSON.parse(
+      values.get('strawberry_pending_scores_v1') ?? '[]',
+    ) as Record<string, unknown>[];
+
+    assert.deepEqual(syncResult, { synced: 1, pending: 0, discarded: 0 });
+    assert.equal(saveResult.queuedForSync, true);
+    assert.deepEqual(retained.map((score) => score.submissionId), [saveResult.entry.id]);
+  } finally {
+    console.warn = originalWarn;
+    releaseSync();
+  }
 });
 
 test('legacy pending scores are sanitized without losing a retryable score', async () => {

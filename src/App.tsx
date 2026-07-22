@@ -1,33 +1,31 @@
 import React, { Suspense, lazy, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
-  StyleSheet,
   ActivityIndicator,
   Text,
   Image,
   Animated,
   AccessibilityInfo,
-  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { strawberryJuiceImage } from './assets/images/strawberryJuiceAsset';
-import { GameState, GameMode, IslandRegion, RankingsByMode } from './types';
+import { GameState, GameMode, IslandRegion } from './types';
 import ErrorBoundary from './components/ErrorBoundary';
 import StartScreen from './components/StartScreen';
 import {
   deletePlayerRankingData,
   createRankingGameSession,
-  fetchAllRankingsWithStatus,
   fetchRankingsForModeWithStatus,
   saveScoreForMode,
-  syncPendingScores,
 } from './services/rankingService';
 import type { RankingGameSession } from './services/rankingService';
-import { clearPlayerName, loadPlayerName } from './services/playerService';
-import { clearSettings, DEFAULT_SETTINGS, loadSettings } from './services/settingsService';
+import { clearPlayerName } from './services/playerService';
+import { clearSettings, DEFAULT_SETTINGS } from './services/settingsService';
 import type { AppSettings } from './services/settingsService';
 import { createEmptyRankings } from './gameConfig';
+import { useAppData } from './hooks/useAppData';
+import { appStyles as styles } from './App.styles';
 
 const GameScreen = lazy(() => import('./components/GameScreen'));
 const IslandGameScreen = lazy(() => import('./components/IslandGameScreen'));
@@ -42,38 +40,28 @@ const PrivacyPolicyScreen = lazy(() => import('./components/PrivacyPolicyScreen'
 const TermsOfServiceScreen = lazy(() => import('./components/TermsOfServiceScreen'));
 const SettingsScreen = lazy(() => import('./components/SettingsScreen'));
 
-const prefetchStrawberryJuiceImage = () => {
-  try {
-    const assetSource = Image.resolveAssetSource?.(strawberryJuiceImage);
-
-    if (!assetSource?.uri) {
-      return;
-    }
-
-    Image.prefetch(assetSource.uri).catch(() => undefined);
-  } catch (error) {
-    console.warn('Failed to preload the strawberry effect image.', error);
-  }
-};
-
 const App: React.FC = () => {
+  const {
+    playerName,
+    setPlayerName,
+    rankingsByMode,
+    setRankingsByMode,
+    isLoading,
+    error,
+    setError,
+    notice,
+    setNotice,
+    settings,
+    setSettings,
+  } = useAppData();
   const [gameState, setGameState] = useState<GameState>(GameState.START);
   const [gameMode, setGameMode] = useState<GameMode>(GameMode.STRAWBERRY);
   const [islandRegion, setIslandRegion] = useState<IslandRegion>(IslandRegion.ALL);
-  const [playerName, setPlayerName] = useState<string>('');
-  const [rankingsByMode, setRankingsByMode] = useState<RankingsByMode>(createEmptyRankings);
   const [currentScore, setCurrentScore] = useState<number>(0);
   const [memoryAnswer, setMemoryAnswer] = useState<string>('');
   const [firstDistractor, setFirstDistractor] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [isSavingScore, setIsSavingScore] = useState<boolean>(false);
   const [isPreparingGame, setIsPreparingGame] = useState<boolean>(false);
-  const [settings, setSettings] = useState<AppSettings>({
-    darkMode: false,
-    hapticsEnabled: true,
-  });
   const [showStrawberryJuice, setShowStrawberryJuice] = useState(false);
   const juiceScale = useRef(new Animated.Value(0)).current;
   const juiceOpacity = useRef(new Animated.Value(0)).current;
@@ -81,7 +69,6 @@ const App: React.FC = () => {
   const gameplayDurationMsRef = useRef<number | null>(null);
   const gameSessionRef = useRef<RankingGameSession | null>(null);
   const reduceMotionRef = useRef(false);
-  const resumeSyncInFlightRef = useRef(false);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
@@ -90,111 +77,6 @@ const App: React.FC = () => {
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
       reduceMotionRef.current = enabled;
     });
-    return () => subscription.remove();
-  }, []);
-
-  // ランキングとプレイヤー名、設定を読み込み
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // いちご汁画像をプリロード
-        prefetchStrawberryJuiceImage();
-
-        const [rankingsResult, nameResult, settingsResult, syncResult] = await Promise.allSettled([
-          fetchAllRankingsWithStatus(),
-          loadPlayerName(),
-          loadSettings(),
-          syncPendingScores(),
-        ]);
-        const errors: string[] = [];
-        const notices: string[] = [];
-
-        let rankingState = rankingsResult.status === 'fulfilled'
-          ? rankingsResult.value
-          : { rankings: createEmptyRankings(), staleModes: [], failedModes: [...Object.values(GameMode)] };
-        if (rankingsResult.status === 'rejected') {
-          console.error('Failed to load rankings:', rankingsResult.reason);
-          errors.push('ランキングを読み込めませんでした。オフラインでプレイできます。');
-        }
-
-        if (nameResult.status === 'fulfilled') {
-          setPlayerName(nameResult.value);
-        } else {
-          console.error('Failed to load the player name:', nameResult.reason);
-          errors.push('保存済みのプレイヤー名を読み込めませんでした。');
-        }
-
-        if (settingsResult.status === 'fulfilled') {
-          setSettings(settingsResult.value);
-        } else {
-          console.error('Failed to load settings:', settingsResult.reason);
-          errors.push('設定を読み込めなかったため初期設定を使用します。');
-        }
-
-        if (syncResult.status === 'fulfilled') {
-          if (syncResult.value.synced > 0) {
-            notices.push(`${syncResult.value.synced}件のオフラインスコアをランキングへ同期しました。`);
-            try {
-              rankingState = await fetchAllRankingsWithStatus();
-            } catch (refreshError) {
-              console.error('Failed to refresh rankings after sync:', refreshError);
-              errors.push('同期後のランキング更新に失敗しました。');
-            }
-          }
-          if (syncResult.value.discarded > 0) {
-            errors.push(`${syncResult.value.discarded}件の保存待ちスコアは無効だったため送信できませんでした。`);
-          }
-        } else {
-          console.error('Failed to sync pending scores:', syncResult.reason);
-          errors.push('保存待ちスコアを同期できませんでした。次回起動時に再試行します。');
-        }
-
-        setRankingsByMode(rankingState.rankings);
-        if (rankingState.staleModes.length > 0) {
-          notices.push('通信できないモードは端末に保存したランキングを表示しています。');
-        }
-        if (rankingState.failedModes.length > 0) {
-          errors.push('一部モードのランキングを読み込めませんでした。ゲームはプレイできます。');
-        }
-        setNotice(notices.length > 0 ? notices.join('\n') : null);
-        setError(errors.length > 0 ? errors.join('\n') : null);
-      } catch (error) {
-        console.error('Failed to load data:', error);
-        setError('ランキングの読み込みに失敗しました。オフラインでプレイできます。');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', async (nextState) => {
-      if (nextState !== 'active' || resumeSyncInFlightRef.current) {
-        return;
-      }
-
-      resumeSyncInFlightRef.current = true;
-      try {
-        const result = await syncPendingScores();
-        if (result.synced > 0) {
-          const refreshed = await fetchAllRankingsWithStatus();
-          setRankingsByMode(refreshed.rankings);
-          setNotice(`${result.synced}件の保存待ちスコアをランキングへ同期しました。`);
-        }
-        if (result.discarded > 0) {
-          setError(`${result.discarded}件の期限切れスコアを送信待ちから除外しました。`);
-        }
-      } catch (resumeError) {
-        console.warn('Failed to sync pending scores after returning to the app.', resumeError);
-      } finally {
-        resumeSyncInFlightRef.current = false;
-      }
-    });
-
     return () => subscription.remove();
   }, []);
 
@@ -240,7 +122,7 @@ const App: React.FC = () => {
     } finally {
       setIsPreparingGame(false);
     }
-  }, [enterGame, isPreparingGame, prepareGameSession]);
+  }, [enterGame, isPreparingGame, prepareGameSession, setNotice, setPlayerName]);
 
   const handleMemoryGame = useCallback((score: number, lastDistractor: string, firstDistractor: string) => {
     gameplayDurationMsRef.current = Math.max(
@@ -308,7 +190,7 @@ const App: React.FC = () => {
       gameStartedAtRef.current = null;
       gameplayDurationMsRef.current = null;
     }
-  }, [playerName, gameMode, islandRegion]);
+  }, [gameMode, islandRegion, playerName, setError, setNotice, setRankingsByMode]);
 
   const handleRestart = useCallback(() => {
     gameSessionRef.current = null;
@@ -333,7 +215,7 @@ const App: React.FC = () => {
     } finally {
       setIsPreparingGame(false);
     }
-  }, [enterGame, gameMode, islandRegion, isPreparingGame, prepareGameSession]);
+  }, [enterGame, gameMode, islandRegion, isPreparingGame, prepareGameSession, setNotice]);
 
   const handleShowRules = useCallback(() => {
     setGameState(GameState.RULES);
@@ -377,11 +259,11 @@ const App: React.FC = () => {
 
   const handleSettingsChanged = useCallback((newSettings: AppSettings) => {
     setSettings(newSettings);
-  }, []);
+  }, [setSettings]);
 
   const handleNameChanged = useCallback((name: string) => {
     setPlayerName(name);
-  }, []);
+  }, [setPlayerName]);
 
   const handleDeleteData = useCallback(async () => {
     const deleted = await deletePlayerRankingData();
@@ -393,7 +275,7 @@ const App: React.FC = () => {
     setNotice(`${deleted}件の公開スコアと、この端末に保存したデータを削除しました。`);
     setGameState(GameState.START);
     return deleted;
-  }, []);
+  }, [setError, setNotice, setPlayerName, setRankingsByMode, setSettings]);
 
   const handleShowJuice = useCallback((show: boolean) => {
     setShowStrawberryJuice(show);
@@ -578,71 +460,5 @@ const App: React.FC = () => {
     </ErrorBoundary>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fce7f3', // bg-pink-100
-  },
-  containerDark: {
-    backgroundColor: '#1f2937', // dark gray
-  },
-  loadingScreen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    color: '#831843',
-    fontSize: 16,
-  },
-  loadingTextDark: {
-    color: '#fbcfe8',
-  },
-  savingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  savingContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  savingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#374151',
-    fontWeight: '600',
-  },
-  juiceOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 9999,
-    pointerEvents: 'none',
-    width: '100%',
-    height: '100%',
-  },
-  juiceImage: {
-    width: '100%',
-    height: '100%',
-  },
-});
 
 export default App;

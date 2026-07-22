@@ -212,6 +212,49 @@ assert.deepEqual(JSON.parse(identityIndexesOutput)[0]?.results ?? [], [
   { name: 'idx_rankings_game_region_owner_score_created' },
 ]);
 
+const leaderboardPlanOutput = runUpgrade([
+  'd1',
+  'execute',
+  ...upgradeArgs,
+  '--command',
+  `EXPLAIN QUERY PLAN
+   WITH owner_ranked AS (
+     SELECT id, player_name, score, game_type, island_region, created_at,
+       ROW_NUMBER() OVER (
+         PARTITION BY owner_hash ORDER BY score DESC, created_at ASC
+       ) AS rn
+     FROM rankings
+     WHERE game_type = 'strawberry_rush'
+       AND island_region = 'all'
+       AND owner_hash IS NOT NULL
+   ), legacy_ranked AS (
+     SELECT id, player_name, score, game_type, island_region, created_at,
+       ROW_NUMBER() OVER (
+         PARTITION BY lower(trim(player_name)) ORDER BY score DESC, created_at ASC
+       ) AS rn
+     FROM rankings
+     WHERE game_type = 'strawberry_rush'
+       AND island_region = 'all'
+       AND owner_hash IS NULL
+   )
+   SELECT id, player_name, score, game_type, island_region, created_at
+   FROM owner_ranked WHERE rn = 1
+   UNION ALL
+   SELECT id, player_name, score, game_type, island_region, created_at
+   FROM legacy_ranked WHERE rn = 1`,
+  '--json',
+]);
+const leaderboardPlan = (JSON.parse(leaderboardPlanOutput)[0]?.results ?? [])
+  .map((row) => String(row.detail));
+assert.equal(
+  leaderboardPlan.some((detail) => detail.includes('idx_rankings_game_region_owner_score_created')),
+  true,
+);
+assert.equal(
+  leaderboardPlan.some((detail) => detail.includes('idx_rankings_game_region_legacy_name_score_created')),
+  true,
+);
+
 assert.throws(() => runUpgrade([
   'd1',
   'execute',
@@ -221,4 +264,4 @@ assert.throws(() => runUpgrade([
    VALUES ('fedcba98-7654-4321-8fed-cba987654321', '${'c'.repeat(64)}', 'flag_rush', 'okinawa', '2026-07-21T03:00:00.000Z', '2026-07-21T03:15:00.000Z')`,
 ]));
 
-console.log('D1 migrations, legacy Kanto reassignment, and ranking-region/privacy/rate-limit/session schema verified.');
+console.log('D1 migrations, data preservation, and indexed owner/legacy leaderboard plans verified.');

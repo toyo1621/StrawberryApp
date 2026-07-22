@@ -18,6 +18,7 @@ npm run web
 - API入力はクライアントを信用せず、`worker/src/rankingValidation.ts` で検証します。
 - 新しい外部通信、端末保存項目、ログ項目はプライバシーポリシーと `SECURITY.md` を同時に更新します。
 - UIはライト/ダーク、320px幅、キーボード、スクリーンリーダー、動きを減らす設定を確認します。
+- `src` からWorker、WorkerからUIへ依存させず、主要モジュールの分割上限と循環依存を `npm run check:maintainability` で守ります。
 - MVPに不要な状態管理、ルーター、分析SDKは追加しません。
 
 ## 必須チェック
@@ -36,10 +37,10 @@ npx wrangler deploy --dry-run --config worker/wrangler.toml
 
 | 種別 | 対象 |
 | --- | --- |
-| `tests/` | シャッフル、色分類、締切タイマー、ゲーム/Worker得点契約、ランキング、キャッシュ/キュー |
-| `worker/src/*.test.ts` | 入力拒否、Bearer所有権、ゲームセッション、CORS、冪等性、原子的連投、JST、削除 |
-| `test:db` | 空のローカルD1へ全migrationを適用し、地域再分類、所有者・セッション・制限スキーマを照合 |
-| `test:integration` | 実ローカルWorker/D1でセッション、batch登録、再送、順位、履歴、削除をHTTP検査 |
+| `tests/` | シャッフル、色分類、締切タイマー、ゲーム/Worker得点契約、ランキング、再試行、排他制御付きキャッシュ/キュー |
+| `worker/src/*.test.ts` | 入力拒否、Bearer所有権、ゲームセッション、CORS、冪等性、原子的連投、40並列cache miss、stale fallback、JST、削除 |
+| `test:db` | 空のローカルD1へ全migrationを適用し、地域再分類、所有者・セッション・制限スキーマと公開順位のクエリ計画を照合 |
+| `test:integration` | 実ローカルWorker/D1でセッション、batch登録、32並列読込、同時再送、順位、履歴、削除をHTTP検査 |
 | `e2e/` | 全モード、主要画面、ダーク、Chromium/Firefox/WebKit、Pixel 7/320px、axe、ARIA、主操作順序、削除、性能 |
 
 バグ修正には再現テストを追加します。ゲームルールを変える場合は純粋ロジック、Workerの成立性検証、アプリ内ルール、`ARCHITECTURE.md` を同じ変更に含めます。
