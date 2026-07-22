@@ -34,6 +34,11 @@ requireValue(
     && packageJson.scripts?.['build:web:e2e']?.includes('harden-web-build.mjs'),
   'Web builds must inject the security policy metadata.',
 );
+requireValue(
+  packageJson.scripts?.check?.includes('check:maintainability')
+    && packageJson.scripts?.['check:maintainability']?.includes('check-maintainability.mjs'),
+  'The maintainability architecture gate is missing.',
+);
 
 const icon = await readFile(new URL('../assets/app-icon.png', import.meta.url));
 requireValue(icon.toString('ascii', 1, 4) === 'PNG', 'App icon must be a PNG.');
@@ -45,6 +50,15 @@ const sourceFiles = [
   await readFile(new URL('../src/services/rankingService.ts', import.meta.url), 'utf8'),
 ].join('\n');
 requireValue(!sourceFiles.includes('cdn.jsdelivr.net'), 'Runtime source must not load flag assets from a CDN.');
+
+const leaderboardSource = await readFile(new URL('../worker/src/leaderboards.ts', import.meta.url), 'utf8');
+requireValue(
+  leaderboardSource.includes("withSession.call(database, 'first-unconstrained')")
+    && leaderboardSource.includes('caches.default')
+    && leaderboardSource.includes('WITH owner_ranked AS')
+    && leaderboardSource.includes('legacy_ranked AS'),
+  'Replica-backed, cached, owner/legacy indexed leaderboard reads are incomplete.',
+);
 
 const wrangler = await readFile(new URL('../worker/wrangler.toml', import.meta.url), 'utf8');
 requireValue(wrangler.includes('[observability]') && wrangler.includes('enabled = true'), 'Worker observability must be enabled.');
@@ -85,6 +99,19 @@ requireValue(workerWorkflow.includes('workflow_call:'), 'The Worker release work
 requireValue(
   workerWorkflow.includes('Verify ranking count after migration'),
   'The Worker release workflow must verify that D1 migrations preserve ranking rows.',
+);
+requireValue(
+  workerWorkflow.includes('Enable D1 global read replication')
+    && workerWorkflow.includes('d1:enable-read-replication'),
+  'The Worker release workflow must enable D1 read replication before deployment.',
+);
+
+const dataSources = await readFile(new URL('../DATA_SOURCES.md', import.meta.url), 'utf8');
+requireValue(
+  dataSources.includes('国土地理院「地理院地図」')
+    && dataSources.includes('toyo1621')
+    && dataSources.includes('https://maps.gsi.go.jp/'),
+  'Island attribution must identify GSI Maps and the original editor.',
 );
 
 const monitorWorkflow = await readFile(new URL('../.github/workflows/monitor-production.yml', import.meta.url), 'utf8');

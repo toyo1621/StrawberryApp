@@ -119,6 +119,50 @@ for (const { gameType, islandRegion } of rankingScopes) {
   }
 }
 
+const fetchCacheableLeaderboard = async () => {
+  const startedAt = Date.now();
+  const response = await fetch(
+    `${apiUrl}/rankings?gameType=strawberry_rush&islandRegion=all&period=all&limit=30`,
+    {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(8_000),
+    },
+  );
+  const durationMs = Date.now() - startedAt;
+  if (!response.ok || !Array.isArray(await response.json())) {
+    throw new Error('The cacheable leaderboard request failed.');
+  }
+  if (durationMs > maximumRequestDurationMs) {
+    throw new Error(`The cacheable leaderboard exceeded ${maximumRequestDurationMs} ms.`);
+  }
+  const cacheStatus = response.headers.get('x-rankings-cache');
+  if (!['hit', 'miss', 'stale'].includes(cacheStatus)) {
+    throw new Error(`The cacheable leaderboard returned an invalid cache status: ${cacheStatus}.`);
+  }
+  if (!response.headers.get('cache-control')?.includes('max-age=30')) {
+    throw new Error('The cacheable leaderboard is missing its 30 second fresh TTL.');
+  }
+  if (!['true', 'false'].includes(response.headers.get('x-d1-primary'))) {
+    throw new Error('The cacheable leaderboard is missing D1 primary metadata.');
+  }
+  if (!response.headers.get('x-d1-region') || response.headers.get('x-d1-region') === 'unknown') {
+    throw new Error('The cacheable leaderboard is missing D1 region metadata.');
+  }
+  return { cacheStatus, durationMs };
+};
+
+const firstCacheObservation = await fetchCacheableLeaderboard();
+durations.push(firstCacheObservation.durationMs);
+let finalCacheObservation = firstCacheObservation;
+for (let attempt = 0; attempt < 4 && finalCacheObservation.cacheStatus !== 'hit'; attempt += 1) {
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  finalCacheObservation = await fetchCacheableLeaderboard();
+  durations.push(finalCacheObservation.durationMs);
+}
+if (finalCacheObservation.cacheStatus !== 'hit') {
+  throw new Error('The production leaderboard cache did not produce a hit.');
+}
+
 const preflight = await fetch(`${apiUrl}/scores`, {
   method: 'OPTIONS',
   headers: {
@@ -213,5 +257,5 @@ try {
 
 console.log(
   `Rankings API smoke check passed (release ${healthResult.body.release}, ${gameTypes.length} modes, `
-  + `verified session/write/read/delete, max ${Math.max(...durations)} ms).`,
+  + `edge cache, verified session/write/read/delete, max ${Math.max(...durations)} ms).`,
 );

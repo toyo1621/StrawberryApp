@@ -142,56 +142,77 @@ export const parseIslandRegion = (
   return region as IslandRegion;
 };
 
-export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreSubmission => {
-  const submissionId = body?.submissionId;
-  const gameSessionId = body?.gameSessionId;
-  const playerName = normalizePlayerName(body?.playerName);
-  const score = body?.score;
-  const gameType = parseGameType(body?.gameType);
-  const islandRegion = parseIslandRegion(body?.islandRegion, gameType);
-  const durationMs = body?.durationMs;
-  const playerToken = body?.playerToken;
-
-  if (typeof submissionId !== 'string' || !SUBMISSION_ID_PATTERN.test(submissionId)) {
+const validateSubmissionId = (value: unknown): string => {
+  if (typeof value !== 'string' || !SUBMISSION_ID_PATTERN.test(value)) {
     throw new ValidationError(400, 'A valid submission ID is required.');
   }
+  return value;
+};
 
-  if (typeof gameSessionId !== 'string' || !GAME_SESSION_ID_PATTERN.test(gameSessionId)) {
+const validateGameSessionId = (value: unknown): string => {
+  if (typeof value !== 'string' || !GAME_SESSION_ID_PATTERN.test(value)) {
     throw new ValidationError(400, 'A valid game session ID is required.');
   }
+  return value;
+};
 
-  if (typeof body?.gameType !== 'string') {
-    throw new ValidationError(400, 'Game type is required.');
-  }
-
+const validateScorePlayerName = (value: unknown): string => {
+  const playerName = normalizePlayerName(value);
   if (!playerName) {
     throw new ValidationError(400, 'Player name is required.');
   }
-
   if (playerName.length > MAX_PLAYER_NAME_LENGTH) {
     throw new ValidationError(400, `Player name must be ${MAX_PLAYER_NAME_LENGTH} characters or fewer.`);
   }
-
   if (CONTROL_OR_MARKUP_PATTERN.test(playerName)) {
     throw new ValidationError(400, 'Player name contains unsupported characters.');
   }
+  return playerName;
+};
 
-  if (typeof score !== 'number' || !Number.isInteger(score) || score < 0) {
+const validateScore = (value: unknown, profile: GameScoreProfile): number => {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
     throw new ValidationError(400, 'Score must be a non-negative integer.');
   }
-
-  const profile = SCORE_PROFILES[gameType];
-  if (score > profile.maxScore) {
+  if (value > profile.maxScore) {
     throw new ValidationError(400, 'Score is outside the accepted range for this game.');
   }
+  return value;
+};
 
-  if (typeof durationMs !== 'number' || !Number.isInteger(durationMs) || durationMs < 1_000 || durationMs > MAX_GAME_DURATION_MS) {
+const validateDuration = (value: unknown): number => {
+  if (typeof value !== 'number'
+    || !Number.isInteger(value)
+    || value < 1_000
+    || value > MAX_GAME_DURATION_MS) {
     throw new ValidationError(400, 'Game duration is outside the accepted range.');
   }
+  return value;
+};
 
-  if (playerToken !== undefined && (typeof playerToken !== 'string' || !PLAYER_TOKEN_PATTERN.test(playerToken))) {
+const validateOptionalPlayerToken = (value: unknown): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'string' || !PLAYER_TOKEN_PATTERN.test(value)) {
     throw new ValidationError(400, 'Player token is invalid.');
   }
+  return value;
+};
+
+export const validateScoreSubmission = (body: RawScoreSubmission | null): ScoreSubmission => {
+  if (typeof body?.gameType !== 'string') {
+    throw new ValidationError(400, 'Game type is required.');
+  }
+  const submissionId = validateSubmissionId(body.submissionId);
+  const gameSessionId = validateGameSessionId(body.gameSessionId);
+  const playerName = validateScorePlayerName(body.playerName);
+  const gameType = parseGameType(body.gameType);
+  const islandRegion = parseIslandRegion(body?.islandRegion, gameType);
+  const profile = SCORE_PROFILES[gameType];
+  const score = validateScore(body.score, profile);
+  const durationMs = validateDuration(body.durationMs);
+  const playerToken = validateOptionalPlayerToken(body.playerToken);
 
   const maxScoreForDuration = Math.ceil((durationMs / 1000) * profile.maxScorePerSecond);
   if (score > maxScoreForDuration) {

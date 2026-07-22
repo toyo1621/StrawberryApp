@@ -12,6 +12,7 @@
 - サーバー発行の使い切りゲームセッションで検証したランキング投稿
 - 端末所有者単位の公開順位と、秘密トークンで保護した全モードのスコア履歴・自己削除
 - 通信失敗時のローカル保存と、起動・アプリ復帰時の期限内自動同期
+- 公開ランキングのD1 read replication、30秒エッジキャッシュ、5分以内の障害時表示継続
 - ダークモード、振動設定、動きを減らすOS設定への対応
 - スクリーンリーダー向けラベル、見出し階層、選択状態、誤答通知、44px操作領域
 - ローカルアセットだけで表示できる国旗と、415の有人離島画像
@@ -59,7 +60,7 @@ npm run build:web
 npm run check:web-build  # JS 700 KiB、島SVG 12 MiB、全体14 MiBの予算と415件完全性
 ```
 
-Pull Requestの `Quality` workflowとPages公開ゲートが同じ検査を実行します。15分監視はWeb、ファビコン、全4ランキング、CORS、D1、テストスコアの登録・非公開履歴・削除後の不在まで確認し、失敗時はGitHub Issueと設定済みの外部Webhookへ通知します。
+Pull Requestの `Quality` workflowとPages公開ゲートが同じ検査を実行します。循環依存・層境界・主要ファイル行数、40並列cache miss、32並列の実Worker/D1読込も自動検査します。15分監視はWeb、ファビコン、全4ランキング、CORS、D1、ランキングcache hit、テストスコアの登録・非公開履歴・削除後の不在まで確認し、失敗時はGitHub Issueと設定済みの外部Webhookへ通知します。
 
 ## ディレクトリ
 
@@ -69,11 +70,12 @@ src/
   components/       画面と共通UI
   data/islands.ts   有人離島名・都道府県・自治体・地域の一覧
   domain/           純粋なゲーム・ランキングロジック
-  services/         端末保存とランキングAPIクライアント
+  hooks/            起動・復帰時のデータ調整
+  services/         API、端末保存、キャッシュ、排他制御付き送信キュー
   gameConfig.ts     4モード共通設定
   gameRules.ts      4モードの得点・時間ルール
 worker/
-  src/              Worker API、入力検証、テスト
+  src/              API経路、ランキング、投稿、本人データ、入力検証、テスト
   migrations/       D1マイグレーション
   schema.sql         新規D1用スキーマ
 e2e/                Playwright操作・アクセシビリティテスト
@@ -90,8 +92,10 @@ scripts/            検証、スモーク、移行補助
 - [DEPLOYMENT.md](./DEPLOYMENT.md): Worker、D1、Pages、EASの公開手順
 - [CONTRIBUTING.md](./CONTRIBUTING.md): 開発・テスト・リリース手順
 - [CHANGELOG.md](./CHANGELOG.md): リリースごとの利用者・運用変更
-- [DATA_SOURCES.md](./DATA_SOURCES.md): 島データの受領経路、変換、確認できていない権利情報
+- [DATA_SOURCES.md](./DATA_SOURCES.md): 島データの出典、制作、変換、完全性検証
 
 ## データについて
 
 公開ランキングには入力したプレイヤー名、スコア、モード、島の出題地域、登録日時が表示されます。順位の重複排除、全履歴、削除は端末で生成した秘密トークンの所有者単位で扱い、サーバーにはSHA-256所有者ハッシュだけを保存します。ネイティブのトークンはSecureStore、Webではローカルストレージだけに保存し、Async Storageの未送信キューには複製しません。詳細はアプリ内のプライバシーポリシーと [SECURITY.md](./SECURITY.md) に記載しています。
+
+415件の島形状SVGは、[国土地理院「地理院地図」](https://maps.gsi.go.jp/)を参照し、toyo1621がゲーム表示向けに独自制作した編集・加工物です。詳細は [DATA_SOURCES.md](./DATA_SOURCES.md) に記録しています。

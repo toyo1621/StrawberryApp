@@ -82,6 +82,11 @@ jobs:
             exit 1
           fi
 
+      - name: Enable D1 global read replication
+        run: npm run d1:enable-read-replication
+        env:
+          D1_DATABASE_ID: d0174a55-3491-496b-a9ad-be050121fbb2
+
       - name: Deploy Worker
         run: npm run worker:deploy -- --tag "$GITHUB_SHA" --message "GitHub Actions run $GITHUB_RUN_ID"
 

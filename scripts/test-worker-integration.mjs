@@ -145,6 +145,14 @@ try {
     .map((entry) => entry.id);
   assert.deepEqual(ownedRankingIds, [renamedSubmissionId, secondSubmissionId]);
 
+  const concurrentReads = await Promise.all(
+    Array.from({ length: 32 }, () => request(
+      '/rankings?gameType=island_rush&islandRegion=shikoku&period=all&limit=3',
+    )),
+  );
+  assert.equal(concurrentReads.every(({ response }) => response.status === 200), true);
+  assert.equal(concurrentReads.every(({ body }) => Array.isArray(body)), true);
+
   const historyResult = await request('/players/me/history?gameType=island_rush', {
     headers: { authorization },
   });
@@ -174,7 +182,7 @@ try {
   assert.equal(rankingAfterDelete.body.some((entry) => entry.id === renamedSubmissionId), false);
   assert.equal(rankingAfterDelete.body.some((entry) => entry.id === secondSubmissionId), true);
 
-  console.log('Local Worker/D1 integration passed: owner-ranked leaderboard, rename, atomic retry, private history, verified deletion.');
+  console.log('Local Worker/D1 integration passed: owner ranking, 32 concurrent reads, atomic retry, private history, verified deletion.');
 } finally {
   if (worker.exitCode === null) {
     for (const cleanupAuthorization of [authorization, secondAuthorization]) {
