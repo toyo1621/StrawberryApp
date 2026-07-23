@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { AppState, Image } from 'react-native';
+import { AppState, Image, Platform } from 'react-native';
 import { strawberryJuiceImage } from '../assets/images/strawberryJuiceAsset';
 import { createEmptyRankings } from '../gameConfig';
+import { PENDING_SYNC_INTERVAL_MS } from '../generated/rankingContract';
 import {
   fetchAllRankingsWithStatus,
   syncPendingScores,
@@ -48,7 +49,7 @@ export const useAppData = (): AppData => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>({ ...DEFAULT_SETTINGS });
-  const resumeSyncInFlightRef = useRef(false);
+  const pendingSyncInFlightRef = useRef(false);
 
   useEffect(() => {
     const loadData = async (): Promise<void> => {
@@ -130,32 +131,58 @@ export const useAppData = (): AppData => {
     void loadData();
   }, []);
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', async (nextState) => {
-      if (nextState !== 'active' || resumeSyncInFlightRef.current) {
-        return;
+  const syncPendingRankings = useCallback(async (): Promise<void> => {
+    if (!settings.onlineRankingsEnabled || pendingSyncInFlightRef.current) {
+      return;
+    }
+    pendingSyncInFlightRef.current = true;
+    try {
+      const result = await syncPendingScores({ onlineRankingsEnabled: true });
+      if (result.synced > 0) {
+        const refreshed = await fetchAllRankingsWithStatus();
+        setRankingsByMode(refreshed.rankings);
+        setNotice(`${result.synced}件の保存待ちスコアをランキングへ同期しました。`);
       }
-      resumeSyncInFlightRef.current = true;
-      try {
-        const result = await syncPendingScores({
-          onlineRankingsEnabled: settings.onlineRankingsEnabled,
-        });
-        if (result.synced > 0) {
-          const refreshed = await fetchAllRankingsWithStatus();
-          setRankingsByMode(refreshed.rankings);
-          setNotice(`${result.synced}件の保存待ちスコアをランキングへ同期しました。`);
-        }
-        if (result.discarded > 0) {
-          setError(`${result.discarded}件の期限切れスコアを送信待ちから除外しました。`);
-        }
-      } catch (resumeError) {
-        console.warn('Failed to sync pending scores after returning to the app.', resumeError);
-      } finally {
-        resumeSyncInFlightRef.current = false;
+      if (result.discarded > 0) {
+        setError(`${result.discarded}件の期限切れスコアを送信待ちから除外しました。`);
+      }
+    } catch (syncError) {
+      console.warn('Failed to sync pending scores while the app was active.', syncError);
+    } finally {
+      pendingSyncInFlightRef.current = false;
+    }
+  }, [settings.onlineRankingsEnabled]);
+
+  useEffect(() => {
+    if (!settings.onlineRankingsEnabled) {
+      return undefined;
+    }
+
+    let appIsActive = AppState.currentState === 'active';
+    const attemptActiveSync = (): void => {
+      if (appIsActive) {
+        void syncPendingRankings();
+      }
+    };
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      appIsActive = nextState === 'active';
+      if (appIsActive) {
+        attemptActiveSync();
       }
     });
-    return () => subscription.remove();
-  }, [settings.onlineRankingsEnabled]);
+    const interval = setInterval(attemptActiveSync, PENDING_SYNC_INTERVAL_MS);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.addEventListener('online', attemptActiveSync);
+    }
+
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.removeEventListener('online', attemptActiveSync);
+      }
+    };
+  }, [settings.onlineRankingsEnabled, syncPendingRankings]);
 
   return {
     playerName,

@@ -9,6 +9,7 @@ import {
   readJsonBody,
   requireAllowedBrowserOrigin,
 } from './http';
+import { GAME_SESSION_TTL_MS } from './generated/rankingContract';
 import {
   validateGameSessionRequest,
   validateScoreSubmission,
@@ -21,12 +22,19 @@ import type {
 } from './types';
 import { mapRanking } from './types';
 
-const GAME_SESSION_TTL_MS = 15 * 60 * 1000;
 const GAME_SESSION_CLOCK_TOLERANCE_MS = 5_000;
 
 export type SaveScoreResult = {
   entry: RankingEntry;
   created: boolean;
+};
+
+type ExpectedScoreIdentity = {
+  playerName: string;
+  score: number;
+  gameType: string;
+  islandRegion: string;
+  ownerHash: string;
 };
 
 const findScoreById = async (
@@ -45,13 +53,7 @@ const findScoreById = async (
 
 const toIdempotentResult = (
   existing: RankingRow,
-  expected: {
-    playerName: string;
-    score: number;
-    gameType: string;
-    islandRegion: string;
-    ownerHash: string;
-  },
+  expected: ExpectedScoreIdentity,
 ): SaveScoreResult => {
   if (existing.player_name !== expected.playerName
     || existing.score !== expected.score
@@ -61,6 +63,15 @@ const toIdempotentResult = (
     throw new HttpError(409, 'Submission ID is already in use.');
   }
   return { entry: mapRanking(existing), created: false };
+};
+
+const findIdempotentResult = async (
+  env: Env,
+  submissionId: string,
+  expected: ExpectedScoreIdentity,
+): Promise<SaveScoreResult | null> => {
+  const existing = await findScoreById(env, submissionId);
+  return existing ? toIdempotentResult(existing, expected) : null;
 };
 
 export const createGameSession = async (
@@ -106,83 +117,52 @@ export const createGameSession = async (
   };
 };
 
-export const saveScore = async (
-  request: Request,
+const validateGameSession = async (
   env: Env,
-  origin?: string,
-): Promise<SaveScoreResult> => {
-  requireAllowedBrowserOrigin(origin, env);
-  const body = await readJsonBody(request);
-  const {
-    submissionId,
-    gameSessionId,
-    playerName,
-    score,
-    gameType,
-    islandRegion,
-    durationMs,
-    playerToken,
-  } = validateScoreSubmission(body);
-  const bearerToken = getBearerPlayerToken(request);
-  if (bearerToken && playerToken && bearerToken !== playerToken) {
-    throw new HttpError(400, 'Player token credentials do not match.');
-  }
-  const ownerHash = await sha256Hex(`player:${bearerToken}`);
-  const expected = { playerName, score, gameType, islandRegion, ownerHash };
-
-  const existing = await findScoreById(env, submissionId);
-  if (existing) {
-    return toIdempotentResult(existing, expected);
-  }
-
-  const session = await env.DB.prepare(
-    `
-      SELECT id, owner_hash, game_type, island_region, started_at, expires_at, consumed_at, submission_id
-      FROM game_sessions
-      WHERE id = ?
-      LIMIT 1
-    `,
-  ).bind(gameSessionId).first<GameSessionRow>();
-
+  session: GameSessionRow | null,
+  expected: ExpectedScoreIdentity,
+  submissionId: string,
+  durationMs: number,
+): Promise<SaveScoreResult | null> => {
   if (!session) {
     throw new HttpError(400, 'Game session was not found.');
   }
-  if (session.owner_hash !== ownerHash
-    || session.game_type !== gameType
-    || session.island_region !== islandRegion) {
+  if (session.owner_hash !== expected.ownerHash
+    || session.game_type !== expected.gameType
+    || session.island_region !== expected.islandRegion) {
     throw new HttpError(403, 'Game session does not match this score.');
   }
   if (session.consumed_at || session.submission_id) {
-    if (session.submission_id === submissionId) {
-      const concurrentScore = await findScoreById(env, submissionId);
-      if (concurrentScore) {
-        return toIdempotentResult(concurrentScore, expected);
-      }
+    const idempotent = session.submission_id === submissionId
+      ? await findIdempotentResult(env, submissionId, expected)
+      : null;
+    if (idempotent) {
+      return idempotent;
     }
     throw new HttpError(409, 'Game session has already been used.');
   }
 
-  const now = new Date();
+  const nowMs = Date.now();
   const startedAtMs = Date.parse(session.started_at);
   const expiresAtMs = Date.parse(session.expires_at);
   if (!Number.isFinite(startedAtMs)
     || !Number.isFinite(expiresAtMs)
-    || now.getTime() > expiresAtMs) {
+    || nowMs > expiresAtMs) {
     throw new HttpError(409, 'Game session has expired.');
   }
-  if (durationMs > now.getTime() - startedAtMs + GAME_SESSION_CLOCK_TOLERANCE_MS) {
+  if (durationMs > nowMs - startedAtMs + GAME_SESSION_CLOCK_TOLERANCE_MS) {
     throw new HttpError(400, 'Game duration exceeds the server-observed session time.');
   }
+  return null;
+};
 
-  const entry: RankingEntry = {
-    id: submissionId,
-    playerName,
-    score,
-    gameType,
-    islandRegion,
-    createdAt: now.toISOString(),
-  };
-
+const commitScore = async (
+  env: Env,
+  entry: RankingEntry,
+  ownerHash: string,
+  gameSessionId: string,
+  expected: ExpectedScoreIdentity,
+): Promise<SaveScoreResult> => {
   let results: { meta: { changes?: number } }[];
   try {
     results = await env.DB.batch([
@@ -214,23 +194,84 @@ export const saveScore = async (
       ),
     ]);
   } catch (error) {
-    const concurrentScore = await findScoreById(env, submissionId);
-    if (concurrentScore) {
-      return toIdempotentResult(concurrentScore, expected);
+    const idempotent = await findIdempotentResult(env, entry.id, expected);
+    if (idempotent) {
+      return idempotent;
     }
     throw error;
   }
 
   const [consumeResult, insertResult] = results;
-  if ((consumeResult.meta.changes ?? 0) !== 1 || (insertResult.meta.changes ?? 0) !== 1) {
-    const concurrentScore = await findScoreById(env, submissionId);
-    if (concurrentScore) {
-      return toIdempotentResult(concurrentScore, expected);
-    }
-    throw new HttpError(409, 'Game session has already been used.');
+  if ((consumeResult.meta.changes ?? 0) === 1 && (insertResult.meta.changes ?? 0) === 1) {
+    return { entry, created: true };
+  }
+  const idempotent = await findIdempotentResult(env, entry.id, expected);
+  if (idempotent) {
+    return idempotent;
+  }
+  throw new HttpError(409, 'Game session has already been used.');
+};
+
+export const saveScore = async (
+  request: Request,
+  env: Env,
+  origin?: string,
+): Promise<SaveScoreResult> => {
+  requireAllowedBrowserOrigin(origin, env);
+  const body = await readJsonBody(request);
+  const {
+    submissionId,
+    gameSessionId,
+    playerName,
+    score,
+    gameType,
+    islandRegion,
+    durationMs,
+    playerToken,
+  } = validateScoreSubmission(body);
+  const bearerToken = getBearerPlayerToken(request);
+  if (bearerToken && playerToken && bearerToken !== playerToken) {
+    throw new HttpError(400, 'Player token credentials do not match.');
+  }
+  const ownerHash = await sha256Hex(`player:${bearerToken}`);
+  const expected = { playerName, score, gameType, islandRegion, ownerHash };
+
+  const existing = await findIdempotentResult(env, submissionId, expected);
+  if (existing) {
+    return existing;
   }
 
-  return { entry, created: true };
+  const session = await env.DB.prepare(
+    `
+      SELECT id, owner_hash, game_type, island_region, started_at, expires_at, consumed_at, submission_id
+      FROM game_sessions
+      WHERE id = ?
+      LIMIT 1
+    `,
+  ).bind(gameSessionId).first<GameSessionRow>();
+
+  const idempotentSession = await validateGameSession(
+    env,
+    session,
+    expected,
+    submissionId,
+    durationMs,
+  );
+  if (idempotentSession) {
+    return idempotentSession;
+  }
+
+  const now = new Date();
+  const entry: RankingEntry = {
+    id: submissionId,
+    playerName,
+    score,
+    gameType,
+    islandRegion,
+    createdAt: now.toISOString(),
+  };
+
+  return commitScore(env, entry, ownerHash, gameSessionId, expected);
 };
 
 export const cleanupExpiredGameSessions = async (

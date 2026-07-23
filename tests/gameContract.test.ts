@@ -3,6 +3,10 @@ import test from 'node:test';
 import { GAME_MODE_CONFIG, GAME_MODE_ORDER } from '../src/gameConfig';
 import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES } from '../src/gameRules';
 import { GameMode } from '../src/types';
+import {
+  GAME_SESSION_TTL_MS,
+  PENDING_SYNC_INTERVAL_MS,
+} from '../src/generated/rankingContract';
 import { MAX_GAME_DURATION_MS, SCORE_PROFILES } from '../worker/src/rankingValidation';
 
 const MAX_POINTS_PER_ANSWER: Record<GameMode, number> = {
@@ -23,4 +27,10 @@ test('client session limits and server score validation share one provable contr
     assert.ok(profile.maxScorePerSecond >= Math.ceil(maximumPoints * 1000 / ANSWER_FEEDBACK_MS));
     assert.ok(profile.maxScore >= maximumAnswers * maximumPoints);
   }
+});
+
+test('pending scores retry repeatedly before a verified session expires', () => {
+  assert.equal(GAME_SESSION_TTL_MS, 15 * 60_000);
+  assert.ok(PENDING_SYNC_INTERVAL_MS >= 5_000);
+  assert.ok(PENDING_SYNC_INTERVAL_MS <= GAME_SESSION_TTL_MS / 10);
 });

@@ -4,6 +4,8 @@ import {
   RankingPeriod,
   type RankingEntry,
 } from '../types';
+import { getLeaderboardEntries } from '../domain/rankings';
+import { GAME_SESSION_TTL_MS } from '../generated/rankingContract';
 import {
   fetchRankingsForModeWithStatus,
   saveScoreForMode,
@@ -27,6 +29,8 @@ type SaveGameResultOptions = {
   onlineRankingsEnabled: boolean;
 };
 
+const GAME_SESSION_TTL_MINUTES = GAME_SESSION_TTL_MS / 60_000;
+
 export const saveGameResult = async ({
   gameMode,
   islandRegion,
@@ -46,7 +50,7 @@ export const saveGameResult = async ({
   const warnings: string[] = [];
 
   if (result.queuedForSync) {
-    notices.push('通信できなかったため端末に保存しました。次回オンライン時に自動で同期します。');
+    notices.push(`通信できなかったため端末に保存しました。ゲーム開始から${GAME_SESSION_TTL_MINUTES}分以内に通信が戻ると自動で同期します。`);
   } else if (!result.verifiedForRanking) {
     notices.push(onlineRankingsEnabled
       ? 'オフラインで開始したため、スコアは端末履歴だけに保存しました。'
@@ -64,7 +68,9 @@ export const saveGameResult = async ({
         rankingRegion,
         { requireFresh: true },
       );
-      rankings = refreshed.entries;
+      rankings = result.queuedForSync
+        ? getLeaderboardEntries([...refreshed.entries, result.entry])
+        : refreshed.entries;
       if (refreshed.stale) {
         notices.push('通信できないため端末に保存したランキングを表示しています。');
       }

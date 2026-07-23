@@ -141,8 +141,43 @@ test('a temporary submission failure reports the queued score and queue overflow
   });
 
   assert.equal(outcome.rankings?.length, 1);
-  assert.match(outcome.notice, /次回オンライン時/);
+  assert.match(outcome.notice, /15分以内/);
   assert.match(outcome.warning ?? '', /保存待ち上限/);
+});
+
+test('a queued score remains visible when the fresh remote leaderboard and cache read are empty', async () => {
+  const { saveGameResult } = await gameResultServicePromise;
+  values.set('player_private_token_v1', playerToken);
+  let leaderboardRequests = 0;
+  globalThis.fetch = async (input) => {
+    if (String(input).includes('/scores')) {
+      return Response.json(
+        { error: 'temporarily unavailable' },
+        { status: 503, headers: { 'retry-after': '0' } },
+      );
+    }
+    leaderboardRequests += 1;
+    failStorageReads = true;
+    return Response.json([]);
+  };
+
+  const outcome = await saveGameResult({
+    gameMode: GameMode.STRAWBERRY,
+    islandRegion: IslandRegion.ALL,
+    playerName: '表示を維持',
+    score: 3,
+    durationMs: 30_000,
+    gameSession: gameSession(),
+    onlineRankingsEnabled: true,
+  });
+  failStorageReads = false;
+
+  assert.equal(leaderboardRequests, 1);
+  assert.equal(outcome.rankings?.length, 1);
+  assert.equal(outcome.rankings?.[0]?.id, outcome.entry.id);
+  assert.equal(outcome.rankings?.[0]?.isCurrentPlayer, true);
+  assert.match(outcome.notice, /15分以内/);
+  assert.equal(outcome.warning, null);
 });
 
 test('a stale local leaderboard is distinguished after a verified save', async () => {

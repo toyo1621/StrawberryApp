@@ -28,37 +28,37 @@ import StatusBanner from './ui/StatusBanner';
 type StartScreenProps = {
   onStart: (name: string, mode: GameMode, islandRegion: IslandRegion) => void | Promise<void>;
   rankings: RankingsByMode;
-  isLoading?: boolean;
+  isLoading: boolean;
   onShowRules: () => void;
   onShowMyPage: () => void;
-  savedPlayerName?: string;
-  initialMode?: GameMode;
-  initialIslandRegion?: IslandRegion;
-  error?: string | null;
-  onDismissError?: () => void;
-  notice?: string | null;
-  onDismissNotice?: () => void;
-  darkMode?: boolean;
-  isPreparingGame?: boolean;
-  onlineRankingsEnabled?: boolean;
+  savedPlayerName: string;
+  initialMode: GameMode;
+  initialIslandRegion: IslandRegion;
+  error: string | null;
+  onDismissError: () => void;
+  notice: string | null;
+  onDismissNotice: () => void;
+  darkMode: boolean;
+  isPreparingGame: boolean;
+  onlineRankingsEnabled: boolean;
 };
 
 const StartScreen: React.FC<StartScreenProps> = ({
   onStart,
   rankings,
-  isLoading = false,
+  isLoading,
   onShowRules,
   onShowMyPage,
-  savedPlayerName = '',
-  initialMode = GameMode.STRAWBERRY,
-  initialIslandRegion = IslandRegion.ALL,
+  savedPlayerName,
+  initialMode,
+  initialIslandRegion,
   error,
   onDismissError,
   notice,
   onDismissNotice,
-  darkMode = false,
-  isPreparingGame = false,
-  onlineRankingsEnabled = true,
+  darkMode,
+  isPreparingGame,
+  onlineRankingsEnabled,
 }) => {
   const [name, setName] = useState(savedPlayerName);
   const [inputError, setInputError] = useState('');
@@ -173,25 +173,6 @@ const StartScreen: React.FC<StartScreenProps> = ({
           />
         )}
 
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="ゲームルールを開く"
-            onPress={onShowRules}
-            style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
-          >
-            <Text style={[styles.secondaryButtonText, { color: theme.text }]}>ルール</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="マイページを開く"
-            onPress={onShowMyPage}
-            style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
-          >
-            <Text style={[styles.secondaryButtonText, { color: theme.text }]}>マイページ</Text>
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.startSection}>
           {!onlineRankingsEnabled && (
             <StatusBanner
@@ -242,6 +223,25 @@ const StartScreen: React.FC<StartScreenProps> = ({
             style={[styles.startButton, { backgroundColor: actionAccent, opacity: isPreparingGame ? 0.65 : 1 }]}
           >
             <Text style={styles.startButtonText}>{isPreparingGame ? '準備中...' : 'ゲーム開始'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="ゲームルールを開く"
+            onPress={onShowRules}
+            style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
+          >
+            <Text style={[styles.secondaryButtonText, { color: theme.text }]}>ルール</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="マイページを開く"
+            onPress={onShowMyPage}
+            style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
+          >
+            <Text style={[styles.secondaryButtonText, { color: theme.text }]}>マイページ</Text>
           </TouchableOpacity>
         </View>
 
