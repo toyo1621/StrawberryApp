@@ -75,6 +75,34 @@ export type {
 
 const RANKING_LIMIT = 30;
 
+const pendingScoreToEntry = (pending: PendingScore): RankingEntry => ({
+  id: pending.submissionId,
+  playerName: pending.playerName,
+  score: pending.score,
+  gameType: pending.gameType,
+  islandRegion: pending.islandRegion,
+  createdAt: pending.createdAt,
+  isCurrentPlayer: true,
+});
+
+const loadPendingEntriesForRanking = async (
+  gameType: ApiGameType,
+  islandRegion: IslandRegion,
+): Promise<{ entries: RankingEntry[]; ids: Set<string> }> => {
+  try {
+    const pendingScores = (await loadPendingScores()).filter((score) => (
+      score.gameType === gameType && score.islandRegion === islandRegion
+    ));
+    return {
+      entries: pendingScores.map(pendingScoreToEntry),
+      ids: new Set(pendingScores.map((score) => score.submissionId)),
+    };
+  } catch (error) {
+    console.warn('Remote rankings loaded, but pending scores could not be read.', error);
+    return { entries: [], ids: new Set() };
+  }
+};
+
 export const fetchRankingsForModeWithStatus = async (
   mode: GameMode,
   period: RankingPeriod = RankingPeriod.ALL,
@@ -99,26 +127,27 @@ export const fetchRankingsForModeWithStatus = async (
         parseRankingEntries,
         requestInit,
       );
+      const pending = await loadPendingEntriesForRanking(gameType, rankingRegion);
       if (period === RankingPeriod.ALL) {
-        const pendingIds = new Set(
-          (await loadPendingScores())
-            .filter((score) => (
-              score.gameType === gameType && score.islandRegion === rankingRegion
-            ))
-            .map((score) => score.submissionId),
-        );
         try {
           await replaceLocalLeaderboardSnapshot(
             gameType,
             rankingRegion,
             rankings,
-            pendingIds,
+            pending.ids,
           );
         } catch (cacheError) {
           console.warn('Remote rankings loaded, but the local cache could not be updated.', cacheError);
         }
       }
-      return { entries: rankings, source: 'remote', stale: false };
+      return {
+        entries: getLeaderboardEntries([
+          ...rankings,
+          ...filterRankingsByPeriod(pending.entries, period),
+        ], RANKING_LIMIT),
+        source: 'remote',
+        stale: false,
+      };
     } catch (error) {
       console.warn('Using cached rankings after an API failure.', error);
     }
@@ -174,15 +203,7 @@ export const fetchAllRankings = async (): Promise<RankingsByMode> => {
 };
 
 const saveLocalScore = async (pending: PendingScore): Promise<RankingEntry> => {
-  const entry: RankingEntry = {
-    id: pending.submissionId,
-    playerName: pending.playerName,
-    score: pending.score,
-    gameType: pending.gameType,
-    islandRegion: pending.islandRegion,
-    createdAt: pending.createdAt,
-    isCurrentPlayer: true,
-  };
+  const entry = pendingScoreToEntry(pending);
   await mergeIntoLocalCache(pending.gameType, pending.islandRegion, [entry]);
   await mergeIntoLocalPlayerHistory(pending.gameType, [entry]);
   return entry;

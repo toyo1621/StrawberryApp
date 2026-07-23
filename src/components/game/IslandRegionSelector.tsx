@@ -47,7 +47,11 @@ const IslandRegionSelector: React.FC<IslandRegionSelectorProps> = ({
                 },
               ]}
             >
-              <Text style={[styles.label, { color: selected ? '#ffffff' : theme.text }]}>
+              <Text style={[
+                styles.label,
+                compact && styles.labelCompact,
+                { color: selected ? '#ffffff' : theme.text },
+              ]}>
                 {option.label}
               </Text>
               <Text style={[styles.count, { color: selected ? '#ffffff' : theme.textMuted }]}>
@@ -88,7 +92,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   optionCompact: {
-    flexBasis: '48%',
+    flexBasis: '31%',
     flexGrow: 1,
   },
   optionWide: {
@@ -101,6 +105,10 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontWeight: FONT_WEIGHT_BOLD,
     textAlign: 'center',
+  },
+  labelCompact: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   count: {
     fontFamily: MARU_GOTHIC_FONT,

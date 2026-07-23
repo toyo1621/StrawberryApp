@@ -43,11 +43,19 @@ export const appStyles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
+  savingContainerDark: {
+    backgroundColor: '#222837',
+    borderColor: '#64748b',
+    borderWidth: 1,
+  },
   savingText: {
     marginTop: 16,
     fontSize: 16,
     color: '#374151',
     fontWeight: '600',
+  },
+  savingTextDark: {
+    color: '#f8fafc',
   },
   juiceOverlay: {
     position: 'absolute',

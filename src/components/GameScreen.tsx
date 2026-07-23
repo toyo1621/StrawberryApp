@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { DISTRACTOR_EMOJIS, CHOICE_COUNT, MEMORY_GAME_CHANCE } from '../constants';
-import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD } from '../constants/fonts';
-import { describeEmoji, progressPercent, shuffle } from '../domain/game';
+import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD } from '../constants/fonts';
+import { describeEmoji, shuffle } from '../domain/game';
 import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES, ticksToSeconds } from '../gameRules';
 import { useGameTimer } from '../hooks/useGameTimer';
 import { GameMode } from '../types';
+import GameFrame from './game/GameFrame';
 
 const RULES = GAMEPLAY_RULES[GameMode.STRAWBERRY];
 
@@ -226,50 +227,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
     }, ANSWER_FEEDBACK_MS);
   };
 
-  const timeBarWidth = progressPercent(timeLeft, RULES.initialTimeTicks);
-  const displayTime = (timeLeft / 10).toFixed(1); // 0.1秒単位で表示
   const isFeverMode = timeLeft <= RULES.fever.thresholdTicks;
 
   return (
-    <View style={[styles.container, darkMode && styles.containerDark]}>
-      {onBackToHome && (
-        <TouchableOpacity 
-          accessibilityRole="button"
-          accessibilityLabel="ゲームをやめてホームに戻る"
-          onPress={onBackToHome} 
-          style={[styles.homeButton, darkMode && styles.homeButtonDark]}
-        >
-          <Text style={[styles.homeButtonText, darkMode && styles.homeButtonTextDark]}>ゲームをやめる</Text>
-        </TouchableOpacity>
-      )}
-      <View style={styles.header}>
-        <Text accessibilityLiveRegion="polite" style={[styles.scoreText, darkMode && styles.scoreTextDark]}>スコア: {score}</Text>
-        <Text accessibilityLabel={`残り時間${displayTime}秒`} style={[styles.timeText, darkMode && styles.timeTextDark]}>時間: {displayTime}</Text>
-      </View>
-      <View
-        accessibilityRole="progressbar"
-        accessibilityLabel="残り時間"
-        aria-valuemin={0}
-        aria-valuemax={ticksToSeconds(RULES.initialTimeTicks)}
-        aria-valuenow={ticksToSeconds(Math.min(timeLeft, RULES.initialTimeTicks))}
-        aria-valuetext={`残り${displayTime}秒`}
-        accessibilityValue={{
-          min: 0,
-          max: ticksToSeconds(RULES.initialTimeTicks),
-          now: ticksToSeconds(Math.min(timeLeft, RULES.initialTimeTicks)),
-          text: `残り${displayTime}秒`,
-        }}
-        style={[styles.timeBarContainer, darkMode && styles.timeBarContainerDark]}
-      >
-        <View
-          style={[
-            styles.timeBar,
-            isFeverMode ? styles.timeBarFever : timeLeft <= RULES.dangerThresholdTicks ? styles.timeBarDanger : styles.timeBarNormal,
-            { width: `${timeBarWidth}%` }
-          ]}
-        />
-      </View>
-      
+    <GameFrame
+      mode={GameMode.STRAWBERRY}
+      score={score}
+      timeLeft={timeLeft}
+      initialTimeTicks={RULES.initialTimeTicks}
+      dangerThresholdTicks={RULES.dangerThresholdTicks}
+      darkMode={darkMode}
+      onBackToHome={onBackToHome}
+      specialBarColor={isFeverMode ? '#facc15' : undefined}
+    >
       <View style={styles.gameArea}>
         {isWholeCake ? (
           <>
@@ -342,63 +312,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
           </Text>
         </View>
       )}
-    </View>
+    </GameFrame>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    padding: 24,
-    width: '100%',
-    maxWidth: 448,
-    alignSelf: 'center',
-    margin: 16,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  scoreText: {
-    fontSize: 24,
-    fontWeight: FONT_WEIGHT_BOLD,
-    color: '#ec4899',
-    fontFamily: MARU_GOTHIC_FONT,
-  },
-  timeText: {
-    fontSize: 24,
-    fontWeight: FONT_WEIGHT_BOLD,
-    color: '#374151',
-    fontFamily: MARU_GOTHIC_FONT,
-  },
-  timeBarContainer: {
-    width: '100%',
-    backgroundColor: '#e5e7eb',
-    borderRadius: 999,
-    height: 16,
-    marginBottom: 24,
-    overflow: 'hidden',
-  },
-  containerDark: {
-    backgroundColor: '#1f2937',
-  },
-  scoreTextDark: {
-    color: '#f9fafb',
-  },
-  timeTextDark: {
-    color: '#f9fafb',
-  },
   questionTextDark: {
     color: '#f9fafb',
   },
@@ -408,24 +326,8 @@ const styles = StyleSheet.create({
   choiceButtonDark: {
     backgroundColor: '#374151',
   },
-  timeBarContainerDark: {
-    backgroundColor: '#4b5563',
-  },
   feverTextDark: {
     color: '#fde047',
-  },
-  timeBar: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  timeBarNormal: {
-    backgroundColor: '#4ade80',
-  },
-  timeBarDanger: {
-    backgroundColor: '#ef4444',
-  },
-  timeBarFever: {
-    backgroundColor: '#facc15',
   },
   feverContainer: {
     alignItems: 'center',
@@ -532,32 +434,6 @@ const styles = StyleSheet.create({
   },
   attackMessageTextDark: {
     color: '#f87171',
-  },
-  homeButton: {
-    alignSelf: 'flex-end',
-    minHeight: 44,
-    backgroundColor: 'rgba(236, 72, 153, 0.1)',
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    marginTop: 0,
-    marginBottom: 4,
-    marginRight: 0,
-    borderWidth: 1,
-    borderColor: 'rgba(236, 72, 153, 0.3)',
-    justifyContent: 'center',
-  },
-  homeButtonDark: {
-    backgroundColor: 'rgba(190, 24, 93, 0.2)',
-    borderColor: 'rgba(190, 24, 93, 0.4)',
-  },
-  homeButtonText: {
-    color: '#be185d',
-    fontSize: 14,
-    fontWeight: FONT_WEIGHT_SEMIBOLD,
-    fontFamily: MARU_GOTHIC_FONT,
-  },
-  homeButtonTextDark: {
-    color: '#f9a8d4',
   },
 });
 

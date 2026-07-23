@@ -1,9 +1,11 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MARU_GOTHIC_FONT, FONT_WEIGHT_BOLD } from '../constants/fonts';
+import { getTheme } from '../theme';
 
 interface Props {
   children: ReactNode;
+  darkMode?: boolean;
 }
 
 interface State {
@@ -40,12 +42,17 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const theme = getTheme(Boolean(this.props.darkMode));
       return (
-        <View style={styles.container}>
-          <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.errorContainer}>
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
+          <View
+            accessibilityRole="alert"
+            accessibilityLiveRegion="assertive"
+            style={[styles.errorContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          >
             <Text style={styles.emoji}>😅</Text>
-            <Text accessibilityRole="header" aria-level={1} style={styles.title}>エラーが発生しました</Text>
-            <Text style={styles.message}>
+            <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: theme.danger }]}>エラーが発生しました</Text>
+            <Text style={[styles.message, { color: theme.text }]}>
               アプリで予期しないエラーが発生しました。
               {'\n'}
               もう一度お試しください。
@@ -93,6 +100,7 @@ const styles = StyleSheet.create({
     elevation: 5,
     maxWidth: 400,
     width: '100%',
+    borderWidth: 1,
   },
   emoji: {
     fontSize: 64,

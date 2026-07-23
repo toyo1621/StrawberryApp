@@ -9,7 +9,6 @@ import {
 } from '../types';
 import { appStyles as styles } from '../App.styles';
 import StartScreen from './StartScreen';
-
 const GameScreen = lazy(() => import('./GameScreen'));
 const IslandGameScreen = lazy(() => import('./IslandGameScreen'));
 const FlagGameScreen = lazy(() => import('./FlagGameScreen'));
@@ -22,8 +21,7 @@ const MyPageScreen = lazy(() => import('./MyPageScreen'));
 const PrivacyPolicyScreen = lazy(() => import('./PrivacyPolicyScreen'));
 const TermsOfServiceScreen = lazy(() => import('./TermsOfServiceScreen'));
 const SettingsScreen = lazy(() => import('./SettingsScreen'));
-
-type AppScreenRouterProps = {
+type AppScreenState = {
   gameState: GameState;
   gameMode: GameMode;
   islandRegion: IslandRegion;
@@ -39,6 +37,8 @@ type AppScreenRouterProps = {
   isLoading: boolean;
   isPreparingGame: boolean;
   isSavingScore: boolean;
+};
+type AppScreenActions = {
   onGameStart: (name: string, mode: GameMode, region: IslandRegion) => void;
   onGameOver: (score: number) => void;
   onMemoryGame: (score: number, lastDistractor: string, firstDistractor: string) => void;
@@ -62,12 +62,18 @@ type AppScreenRouterProps = {
   onDismissError: () => void;
   onDismissNotice: () => void;
 };
+type AppScreenRouterProps = {
+  state: AppScreenState;
+  actions: AppScreenActions;
+};
 
-const SavingOverlay = () => (
+const SavingOverlay = ({ darkMode }: { darkMode: boolean }) => (
   <View style={styles.savingOverlay} accessibilityViewIsModal>
-    <View style={styles.savingContainer}>
-      <ActivityIndicator accessibilityLabel="スコアを保存中" size="large" color="#be185d" />
-      <Text accessibilityLiveRegion="polite" style={styles.savingText}>スコアを保存中...</Text>
+    <View style={[styles.savingContainer, darkMode && styles.savingContainerDark]}>
+      <ActivityIndicator accessibilityLabel="スコアを保存中" size="large" color={darkMode ? '#f9a8d4' : '#be185d'} />
+      <Text accessibilityLiveRegion="polite" style={[styles.savingText, darkMode && styles.savingTextDark]}>
+        スコアを保存中...
+      </Text>
     </View>
   </View>
 );
@@ -89,6 +95,7 @@ export const AppLoadingFallback = ({ darkMode }: { darkMode: boolean }) => (
 );
 
 const AppScreenRouter: React.FC<AppScreenRouterProps> = (props) => {
+  const { actions } = props;
   const {
     gameState,
     gameMode,
@@ -105,21 +112,21 @@ const AppScreenRouter: React.FC<AppScreenRouterProps> = (props) => {
     isLoading,
     isPreparingGame,
     isSavingScore,
-  } = props;
+  } = props.state;
 
   switch (gameState) {
     case GameState.PLAYING:
-      return <GameScreen onGameOver={props.onGameOver} onMemoryGame={props.onMemoryGame} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onShowJuice={props.onShowJuice} onBackToHome={props.onRestart} />;
+      return <GameScreen onGameOver={actions.onGameOver} onMemoryGame={actions.onMemoryGame} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onShowJuice={actions.onShowJuice} onBackToHome={actions.onRestart} />;
     case GameState.ISLAND_PLAYING:
-      return <IslandGameScreen region={islandRegion} onGameOver={props.onGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={props.onRestart} />;
+      return <IslandGameScreen region={islandRegion} onGameOver={actions.onGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={actions.onRestart} />;
     case GameState.FLAG_PLAYING:
-      return <FlagGameScreen onGameOver={props.onGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={props.onRestart} />;
+      return <FlagGameScreen onGameOver={actions.onGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={actions.onRestart} />;
     case GameState.COLOR_PLAYING:
-      return <ColorGameScreen onGameOver={props.onGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={props.onRestart} />;
+      return <ColorGameScreen onGameOver={actions.onGameOver} hapticsEnabled={settings.hapticsEnabled} darkMode={settings.darkMode} onBackToHome={actions.onRestart} />;
     case GameState.MEMORY_GAME:
-      return <MemoryGameScreen currentScore={currentScore} correctAnswer={memoryAnswer} onComplete={props.onMemoryGame2} darkMode={settings.darkMode} />;
+      return <MemoryGameScreen currentScore={currentScore} correctAnswer={memoryAnswer} onComplete={actions.onMemoryGame2} darkMode={settings.darkMode} />;
     case GameState.MEMORY_GAME_2:
-      return <MemoryGame2Screen currentScore={currentScore} correctAnswer={firstDistractor} onComplete={props.onGameOver} darkMode={settings.darkMode} />;
+      return <MemoryGame2Screen currentScore={currentScore} correctAnswer={firstDistractor} onComplete={actions.onGameOver} darkMode={settings.darkMode} />;
     case GameState.GAME_OVER:
       return (
         <>
@@ -128,61 +135,61 @@ const AppScreenRouter: React.FC<AppScreenRouterProps> = (props) => {
             gameMode={gameMode}
             islandRegion={islandRegion}
             currentPlayer={{ id: currentResultId, name: playerName, score: currentScore }}
-            onPlayAgain={props.onPlayAgain}
-            onGoHome={props.onRestart}
+            onPlayAgain={actions.onPlayAgain}
+            onGoHome={actions.onRestart}
             error={error}
-            onDismissError={props.onDismissError}
+            onDismissError={actions.onDismissError}
             notice={notice}
-            onDismissNotice={props.onDismissNotice}
+            onDismissNotice={actions.onDismissNotice}
             darkMode={settings.darkMode}
             isPreparingGame={isPreparingGame}
             isSavingScore={isSavingScore}
           />
-          {isSavingScore && <SavingOverlay />}
+          {isSavingScore && <SavingOverlay darkMode={settings.darkMode} />}
         </>
       );
     case GameState.RULES:
-      return <RulesScreen onBack={props.onBackFromRules} darkMode={settings.darkMode} />;
+      return <RulesScreen onBack={actions.onBackFromRules} darkMode={settings.darkMode} />;
     case GameState.MY_PAGE:
       return (
         <MyPageScreen
-          onBack={props.onBackFromMyPage}
-          onNameChanged={props.onNameChanged}
-          onShowSettings={props.onShowSettings}
-          onShowPrivacyPolicy={props.onShowPrivacyPolicy}
-          onShowTermsOfService={props.onShowTermsOfService}
-          onDeleteData={props.onDeleteData}
+          onBack={actions.onBackFromMyPage}
+          onNameChanged={actions.onNameChanged}
+          onShowSettings={actions.onShowSettings}
+          onShowPrivacyPolicy={actions.onShowPrivacyPolicy}
+          onShowTermsOfService={actions.onShowTermsOfService}
+          onDeleteData={actions.onDeleteData}
           darkMode={settings.darkMode}
         />
       );
     case GameState.SETTINGS:
-      return <SettingsScreen onBack={props.onBackFromSettings} onSettingsChanged={props.onSettingsChanged} darkMode={settings.darkMode} />;
+      return <SettingsScreen onBack={actions.onBackFromSettings} onSettingsChanged={actions.onSettingsChanged} darkMode={settings.darkMode} />;
     case GameState.PRIVACY_POLICY:
-      return <PrivacyPolicyScreen onBack={props.onBackFromPrivacyPolicy} darkMode={settings.darkMode} />;
+      return <PrivacyPolicyScreen onBack={actions.onBackFromPrivacyPolicy} darkMode={settings.darkMode} />;
     case GameState.TERMS_OF_SERVICE:
-      return <TermsOfServiceScreen onBack={props.onBackFromTermsOfService} darkMode={settings.darkMode} />;
+      return <TermsOfServiceScreen onBack={actions.onBackFromTermsOfService} darkMode={settings.darkMode} />;
     case GameState.START:
     default:
       return (
         <>
           <StartScreen
-            onStart={props.onGameStart}
+            onStart={actions.onGameStart}
             rankings={rankingsByMode}
             isLoading={isLoading}
-            onShowRules={props.onShowRules}
-            onShowMyPage={props.onShowMyPage}
+            onShowRules={actions.onShowRules}
+            onShowMyPage={actions.onShowMyPage}
             savedPlayerName={playerName}
             initialMode={gameMode}
             initialIslandRegion={islandRegion}
             error={error}
-            onDismissError={props.onDismissError}
+            onDismissError={actions.onDismissError}
             notice={notice}
-            onDismissNotice={props.onDismissNotice}
+            onDismissNotice={actions.onDismissNotice}
             darkMode={settings.darkMode}
             isPreparingGame={isPreparingGame}
             onlineRankingsEnabled={settings.onlineRankingsEnabled}
           />
-          {isSavingScore && <SavingOverlay />}
+          {isSavingScore && <SavingOverlay darkMode={settings.darkMode} />}
         </>
       );
   }

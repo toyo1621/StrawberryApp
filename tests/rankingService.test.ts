@@ -408,9 +408,11 @@ test('authoritative leaderboard refresh preserves only scores still waiting to s
   }]));
   globalThis.fetch = async () => Response.json([]);
 
-  await rankingService.fetchRankingsForModeWithStatus(GameMode.STRAWBERRY);
+  const result = await rankingService.fetchRankingsForModeWithStatus(GameMode.STRAWBERRY);
   const cached = JSON.parse(values.get('strawberry_game_rankings') ?? '[]') as { id: string }[];
 
+  assert.deepEqual(result.entries.map((entry) => entry.id), [pendingEntry.id]);
+  assert.equal(result.entries[0]?.isCurrentPlayer, true);
   assert.deepEqual(cached.map((entry) => entry.id), [pendingEntry.id]);
 });
 
