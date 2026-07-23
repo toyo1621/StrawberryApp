@@ -46,10 +46,11 @@ test('home and policy screens have no detectable accessibility violations', asyn
   await expectNoAccessibilityViolations(page);
 });
 
-test('the primary game action appears before the leaderboard without initial scrolling', async ({ page }) => {
+test('the primary game action appears before secondary actions and the leaderboard without initial scrolling', async ({ page }) => {
   await page.goto('/');
   const startButton = page.getByRole('button', { name: 'いちごモードでゲームを開始' });
   const leaderboard = page.getByRole('heading', { name: 'ランキング' });
+  const rulesButton = page.getByRole('button', { name: 'ゲームルールを開く' });
   await expect(startButton).toBeVisible();
   await expect(leaderboard).toBeVisible();
 
@@ -57,20 +58,40 @@ test('the primary game action appears before the leaderboard without initial scr
     const start = document.querySelector('[aria-label="いちごモードでゲームを開始"]');
     const ranking = [...document.querySelectorAll('[role="heading"]')]
       .find((element) => element.textContent === 'ランキング');
+    const rules = document.querySelector('[aria-label="ゲームルールを開く"]');
     const startBox = start?.getBoundingClientRect();
     const rankingBox = ranking?.getBoundingClientRect();
+    const rulesBox = rules?.getBoundingClientRect();
     return {
       scrollY: window.scrollY,
       startBottom: startBox?.bottom ?? Number.POSITIVE_INFINITY,
       startTop: startBox?.top ?? Number.POSITIVE_INFINITY,
       rankingTop: rankingBox?.top ?? Number.NEGATIVE_INFINITY,
+      rulesTop: rulesBox?.top ?? Number.NEGATIVE_INFINITY,
       viewportHeight: window.innerHeight,
     };
   });
 
   expect(layout.scrollY).toBe(0);
   expect(layout.startTop).toBeLessThan(layout.rankingTop);
+  expect(layout.startTop).toBeLessThan(layout.rulesTop);
   expect(layout.startBottom).toBeLessThanOrEqual(layout.viewportHeight);
+  await expect(rulesButton).toBeVisible();
+});
+
+test('island regions use a stable three-column grid without horizontal overflow', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '島モードを選択' }).click();
+  const regions = page.getByRole('button', { name: /を出題エリアに選択、\d+島/ });
+  await expect(regions).toHaveCount(9);
+
+  const boxes = await Promise.all((await regions.all()).slice(0, 4).map((region) => region.boundingBox()));
+  expect(boxes.every(Boolean)).toBe(true);
+  expect(Math.abs((boxes[0]?.y ?? 0) - (boxes[2]?.y ?? 1))).toBeLessThan(2);
+  expect((boxes[3]?.y ?? 0)).toBeGreaterThan((boxes[0]?.y ?? Number.POSITIVE_INFINITY));
+  expect(await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  )).toBe(false);
 });
 
 test('a player can start and answer every mode without page errors or external flag requests', async ({ page }) => {

@@ -1,5 +1,7 @@
 {
   "apiVersion": 5,
+  "gameSessionTtlMs": 900000,
+  "pendingSyncIntervalMs": 30000,
   "gameTypes": [
     "strawberry_rush",
     "island_rush",

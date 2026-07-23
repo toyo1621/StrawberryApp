@@ -1,8 +1,7 @@
-import React, { Suspense, useState, useCallback, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useCallback, useRef } from 'react';
 import {
   Image,
   Animated,
-  AccessibilityInfo,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -24,6 +23,8 @@ import { createEmptyRankings } from './gameConfig';
 import { useAppData } from './hooks/useAppData';
 import { useScreenAnnouncement } from './hooks/useScreenAnnouncement';
 import { useHardwareBackNavigation } from './hooks/useHardwareBackNavigation';
+import { useAppNavigation } from './hooks/useAppNavigation';
+import { useStrawberryJuiceEffect } from './hooks/useStrawberryJuiceEffect';
 import { saveGameResult } from './services/gameResultService';
 import { appStyles as styles } from './App.styles';
 
@@ -49,25 +50,18 @@ const App: React.FC = () => {
   const [firstDistractor, setFirstDistractor] = useState<string>('');
   const [isSavingScore, setIsSavingScore] = useState<boolean>(false);
   const [isPreparingGame, setIsPreparingGame] = useState<boolean>(false);
-  const [showStrawberryJuice, setShowStrawberryJuice] = useState(false);
-  const juiceScale = useRef(new Animated.Value(0)).current;
-  const juiceOpacity = useRef(new Animated.Value(0)).current;
+  const navigation = useAppNavigation(setGameState);
+  const {
+    showStrawberryJuice,
+    juiceScale,
+    juiceOpacity,
+    handleShowJuice,
+  } = useStrawberryJuiceEffect();
   const gameStartedAtRef = useRef<number | null>(null);
   const gameplayDurationMsRef = useRef<number | null>(null);
   const gameSessionRef = useRef<RankingGameSession | null>(null);
   const currentResultIdRef = useRef<string | null>(null);
-  const reduceMotionRef = useRef(false);
   useScreenAnnouncement(gameState);
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      reduceMotionRef.current = enabled;
-    });
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-      reduceMotionRef.current = enabled;
-    });
-    return () => subscription.remove();
-  }, []);
 
   const enterGame = useCallback((mode: GameMode) => {
     gameStartedAtRef.current = Date.now();
@@ -227,46 +221,6 @@ const App: React.FC = () => {
     }
   }, [enterGame, gameMode, islandRegion, isPreparingGame, prepareGameSession, setError, setNotice, settings.onlineRankingsEnabled]);
 
-  const handleShowRules = useCallback(() => {
-    setGameState(GameState.RULES);
-  }, []);
-
-  const handleBackFromRules = useCallback(() => {
-    setGameState(GameState.START);
-  }, []);
-
-  const handleShowMyPage = useCallback(() => {
-    setGameState(GameState.MY_PAGE);
-  }, []);
-
-  const handleBackFromMyPage = useCallback(() => {
-    setGameState(GameState.START);
-  }, []);
-
-  const handleShowPrivacyPolicy = useCallback(() => {
-    setGameState(GameState.PRIVACY_POLICY);
-  }, []);
-
-  const handleBackFromPrivacyPolicy = useCallback(() => {
-    setGameState(GameState.MY_PAGE);
-  }, []);
-
-  const handleShowTermsOfService = useCallback(() => {
-    setGameState(GameState.TERMS_OF_SERVICE);
-  }, []);
-
-  const handleBackFromTermsOfService = useCallback(() => {
-    setGameState(GameState.MY_PAGE);
-  }, []);
-
-  const handleShowSettings = useCallback(() => {
-    setGameState(GameState.SETTINGS);
-  }, []);
-
-  const handleBackFromSettings = useCallback(() => {
-    setGameState(GameState.MY_PAGE);
-  }, []);
-
   const handleSettingsChanged = useCallback(async (newSettings: AppSettings) => {
     setSettings(newSettings);
     if (!newSettings.onlineRankingsEnabled) {
@@ -294,82 +248,53 @@ const App: React.FC = () => {
     return deleted;
   }, [setError, setNotice, setPlayerName, setRankingsByMode, setSettings]);
 
-  const handleShowJuice = useCallback((show: boolean) => {
-    setShowStrawberryJuice(show);
-    if (show) {
-      if (reduceMotionRef.current) {
-        juiceScale.setValue(1);
-        juiceOpacity.setValue(0.35);
-        setTimeout(() => setShowStrawberryJuice(false), 250);
-        return;
-      }
-      juiceScale.setValue(0);
-      juiceOpacity.setValue(1);
-      Animated.parallel([
-        Animated.spring(juiceScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          tension: 50,
-          friction: 7,
-        }),
-        Animated.timing(juiceOpacity, {
-          toValue: 0,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-      ]).start((finished) => {
-        if (finished) {
-          setShowStrawberryJuice(false);
-          juiceScale.setValue(0);
-          juiceOpacity.setValue(0);
-        }
-      });
-    }
-  }, [juiceScale, juiceOpacity]);
-
   return (
-    <ErrorBoundary>
+    <ErrorBoundary darkMode={settings.darkMode}>
       <SafeAreaView role="main" style={[styles.container, settings.darkMode && styles.containerDark]} edges={['top', 'bottom']}>
         <StatusBar style={settings.darkMode ? "light" : "dark"} />
         <Suspense fallback={<AppLoadingFallback darkMode={settings.darkMode} />}>
           <AppScreenRouter
-            gameState={gameState}
-            gameMode={gameMode}
-            islandRegion={islandRegion}
-            currentScore={currentScore}
-            memoryAnswer={memoryAnswer}
-            firstDistractor={firstDistractor}
-            rankingsByMode={rankingsByMode}
-            currentResultId={currentResultIdRef.current}
-            playerName={playerName}
-            error={error}
-            notice={notice}
-            settings={settings}
-            isLoading={isLoading}
-            isPreparingGame={isPreparingGame}
-            isSavingScore={isSavingScore}
-            onGameStart={handleGameStart}
-            onGameOver={handleGameOver}
-            onMemoryGame={handleMemoryGame}
-            onMemoryGame2={handleMemoryGame2}
-            onShowJuice={handleShowJuice}
-            onRestart={handleRestart}
-            onPlayAgain={handlePlayAgain}
-            onShowRules={handleShowRules}
-            onBackFromRules={handleBackFromRules}
-            onShowMyPage={handleShowMyPage}
-            onBackFromMyPage={handleBackFromMyPage}
-            onNameChanged={handleNameChanged}
-            onShowSettings={handleShowSettings}
-            onBackFromSettings={handleBackFromSettings}
-            onSettingsChanged={handleSettingsChanged}
-            onShowPrivacyPolicy={handleShowPrivacyPolicy}
-            onBackFromPrivacyPolicy={handleBackFromPrivacyPolicy}
-            onShowTermsOfService={handleShowTermsOfService}
-            onBackFromTermsOfService={handleBackFromTermsOfService}
-            onDeleteData={handleDeleteData}
-            onDismissError={() => setError(null)}
-            onDismissNotice={() => setNotice(null)}
+            state={{
+              gameState,
+              gameMode,
+              islandRegion,
+              currentScore,
+              memoryAnswer,
+              firstDistractor,
+              rankingsByMode,
+              currentResultId: currentResultIdRef.current,
+              playerName,
+              error,
+              notice,
+              settings,
+              isLoading,
+              isPreparingGame,
+              isSavingScore,
+            }}
+            actions={{
+              onGameStart: handleGameStart,
+              onGameOver: handleGameOver,
+              onMemoryGame: handleMemoryGame,
+              onMemoryGame2: handleMemoryGame2,
+              onShowJuice: handleShowJuice,
+              onRestart: handleRestart,
+              onPlayAgain: handlePlayAgain,
+              onShowRules: navigation.showRules,
+              onBackFromRules: navigation.backFromRules,
+              onShowMyPage: navigation.showMyPage,
+              onBackFromMyPage: navigation.backFromMyPage,
+              onNameChanged: handleNameChanged,
+              onShowSettings: navigation.showSettings,
+              onBackFromSettings: navigation.backFromSettings,
+              onSettingsChanged: handleSettingsChanged,
+              onShowPrivacyPolicy: navigation.showPrivacyPolicy,
+              onBackFromPrivacyPolicy: navigation.backFromPrivacyPolicy,
+              onShowTermsOfService: navigation.showTermsOfService,
+              onBackFromTermsOfService: navigation.backFromTermsOfService,
+              onDeleteData: handleDeleteData,
+              onDismissError: () => setError(null),
+              onDismissNotice: () => setNotice(null),
+            }}
           />
         </Suspense>
         {/* いちご汁オーバーレイ（画面全体に表示） */}

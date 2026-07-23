@@ -3,10 +3,10 @@ export default {
     name: "いちごつめ！",
     slug: "ichigo-tsume-game-2024",
     owner: "toyo1621",
-    version: "1.5.0",
+    version: "1.5.1",
     icon: "./assets/app-icon.png",
     ios: {
-      buildNumber: "6",
+      buildNumber: "7",
       supportsTablet: true,
       bundleIdentifier: "com.strawberrygame.app",
       privacyManifests: {
@@ -19,7 +19,7 @@ export default {
       }
     },
     android: {
-      versionCode: 6,
+      versionCode: 7,
       package: "com.strawberrygame.app",
       adaptiveIcon: {
         foregroundImage: "./assets/app-icon.png",
