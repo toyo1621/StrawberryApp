@@ -19,6 +19,7 @@ test('home and policy screens have no detectable accessibility violations', asyn
     }]));
   });
   await page.goto('/');
+  await expect(page.getByText('つめチャレ！', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'いちごつめ！' })).toBeVisible();
   await expect(page.getByText('ランキングテスト')).toBeVisible();
 

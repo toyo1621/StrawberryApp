@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_NAME } from '../gameConfig';
 import InfoScreen, { InfoSection } from './info/InfoScreen';
 
 type TermsOfServiceScreenProps = {
@@ -9,7 +10,7 @@ type TermsOfServiceScreenProps = {
 const sections: InfoSection[] = [
   {
     title: '1. 適用',
-    paragraphs: ['本規約は「いちごつめ！」の利用条件を定めます。本アプリを利用した時点で、本規約に同意したものとみなします。'],
+    paragraphs: [`本規約は「${APP_NAME}」の利用条件を定めます。本アプリを利用した時点で、本規約に同意したものとみなします。`],
   },
   {
     title: '2. サービス内容',

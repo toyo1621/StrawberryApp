@@ -1,6 +1,6 @@
-# いちごつめ！
+# つめチャレ！
 
-30秒間に2択を解き続ける、Expo製の日本語ミニゲームです。いちご、島、国旗、色の4モードと、全体・日別・週別・月別のオンラインランキングを提供します。
+30秒間に2択を解き続ける、Expo製の日本語チャレンジゲームです。「いちごつめ！」「島つめ！」「国旗つめ！」「色つめ！」の4モードと、全体・日別・週別・月別のオンラインランキングを提供します。
 
 - Web: https://toyo1621.github.io/StrawberryApp/
 - Rankings API: https://strawberry-rankings-api.toyo1621.workers.dev/health

@@ -3,6 +3,8 @@ import { API_GAME_TYPES } from './generated/rankingContract';
 
 export { API_GAME_TYPES } from './generated/rankingContract';
 
+export const APP_NAME = 'つめチャレ！';
+
 export type ApiGameType = typeof API_GAME_TYPES[number];
 
 export type GameModeConfig = {
