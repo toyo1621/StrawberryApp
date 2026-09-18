@@ -1,6 +1,6 @@
 export default {
   expo: {
-    name: "いちごつめ！",
+    name: "つめチャレ！",
     slug: "ichigo-tsume-game-2024",
     owner: "toyo1621",
     version: "1.5.1",
@@ -38,10 +38,10 @@ export default {
     ],
     web: {
       bundler: "metro",
-      favicon: "./assets/app-icon.png",
+      favicon: "./assets/favicon.png",
       lang: "ja",
-      name: "いちごつめ！",
-      shortName: "いちごつめ",
+      name: "つめチャレ！",
+      shortName: "つめチャレ",
       themeColor: "#be185d",
       backgroundColor: "#fff1f5"
     },
@@ -58,6 +58,6 @@ export default {
     updates: {
       fallbackToCacheTimeout: 0
     },
-    description: "時間内にいちごや島、国旗、色をたくさん当てる2択ゲーム"
+    description: "いちご、島、国旗、色に挑む30秒の2択チャレンジゲーム"
   }
 };
