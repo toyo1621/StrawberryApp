@@ -31,7 +31,7 @@ for (let attempt = 1; attempt <= 5; attempt += 1) {
     if (
       !contentType.includes('text/html')
       || !html.includes('<html lang="ja">')
-      || !html.includes('いちごつめ')
+      || !html.includes('つめチャレ')
       || !html.includes('http-equiv="Content-Security-Policy"')
       || !html.includes("script-src 'self'")
       || !html.includes('<meta name="referrer" content="no-referrer" />')

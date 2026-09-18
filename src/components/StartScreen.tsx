@@ -14,7 +14,7 @@ import {
   normalizePlayerName,
 } from '../domain/rankings';
 import { getIslandRegionLabel } from '../domain/islands';
-import { GAME_MODE_CONFIG } from '../gameConfig';
+import { APP_NAME, GAME_MODE_CONFIG } from '../gameConfig';
 import { savePlayerName } from '../services/playerService';
 import { fetchRankingsForModeWithStatus } from '../services/rankingService';
 import { getTheme } from '../theme';
@@ -158,6 +158,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
         { backgroundColor: theme.surface, borderColor: theme.border },
       ]}>
         <View style={styles.header}>
+          <Text style={[styles.brandName, { color: theme.textMuted }]}>{APP_NAME}</Text>
           <Text accessible={false} style={styles.heroEmoji}>{config.emoji}</Text>
           <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: accent }]}>{config.title}</Text>
           <Text style={[styles.description, { color: theme.textMuted }]}>{config.description}</Text>
@@ -313,6 +314,12 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   header: { alignItems: 'center' },
+  brandName: {
+    fontFamily: MARU_GOTHIC_FONT,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: FONT_WEIGHT_BOLD,
+  },
   heroEmoji: { fontSize: 44, lineHeight: 52 },
   title: {
     fontFamily: MARU_GOTHIC_FONT,
