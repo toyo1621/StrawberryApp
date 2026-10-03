@@ -2,6 +2,8 @@
 
 ## Pull Request Gate
 
+PRの`validation`と`dependency-audit`は独立して実行します。監査が失敗してもExpo Doctor・各ビルド・E2Eの結果を収集できますが、既存の必須チェック`quality`は両ジョブの成功を要求し、失敗・キャンセル・スキップを合格にしません。監査のJSON結果は成功・失敗にかかわらず7日間保存します。`npm run check:quality`は監査以外のローカル検証用であり、公開判定には従来どおり監査を含む`npm run check`を使います。脆弱性の例外は設定していません。
+
 `.github/workflows/quality.yml` はPull RequestごとにNode.js 22で動作し、`.github/workflows/codeql.yml` と合わせて次を実行します。
 
 1. `npm ci` と本番・開発依存を含むhigh/critical監査、CodeQL解析、Action SHA固定検査

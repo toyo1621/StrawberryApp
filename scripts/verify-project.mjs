@@ -43,9 +43,10 @@ requireValue(
   'Web builds must inject the security policy metadata.',
 );
 requireValue(
-  packageJson.scripts?.check?.includes('check:maintainability')
-    && packageJson.scripts?.check?.includes('verify:contracts')
-    && packageJson.scripts?.check?.includes('verify:privacy')
+  packageJson.scripts?.check === 'npm run check:quality && npm run audit:high'
+    && packageJson.scripts?.['check:quality']?.includes('check:maintainability')
+    && packageJson.scripts?.['check:quality']?.includes('verify:contracts')
+    && packageJson.scripts?.['check:quality']?.includes('verify:privacy')
     && packageJson.scripts?.['check:maintainability']?.includes('check-maintainability.mjs'),
   'The maintainability, generated-contract, or privacy gate is missing.',
 );
@@ -103,6 +104,15 @@ requireValue(
 
 const qualityWorkflow = await readFile(new URL('../.github/workflows/quality.yml', import.meta.url), 'utf8');
 requireValue(qualityWorkflow.includes('pull_request:'), 'The pull request quality workflow is missing.');
+requireValue(
+  qualityWorkflow.includes('run: npm run check:quality')
+    && qualityWorkflow.includes('needs: [validation, dependency-audit]')
+    && qualityWorkflow.includes('if: ${{ always() }}')
+    && qualityWorkflow.includes('run: test "$VALIDATION_RESULT" = success && test "$AUDIT_RESULT" = success')
+    && qualityWorkflow.includes('npm audit --audit-level=high --json > dependency-audit.json')
+    && !qualityWorkflow.includes('continue-on-error'),
+  'Independent dependency auditing and the mandatory combined quality gate are required.',
+);
 requireValue(qualityWorkflow.includes('build:native-bundles'), 'Native bundle compilation is missing from CI.');
 requireValue(qualityWorkflow.includes('check:native-build'), 'Native bundle budgets are missing from CI.');
 requireValue(qualityWorkflow.includes('npm run doctor'), 'The pinned Expo Doctor check is missing from CI.');
