@@ -2,6 +2,8 @@
 
 ## Pull Request Gate
 
+PRの`validation`と`dependency-audit`は独立して実行します。監査が失敗してもExpo Doctor・各ビルド・E2Eの結果を収集できますが、既存の必須チェック`quality`は両ジョブの成功を要求し、失敗・キャンセル・スキップを合格にしません。監査のJSON結果は成功・失敗にかかわらず7日間保存します。`npm run check:quality`は監査以外のローカル検証用であり、公開判定には従来どおり監査を含む`npm run check`を使います。脆弱性の例外は設定していません。
+
 `.github/workflows/quality.yml` はPull RequestごとにNode.js 22で動作し、`.github/workflows/codeql.yml` と合わせて次を実行します。
 
 1. `npm ci` と本番・開発依存を含むhigh/critical監査、CodeQL解析、Action SHA固定検査
@@ -15,6 +17,8 @@
 9. Web本番ビルド、CSP/Referrer Policy、Git SHA付き `release.json`、660 KiB/raw JS・175 KiB/gzip JS・12 MiB/島SVG・14 MiB/全体の静的予算、415 SVG完全性、Worker dry-run
 
 カバレッジ下限はアプリソースが行94%・分岐84%・関数88%、Worker全モジュールが行91%・分岐81%・関数92%です。閾値未満はNode test runnerが失敗させます。
+
+`npm test`には`test:security`を含め、braces/node-forgeの暫定パッチが実際の全インストール箇所で有効なことと、正常入力の互換性を検査します。パッチ適用失敗はpostinstallで拒否します。暫定パッチ後もnpm監査のhigh/critical拒否を維持します。詳細と削除条件は`SECURITY.md`を参照してください。
 
 可用性・競合契約として、同じ公開順位への40並列cold readを1回のD1 queryへ集約する単体テスト、32並列の実Worker/D1 HTTP読込、キャッシュのfresh/stale/失効、read-replica session、同一セッションの同時再送、同期中の端末キュー追加を自動検査します。
 

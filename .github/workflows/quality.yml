@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
+  validation:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -30,8 +30,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Static, unit, migration, and dependency checks
-        run: npm run check
+      - name: Static, unit, and migration checks
+        run: npm run check:quality
 
       - name: Verify Expo project health
         run: npm run doctor
@@ -69,3 +69,43 @@ jobs:
             .tmp/playwright-report
           if-no-files-found: ignore
           retention-days: 7
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit all dependencies
+        run: npm audit --audit-level=high --json > dependency-audit.json
+
+      - name: Preserve audit evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: dependency-audit
+          path: dependency-audit.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  quality:
+    needs: [validation, dependency-audit]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require both quality and security checks
+        env:
+          VALIDATION_RESULT: ${{ needs.validation.result }}
+          AUDIT_RESULT: ${{ needs.dependency-audit.result }}
+        run: test "$VALIDATION_RESULT" = success && test "$AUDIT_RESULT" = success
