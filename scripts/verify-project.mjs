@@ -44,6 +44,9 @@ requireValue(
 );
 requireValue(
   packageJson.scripts?.check === 'npm run check:quality && npm run audit:high'
+    && packageJson.scripts?.postinstall === 'patch-package --error-on-fail'
+    && packageJson.scripts?.test?.includes('npm run test:security')
+    && packageJson.scripts?.['test:security'] === 'node --test scripts/test-dependency-security.mjs'
     && packageJson.scripts?.['check:quality']?.includes('check:maintainability')
     && packageJson.scripts?.['check:quality']?.includes('verify:contracts')
     && packageJson.scripts?.['check:quality']?.includes('verify:privacy')

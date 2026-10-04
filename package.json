@@ -3,7 +3,7 @@
   "version": "1.5.1",
   "main": "src/main.tsx",
   "scripts": {
-    "postinstall": "patch-package",
+    "postinstall": "patch-package --error-on-fail",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
@@ -19,7 +19,8 @@
     "typecheck": "npm run typecheck:app && npm run typecheck:worker",
     "typecheck:app": "tsc -p tsconfig.app.json --noEmit",
     "typecheck:worker": "tsc -p worker/tsconfig.json --noEmit",
-    "test": "npm run test:app && npm run test:worker && npm run test:operational && npm run test:db && npm run test:integration",
+    "test": "npm run test:security && npm run test:app && npm run test:worker && npm run test:operational && npm run test:db && npm run test:integration",
+    "test:security": "node --test scripts/test-dependency-security.mjs",
     "test:app": "tsc -p tsconfig.test.json && node --test --experimental-test-coverage --test-coverage-include='.tmp/app-tests/src/**/*.js' --test-coverage-lines=94 --test-coverage-branches=84 --test-coverage-functions=88 .tmp/app-tests/tests/*.test.js",
     "test:worker": "tsc -p worker/tsconfig.test.json && node --test --experimental-test-coverage --test-coverage-include='.tmp/worker-tests/*.js' --test-coverage-exclude='.tmp/worker-tests/*.test.js' --test-coverage-lines=91 --test-coverage-branches=81 --test-coverage-functions=92 .tmp/worker-tests/*.test.js",
     "test:db": "node scripts/test-d1-schema.mjs",

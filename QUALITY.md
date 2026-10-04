@@ -18,6 +18,8 @@ PRの`validation`と`dependency-audit`は独立して実行します。監査が
 
 カバレッジ下限はアプリソースが行94%・分岐84%・関数88%、Worker全モジュールが行91%・分岐81%・関数92%です。閾値未満はNode test runnerが失敗させます。
 
+`npm test`には`test:security`を含め、braces/node-forgeの暫定パッチが実際の全インストール箇所で有効なことと、正常入力の互換性を検査します。パッチ適用失敗はpostinstallで拒否します。暫定パッチ後もnpm監査のhigh/critical拒否を維持します。詳細と削除条件は`SECURITY.md`を参照してください。
+
 可用性・競合契約として、同じ公開順位への40並列cold readを1回のD1 queryへ集約する単体テスト、32並列の実Worker/D1 HTTP読込、キャッシュのfresh/stale/失効、read-replica session、同一セッションの同時再送、同期中の端末キュー追加を自動検査します。
 
 失敗時のPlaywright trace、スクリーンショット、HTML reportは7日間だけCI artifactへ保存します。
