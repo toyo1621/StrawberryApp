@@ -44,6 +44,23 @@
 
 通常の変更では `npm ci` を使い、lockfileを必ずレビューします。CIの `npm run audit:high` は本番・開発依存のhigh/criticalを公開前に拒否します。脆弱な推移依存をoverrideする場合は修正版を固定し、単体、実D1統合、E2E、本番相当ビルド、Wrangler dry-runを全て実行します。
 
+### PR #60の限定更新（2026-10-14確認）
+
+- `shell-quote` 1.12.0は[GHSA-pqg4-j6r4-53mv](https://github.com/advisories/GHSA-pqg4-j6r4-53mv)の修正を含みます。コメント後の改行入りトークンを拒否することを回帰テストします。現在のReact DevToolsの確認できた使用箇所は`REACT_EDITOR`のparseであり、対象のquote処理へのプレイヤー入力経路は確認していません。DevTools組み込みコードはlockfile更新で置換されるものではありません。
+- `sharp`のoverrideを0.35.5へ更新し、[GHSA-wq5f-xc86-pv6w](https://github.com/advisories/GHSA-wq5f-xc86-pv6w)の修正済みlibrsvg 2.63.2を読み込むことと、正常SVGの画素出力をテストします。依存経路はWrangler/Miniflareのローカル画像処理です。現在のWorkerに画像bindingやcf.image利用はありませんが、ローカル内部経路の外部露出は未検証です。
+- `source-map-js`をPostCSSの許容範囲内の1.2.2へ更新し、[GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q)の不正・過大・累積offset拒否、生成コードの末尾で変換が完了することをテストします。PostCSSはこの依存を使用しますが、現在のアプリ入力から脆弱なSourceNode処理への経路は確認していません。
+- Wranglerを4.147.0へ限定更新し、Miniflareのundiciを7.29.1へ更新します。旧7.29.0に対する10件のアドバイザリは監査から解消しました。Wranglerのpeer条件に合わせ、Worker型定義も前回検証済みの5.20261003.1へ固定します。Expo SDK 54、React Native 0.81.5、Expo CLI側のundici 6.28.1は維持します。
+
+更新前のPR #60に対する監査はHigh 27件・Moderate 6件、更新後はHigh 23件・Moderate 5件です。この件数は依存元への伝播を含み、更新後の独立したアドバイザリは次の3件です。
+
+| 残る対象 | 確認した依存・呼び出し経路 | 状態 |
+| --- | --- | --- |
+| [braces 3.0.3 / GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | Metro/Jest/patch-packageからのmicromatch依存。確認した通常マッチングはpicomatch経由 | High。公式修正版なし。PR #58の暫定パッチはこのPRに含めていません |
+| [node-forge 1.4.0 / GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv) | Expo CLIの証明書・RSA検証。現在の設定には独自更新署名とEAS projectIdがない | High。公式修正版なし。PR #58の暫定パッチはこのPRに含めていません |
+| [sprintf-js 1.0.3 / GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c) | Jest設定読込からjs-yaml/argparseの書式処理。確認した書式はツール側で定義 | Moderate。公式修正版なし。React Nativeの強制更新は行っていません |
+
+上記3件についてプレイヤー入力から脆弱処理への経路は確認していませんが、本番バンドルからの完全な不在や到達不能の証明ではありません。監査除外とリスク受容は設定せず、独立した`dependency-audit`と集約`quality`は残るHighを拒否します。本番への反映は別途行います。
+
 ## 既知の限界
 
 - CORSはブラウザ境界であり、API認証ではありません。ゲームセッション、投稿、履歴、削除は端末Bearerトークンで認可します。
