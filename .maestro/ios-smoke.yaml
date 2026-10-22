@@ -2,55 +2,74 @@ appId: com.strawberrygame.app
 ---
 - launchApp:
     clearState: true
-- assertVisible: 'つめチャレ！'
+- assertVisible: つめチャレ！
 - takeScreenshot: home-portrait
 - scrollUntilVisible:
     element:
       id: player-name
+    waitToSettleTimeoutMs: 500
 - tapOn:
     id: player-name
+    waitToSettleTimeoutMs: 500
 - inputText: NativeQA
 - pressKey: Enter
 - scrollUntilVisible:
     element:
       id: game-choice-1
+    waitToSettleTimeoutMs: 500
 - assertVisible:
     id: game-choice-1
 - assertVisible:
     id: game-choice-2
-- tapOn: '選択肢[12]、(いちご|ショートケーキ|ホールケーキ)'
+- tapOn:
+    text: '選択肢[12]、(いちご|ショートケーキ|ホールケーキ)'
+    waitToSettleTimeoutMs: 500
 - scrollUntilVisible:
     element:
       id: game-score
     direction: UP
+    waitToSettleTimeoutMs: 500
 - copyTextFrom:
     id: game-score
-- evalScript: ${output.score = maestro.copiedText}
+- evalScript: '${output.score = maestro.copiedText}'
 - runFlow:
     when:
-      true: ${DEVICE_FAMILY === 'iPad'}
+      'true': '${DEVICE_FAMILY === ''iPad''}'
     commands:
       - setOrientation: LANDSCAPE_LEFT
       - scrollUntilVisible:
           element:
             id: game-score
           direction: UP
-      - assertVisible: ${output.score}
+          waitToSettleTimeoutMs: 500
+      - assertVisible: '${output.score}'
       - takeScreenshot: game-landscape
-      - setOrientation: PORTRAIT
-      - assertVisible: ${output.score}
 - takeScreenshot: strawberry
 - scrollUntilVisible:
-    element: 'ゲームをやめてホームに戻る'
+    element: ゲームをやめてホームに戻る
     direction: UP
-- tapOn: 'ゲームをやめてホームに戻る'
-- tapOn: '島モードを選択'
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: ゲームをやめてホームに戻る
+    waitToSettleTimeoutMs: 500
+- runFlow:
+    when:
+      'true': '${DEVICE_FAMILY === ''iPad''}'
+    commands:
+      - setOrientation: PORTRAIT
+- tapOn:
+    text: 島モードを選択
+    waitToSettleTimeoutMs: 500
 - scrollUntilVisible:
-    element: '島モードでゲームを開始'
-- tapOn: '島モードでゲームを開始'
+    element: 島モードでゲームを開始
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 島モードでゲームを開始
+    waitToSettleTimeoutMs: 500
 - scrollUntilVisible:
     element:
       id: game-choice-1
+    waitToSettleTimeoutMs: 500
 - assertVisible:
     id: game-choice-1
 - assertVisible:
@@ -58,17 +77,27 @@ appId: com.strawberrygame.app
 - takeScreenshot: islands
 - tapOn:
     id: game-choice-1
+    waitToSettleTimeoutMs: 500
 - scrollUntilVisible:
-    element: 'ゲームをやめてホームに戻る'
+    element: ゲームをやめてホームに戻る
     direction: UP
-- tapOn: 'ゲームをやめてホームに戻る'
-- tapOn: '国旗モードを選択'
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: ゲームをやめてホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 国旗モードを選択
+    waitToSettleTimeoutMs: 500
 - scrollUntilVisible:
-    element: '国旗モードでゲームを開始'
-- tapOn: '国旗モードでゲームを開始'
+    element: 国旗モードでゲームを開始
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 国旗モードでゲームを開始
+    waitToSettleTimeoutMs: 500
 - scrollUntilVisible:
     element:
       id: game-choice-1
+    waitToSettleTimeoutMs: 500
 - assertVisible:
     id: game-choice-1
 - assertVisible:
@@ -76,17 +105,27 @@ appId: com.strawberrygame.app
 - takeScreenshot: flags
 - tapOn:
     id: game-choice-1
+    waitToSettleTimeoutMs: 500
 - scrollUntilVisible:
-    element: 'ゲームをやめてホームに戻る'
+    element: ゲームをやめてホームに戻る
     direction: UP
-- tapOn: 'ゲームをやめてホームに戻る'
-- tapOn: '色モードを選択'
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: ゲームをやめてホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 色モードを選択
+    waitToSettleTimeoutMs: 500
 - scrollUntilVisible:
-    element: '色モードでゲームを開始'
-- tapOn: '色モードでゲームを開始'
+    element: 色モードでゲームを開始
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 色モードでゲームを開始
+    waitToSettleTimeoutMs: 500
 - scrollUntilVisible:
     element:
       id: game-choice-1
+    waitToSettleTimeoutMs: 500
 - assertVisible:
     id: game-choice-1
 - assertVisible:
@@ -94,22 +133,32 @@ appId: com.strawberrygame.app
 - takeScreenshot: colors
 - tapOn:
     id: game-choice-1
+    waitToSettleTimeoutMs: 500
 - extendedWaitUntil:
-    visible: 'ゲーム終了'
+    visible: ゲーム終了
     timeout: 40000
 - takeScreenshot: result
 - scrollUntilVisible:
-    element: 'ホームに戻る'
-- tapOn: 'ホームに戻る'
+    element: ホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: ホームに戻る
+    waitToSettleTimeoutMs: 500
 - stopApp
 - launchApp
-- assertVisible: 'NativeQA'
+- assertVisible: NativeQA
 - scrollUntilVisible:
-    element: 'マイページを開く'
-- tapOn: 'マイページを開く'
-- assertVisible: 'NativeQA'
+    element: マイページを開く
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: マイページを開く
+    waitToSettleTimeoutMs: 500
+- assertVisible: NativeQA
 - scrollUntilVisible:
-    element: '設定を開く'
-- tapOn: '設定を開く'
-- assertVisible: 'オンラインランキングへ参加'
+    element: 設定を開く
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 設定を開く
+    waitToSettleTimeoutMs: 500
+- assertVisible: オンラインランキングへ参加
 - takeScreenshot: settings

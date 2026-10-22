@@ -18,19 +18,20 @@ on:
 permissions:
   contents: read
 
+env:
+  CI: true
+  DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+  EXPO_PUBLIC_RANKINGS_API_URL: ''
+  MAESTRO_CLI_NO_ANALYTICS: 'true'
+
 concurrency:
   group: ios-native-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  ios-simulator:
+  build-ios:
     runs-on: macos-15
-    timeout-minutes: 75
-    env:
-      CI: true
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-      EXPO_PUBLIC_RANKINGS_API_URL: ''
-      MAESTRO_CLI_NO_ANALYTICS: 'true'
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -40,12 +41,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-
-      - name: Setup Java for Maestro
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          distribution: temurin
-          java-version: 21
 
       - name: Install dependencies
         run: npm ci
@@ -61,7 +56,6 @@ jobs:
         run: pod install --project-directory=ios
 
       - name: Compile unsigned standalone iOS simulator app
-        id: compile
         run: |
           mkdir -p .tmp/ios-native
           set -o pipefail
@@ -70,8 +64,69 @@ jobs:
             -derivedDataPath .tmp/ios-derived-data \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .tmp/ios-native/xcodebuild.log
 
+      - name: Package unsigned simulator app
+        run: ditto -c -k --sequesterRsrc --keepParent .tmp/ios-derived-data/Build/Products/Release-iphonesimulator/app.app .tmp/ios-simulator-app.zip
+
+      - name: Preserve simulator app for independent device tests
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ios-simulator-app
+          path: .tmp/ios-simulator-app.zip
+          include-hidden-files: true
+          retention-days: 7
+
+      - name: Preserve native build log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ios-native-build
+          path: .tmp/ios-native
+          if-no-files-found: warn
+          retention-days: 7
+
+  test-ios:
+    needs: build-ios
+    runs-on: macos-15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: iPhone
+            device: iPhone
+            option: ''
+          - name: iPad
+            device: iPad
+            option: ''
+          - name: iPad-large-text
+            device: iPad
+            option: --large-text
+    name: Native UI (${{ matrix.name }})
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      - name: Setup Java for Maestro
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Download same-run simulator app
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ios-simulator-app
+          path: .tmp/ios-app-artifact
+
+      - name: Restore simulator app bundle
+        run: ditto -x -k .tmp/ios-app-artifact/ios-simulator-app.zip .tmp/ios-derived-data/Build/Products/Release-iphonesimulator
+
       - name: Install checksum-verified Maestro CLI
-        id: maestro
         run: |
           curl --fail --location --retry 3 \
             https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.11.0/maestro.zip \
@@ -80,32 +135,14 @@ jobs:
           unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-cli"
           echo "$RUNNER_TEMP/maestro-cli/maestro/bin" >> "$GITHUB_PATH"
 
-      - name: Exercise all modes on iPhone
-        id: iphone
-        run: node scripts/test-ios-simulator.mjs iPhone
-
-      - name: Preserve iPhone failure evidence immediately
-        if: ${{ !cancelled() && steps.iphone.outcome == 'failure' }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: ios-iphone-failure
-          path: .tmp/ios-native/iPhone
-          include-hidden-files: true
-          retention-days: 7
-
-      - name: Exercise all modes and rotation on iPad
-        if: ${{ !cancelled() && steps.compile.outcome == 'success' && steps.maestro.outcome == 'success' }}
-        run: node scripts/test-ios-simulator.mjs iPad
-
-      - name: Exercise iPad with largest accessibility text
-        if: ${{ !cancelled() && steps.compile.outcome == 'success' && steps.maestro.outcome == 'success' }}
-        run: node scripts/test-ios-simulator.mjs iPad --large-text
+      - name: Exercise modes and native accessibility layout
+        run: node scripts/test-ios-simulator.mjs "${{ matrix.device }}" "${{ matrix.option }}"
 
       - name: Preserve native build and UI evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: ios-native-evidence
+          name: ios-native-evidence-${{ matrix.name }}
           path: .tmp/ios-native
           if-no-files-found: warn
           include-hidden-files: true

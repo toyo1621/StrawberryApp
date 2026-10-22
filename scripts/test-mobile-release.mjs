@@ -56,6 +56,8 @@ test('native screenshot names remain inside the Maestro artifact directory', asy
   const collect = (steps) => {
     for (const step of steps) {
       if (step.takeScreenshot) {screenshotNames.push(step.takeScreenshot);}
+      if (step.tapOn) {assert.equal(step.tapOn.waitToSettleTimeoutMs, 500);}
+      if (step.scrollUntilVisible) {assert.equal(step.scrollUntilVisible.waitToSettleTimeoutMs, 500);}
       if (step.runFlow?.commands) {collect(step.runFlow.commands);}
     }
   };
