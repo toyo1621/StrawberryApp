@@ -4,15 +4,6 @@
     "appVersionSource": "remote"
   },
   "build": {
-    "development": {
-      "distribution": "internal",
-      "ios": {
-        "buildConfiguration": "Debug"
-      },
-      "env": {
-        "EXPO_PUBLIC_RANKINGS_API_URL": ""
-      }
-    },
     "preview": {
       "distribution": "internal",
       "env": {

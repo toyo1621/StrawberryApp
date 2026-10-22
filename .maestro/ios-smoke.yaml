@@ -3,15 +3,14 @@ appId: com.strawberrygame.app
 - launchApp:
     clearState: true
 - assertVisible: 'つめチャレ！'
+- takeScreenshot: home-portrait
+- scrollUntilVisible:
+    element:
+      id: player-name
 - tapOn:
     id: player-name
 - inputText: NativeQA
-- scrollUntilVisible:
-    element: 'いちごモードでゲームを開始'
-- takeScreenshot: ${ARTIFACT_DIR}/home-portrait
-- scrollUntilVisible:
-    element: 'いちごモードでゲームを開始'
-- tapOn: 'いちごモードでゲームを開始'
+- pressKey: Enter
 - scrollUntilVisible:
     element:
       id: game-choice-1
@@ -37,10 +36,10 @@ appId: com.strawberrygame.app
             id: game-score
           direction: UP
       - assertVisible: ${output.score}
-      - takeScreenshot: ${ARTIFACT_DIR}/game-landscape
+      - takeScreenshot: game-landscape
       - setOrientation: PORTRAIT
       - assertVisible: ${output.score}
-- takeScreenshot: ${ARTIFACT_DIR}/strawberry
+- takeScreenshot: strawberry
 - scrollUntilVisible:
     element: 'ゲームをやめてホームに戻る'
     direction: UP
@@ -56,7 +55,7 @@ appId: com.strawberrygame.app
     id: game-choice-1
 - assertVisible:
     id: game-choice-2
-- takeScreenshot: ${ARTIFACT_DIR}/islands
+- takeScreenshot: islands
 - tapOn:
     id: game-choice-1
 - scrollUntilVisible:
@@ -74,7 +73,7 @@ appId: com.strawberrygame.app
     id: game-choice-1
 - assertVisible:
     id: game-choice-2
-- takeScreenshot: ${ARTIFACT_DIR}/flags
+- takeScreenshot: flags
 - tapOn:
     id: game-choice-1
 - scrollUntilVisible:
@@ -92,13 +91,13 @@ appId: com.strawberrygame.app
     id: game-choice-1
 - assertVisible:
     id: game-choice-2
-- takeScreenshot: ${ARTIFACT_DIR}/colors
+- takeScreenshot: colors
 - tapOn:
     id: game-choice-1
 - extendedWaitUntil:
     visible: 'ゲーム終了'
     timeout: 40000
-- takeScreenshot: ${ARTIFACT_DIR}/result
+- takeScreenshot: result
 - scrollUntilVisible:
     element: 'ホームに戻る'
 - tapOn: 'ホームに戻る'
@@ -113,4 +112,4 @@ appId: com.strawberrygame.app
     element: '設定を開く'
 - tapOn: '設定を開く'
 - assertVisible: 'オンラインランキングへ参加'
-- takeScreenshot: ${ARTIFACT_DIR}/settings
+- takeScreenshot: settings

@@ -81,7 +81,17 @@ jobs:
           echo "$RUNNER_TEMP/maestro-cli/maestro/bin" >> "$GITHUB_PATH"
 
       - name: Exercise all modes on iPhone
+        id: iphone
         run: node scripts/test-ios-simulator.mjs iPhone
+
+      - name: Preserve iPhone failure evidence immediately
+        if: ${{ !cancelled() && steps.iphone.outcome == 'failure' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ios-iphone-failure
+          path: .tmp/ios-native/iPhone
+          include-hidden-files: true
+          retention-days: 7
 
       - name: Exercise all modes and rotation on iPad
         if: ${{ !cancelled() && steps.compile.outcome == 'success' && steps.maestro.outcome == 'success' }}

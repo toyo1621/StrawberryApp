@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { completedBuilds, validateMobileRelease } from './mobile-release-contract.mjs';
 
 const id = '12345678-1234-1234-1234-123456789abc';
@@ -45,4 +47,21 @@ test('only the finished artifact of each requested platform is selected for subm
   assert.throws(() => completedBuilds({}, 'ios'));
   assert.throws(() => completedBuilds([ios], 'all'));
   assert.throws(() => completedBuilds([ios], 'invalid'));
+});
+
+test('native screenshot names remain inside the Maestro artifact directory', async () => {
+  const { loadAll } = createRequire(import.meta.url)('js-yaml');
+  const [, commands] = loadAll(await readFile(new URL('../.maestro/ios-smoke.yaml', import.meta.url), 'utf8'));
+  const screenshotNames = [];
+  const collect = (steps) => {
+    for (const step of steps) {
+      if (step.takeScreenshot) {screenshotNames.push(step.takeScreenshot);}
+      if (step.runFlow?.commands) {collect(step.runFlow.commands);}
+    }
+  };
+  collect(commands);
+  assert.equal(screenshotNames.length, 8);
+  for (const name of screenshotNames) {
+    assert.match(name, /^[a-z][a-z0-9-]*$/);
+  }
 });

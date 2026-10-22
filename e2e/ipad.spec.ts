@@ -65,3 +65,33 @@ test('all four games keep their score and running timer when an iPad rotates or 
   }
   expect(errors).toEqual([]);
 });
+
+test('both memory challenges stay operable in a narrow iPad window and preserve the completed result', async ({ page }) => {
+  await page.clock.install();
+  await page.addInitScript(() => { Math.random = () => 0.01; });
+  await page.setViewportSize({ width: 375, height: 768 });
+  await page.goto('/');
+  await page.getByLabel('プレイヤー名', { exact: true }).fill('記憶テスト');
+  await page.getByRole('button', { name: 'いちごモードでゲームを開始' }).click();
+  await page.getByRole('button', { name: /選択肢[12]、(いちご|ショートケーキ|ホールケーキ)$/ }).click();
+  await page.clock.runFor(40_000);
+  for (let challenge = 0; challenge < 2; challenge += 1) {
+    const choices = page.getByRole('button', { name: /選択肢[1-4]、/ });
+    await expect(choices).toHaveCount(4);
+    const labels = await choices.allTextContents();
+    await page.setViewportSize({ width: 834, height: 1194 });
+    expect(await choices.allTextContents()).toEqual(labels);
+    await page.setViewportSize({ width: 320, height: 568 });
+    await expectNoHorizontalOverflow(page);
+    for (const choice of await choices.all()) {
+      await choice.scrollIntoViewIfNeeded();
+      const box = await choice.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(320);
+    }
+    await choices.first().click();
+    await page.clock.runFor(1_300);
+  }
+  await expect(page.getByRole('heading', { name: 'ゲーム終了' })).toBeVisible();
+  await expect(page.getByText(/スコアは端末履歴だけに保存しました/)).toBeVisible();
+});

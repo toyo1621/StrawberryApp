@@ -50,7 +50,7 @@ WebKitのiPad試験は834×1194、1194×834、1366×1024、375×768、320×568�
 EXPO_PUBLIC_RANKINGS_API_URL= npm run ios
 ```
 
-EASの `ios-simulator` プロファイルは、Metroサーバー不要のReleaseアプリを作り、API送信を無効にします。クラウド利用にはExpoログインと実際のプロジェクトIDが必要です。`development` は通常のDebugアプリで、`expo-dev-client` は導入していません。Debug起動は `npm run ios` とMetroを使います。
+EASの `ios-simulator` プロファイルは、Metroサーバー不要のReleaseアプリを作り、API送信を無効にします。クラウド利用にはExpoログインと実際のプロジェクトIDが必要です。`preview` は登録実機向けの内部配布、`production` はストア配布です。`expo-dev-client` を前提にする未構成のdevelopmentプロファイルは残さず、ローカルのDebug開発は `npm run ios` とMetroを使います。
 
 ## リリース判定
 
@@ -60,7 +60,7 @@ EASの `ios-simulator` プロファイルは、Metroサーバー不要のRelease
 | WebのiPad操作 | 専用Playwright試験で検証。ネイティブの証拠とは別扱い |
 | ネイティブコンパイル・シミュレータUI | CI runと成果物を確認して記録する。設定追加だけでは成功扱いしない |
 | 依存監査 | 2026年10月22日: 高23・中5の計28パッケージ、根本警告はbraces／node-forge／sprintf-jsの3種類。失敗は維持 |
-| EAS／署名／TestFlight | 所有者のログイン・Apple資格情報が未設定。未実行 |
+| EAS／署名／TestFlight | EASは未ログイン。Apple側の登録・資格情報は未確認。署名ビルド／提出は未実行 |
 | 実機VoiceOver・振動・iPadマルチタスク | 証拠不足。所有者またはテスターによる実機確認が必要 |
 | 公開名前のモデレーション | ブロック等が未実装。運営方針と最小実装を審査前に確定する |
 | App Store本公開 | 未実行。所有者の提出・審査・公開判断が必要 |

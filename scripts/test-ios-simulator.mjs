@@ -90,10 +90,10 @@ try {
       resolve(artifactDirectory, 'results.xml'),
       '--debug-output',
       artifactDirectory,
+      '--test-output-dir',
+      artifactDirectory,
       '-e',
       `DEVICE_FAMILY=${family}`,
-      '-e',
-      `ARTIFACT_DIR=${artifactDirectory}`,
     ],
     { stdio: 'inherit', timeout: 600_000 },
   );

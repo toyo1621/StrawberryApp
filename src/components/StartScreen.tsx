@@ -38,7 +38,7 @@ const useStartScreenLayout = () => {
   const wide = width >= 1000 && fontScale <= 1.3;
   return {
     content: compact && styles.scrollContentCompact,
-    surface: [compact && styles.surfaceCompact, wide && styles.surfaceWide],
+    surface: [compact && styles.surfaceCompact, width >= 760 && styles.surfaceTablet, wide && styles.surfaceWide],
     columns: wide && styles.columnsWide,
     column: wide && styles.columnWide,
   };
@@ -158,7 +158,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
           <View style={[styles.startColumn, layout.column]}>
             <View style={styles.header}>
               <Text style={[styles.brandName, { color: theme.textMuted }]}>{APP_NAME}</Text>
-              <Text accessible={false} style={styles.heroEmoji}>
+              <Text accessible={false} maxFontSizeMultiplier={1} style={styles.heroEmoji}>
                 {config.emoji}
               </Text>
               <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: accent }]}>
@@ -308,6 +308,7 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 14,
   },
+  surfaceTablet: { maxWidth: 760 },
   surfaceWide: { maxWidth: 1040 },
   columns: { gap: 20 },
   columnsWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 32 },
