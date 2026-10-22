@@ -124,7 +124,7 @@ npm run d1:import
 
 ## Expo / App Store / Play Store
 
-`app.config.js` にiOS bundle identifier、Android package、ビルド番号、1024px不透明アイコン、iOS Privacy Manifestを定義し、`eas.json`の本番環境へランキングAPI URLを固定しています。最初に所有者がExpoプロジェクトを作成／関連付けし、実際のUUIDを `EAS_PROJECT_ID` に設定します。クラウドビルド内では `EAS_BUILD_PROJECT_ID` も参照します。iOSの詳細と所有者操作は [store/IOS_RELEASE.md](./store/IOS_RELEASE.md)、[store/IOS_OWNER_ACTIONS.md](./store/IOS_OWNER_ACTIONS.md) を参照してください。
+`app.config.js` にiOS bundle identifier、Android package、ビルド番号、1024px不透明アイコン、iOS Privacy Manifestを定義し、`eas.json`の本番環境へランキングAPI URLを固定しています。最初に所有者がExpoプロジェクトを作成／関連付けし、実際のUUIDを `EAS_PROJECT_ID` に設定します。EAS CLIは `.env.local` を自動読込しないため、ローカルのEAS実行時にはシェルで明示的にexportします。GitHub ActionsではEnvironmentのVariableを使い、クラウドビルド内では自動設定される `EAS_BUILD_PROJECT_ID` も参照します。iOSの詳細と所有者操作は [store/IOS_RELEASE.md](./store/IOS_RELEASE.md)、[store/IOS_OWNER_ACTIONS.md](./store/IOS_OWNER_ACTIONS.md) を参照してください。
 
 ```bash
 npx --yes eas-cli@19.1.0 build --platform ios --profile production

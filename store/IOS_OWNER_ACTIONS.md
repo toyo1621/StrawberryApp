@@ -15,7 +15,7 @@
 
 - [ ] Expoアカウントでプロジェクトを作成／関連付けする。設定上のownerは `toyo1621`。異なるアカウントの場合は設定も合わせる。
 - [ ] ローカルで `npx --yes eas-cli@19.1.0 login` を実行する。
-- [ ] ExpoプロジェクトのUUIDを `.env.local` の `EAS_PROJECT_ID` に設定する。架空のUUIDで埋めない。
+- [ ] ExpoプロジェクトのUUIDを `EAS_PROJECT_ID` に設定する。ローカルのExpoには `.env.local` を使えるが、EAS CLIは自動では読み込まないため、実行するシェルで `export EAS_PROJECT_ID=<実際のUUID>` を設定する。架空のUUIDで埋めない。
 - [ ] 最初の署名ビルドは所有者が対話的に実行し、Apple Team・証明書・Provisioning Profileを確認する。
 
 ```bash
@@ -65,3 +65,4 @@ npx --yes eas-cli@19.1.0 build --platform ios --profile production
 - [App Privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/)
 - [ユーザー生成コンテンツのガイドライン](https://developer.apple.com/app-store/review/guidelines/#user-generated-content)
 - [ExpoのiOS提出手順](https://docs.expo.dev/submit/ios/)
+- [EAS CLIとExpo CLIの環境変数の違い](https://docs.expo.dev/eas/environment-variables/faq/)
