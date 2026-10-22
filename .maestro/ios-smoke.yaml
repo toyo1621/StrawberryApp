@@ -4,6 +4,13 @@ appId: com.strawberrygame.app
     clearState: true
 - assertVisible: つめチャレ！
 - takeScreenshot: home-portrait
+- runFlow:
+    when:
+      'true': '${DEVICE_FAMILY === ''iPad''}'
+    commands:
+      - setOrientation: LANDSCAPE_LEFT
+      - assertVisible: つめチャレ！
+      - takeScreenshot: home-landscape
 - scrollUntilVisible:
     element:
       id: player-name
@@ -21,42 +28,45 @@ appId: com.strawberrygame.app
     id: game-choice-1
 - assertVisible:
     id: game-choice-2
+- takeScreenshot: strawberry
 - tapOn:
     text: '選択肢[12]、(いちご|ショートケーキ|ホールケーキ)'
     waitToSettleTimeoutMs: 500
-- scrollUntilVisible:
-    element:
-      id: game-score
-    direction: UP
-    waitToSettleTimeoutMs: 500
-- copyTextFrom:
-    id: game-score
-- evalScript: '${output.score = maestro.copiedText}'
+- extendedWaitUntil:
+    visible: '(ゲーム終了|記憶チャレンジ|最終記憶チャレンジ)'
+    timeout: 40000
 - runFlow:
     when:
-      'true': '${DEVICE_FAMILY === ''iPad''}'
+      visible: 記憶チャレンジ
     commands:
-      - setOrientation: LANDSCAPE_LEFT
       - scrollUntilVisible:
-          element:
-            id: game-score
-          direction: UP
+          element: '選択肢1、.*'
           waitToSettleTimeoutMs: 500
-      - assertVisible: '${output.score}'
-      - takeScreenshot: game-landscape
-- takeScreenshot: strawberry
+      - tapOn:
+          text: '選択肢1、.*'
+          waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: '(ゲーム終了|最終記憶チャレンジ)'
+    timeout: 20000
+- runFlow:
+    when:
+      visible: 最終記憶チャレンジ
+    commands:
+      - scrollUntilVisible:
+          element: '選択肢1、.*'
+          waitToSettleTimeoutMs: 500
+      - tapOn:
+          text: '選択肢1、.*'
+          waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: ゲーム終了
+    timeout: 20000
 - scrollUntilVisible:
-    element: ゲームをやめてホームに戻る
-    direction: UP
+    element: ホームに戻る
     waitToSettleTimeoutMs: 500
 - tapOn:
-    text: ゲームをやめてホームに戻る
+    text: ホームに戻る
     waitToSettleTimeoutMs: 500
-- runFlow:
-    when:
-      'true': '${DEVICE_FAMILY === ''iPad''}'
-    commands:
-      - setOrientation: PORTRAIT
 - tapOn:
     text: 島モードを選択
     waitToSettleTimeoutMs: 500
@@ -78,12 +88,14 @@ appId: com.strawberrygame.app
 - tapOn:
     id: game-choice-1
     waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: ゲーム終了
+    timeout: 40000
 - scrollUntilVisible:
-    element: ゲームをやめてホームに戻る
-    direction: UP
+    element: ホームに戻る
     waitToSettleTimeoutMs: 500
 - tapOn:
-    text: ゲームをやめてホームに戻る
+    text: ホームに戻る
     waitToSettleTimeoutMs: 500
 - tapOn:
     text: 国旗モードを選択
@@ -106,12 +118,14 @@ appId: com.strawberrygame.app
 - tapOn:
     id: game-choice-1
     waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: ゲーム終了
+    timeout: 40000
 - scrollUntilVisible:
-    element: ゲームをやめてホームに戻る
-    direction: UP
+    element: ホームに戻る
     waitToSettleTimeoutMs: 500
 - tapOn:
-    text: ゲームをやめてホームに戻る
+    text: ホームに戻る
     waitToSettleTimeoutMs: 500
 - tapOn:
     text: 色モードを選択
@@ -144,6 +158,17 @@ appId: com.strawberrygame.app
 - tapOn:
     text: ホームに戻る
     waitToSettleTimeoutMs: 500
+- runFlow:
+    when:
+      'true': '${DEVICE_FAMILY === ''iPad''}'
+    commands:
+      - setOrientation: PORTRAIT
+- scrollUntilVisible:
+    element:
+      id: player-name
+    direction: UP
+    waitToSettleTimeoutMs: 500
+- assertVisible: NativeQA
 - stopApp
 - launchApp
 - assertVisible: NativeQA

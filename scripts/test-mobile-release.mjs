@@ -63,7 +63,20 @@ test('native screenshot names remain inside the Maestro artifact directory', asy
   };
   collect(commands);
   assert.equal(screenshotNames.length, 8);
+  assert.ok(screenshotNames.includes('home-landscape'));
+  assert.ok(!screenshotNames.includes('game-landscape'));
   for (const name of screenshotNames) {
     assert.match(name, /^[a-z][a-z0-9-]*$/);
   }
+});
+
+test('native timed rounds finish naturally and both strawberry memory prompts are handled', async () => {
+  const { loadAll } = createRequire(import.meta.url)('js-yaml');
+  const [, commands] = loadAll(await readFile(new URL('../.maestro/ios-smoke.yaml', import.meta.url), 'utf8'));
+  assert.equal(commands.filter((step) => step.extendedWaitUntil?.visible === 'ゲーム終了').length, 4);
+  for (const title of ['記憶チャレンジ', '最終記憶チャレンジ']) {
+    const flow = commands.find((step) => step.runFlow?.when?.visible === title)?.runFlow;
+    assert.ok(flow?.commands.some((step) => step.tapOn?.text === '選択肢1、.*'));
+  }
+  assert.ok(!commands.some((step) => step.evalScript || step.copyTextFrom));
 });
