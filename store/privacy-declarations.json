@@ -39,7 +39,7 @@
       "purpose": "fraud_prevention_security",
       "public": false,
       "linkedToPseudonymousUser": false,
-      "retention": "maximum_15_minutes"
+      "retention": "expires_15_minutes_after_last_update_then_scheduled_deletion"
     },
     {
       "field": "verified_game_session",

@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | Display name, score, mode, island scope | Public leaderboard | Yes | Until the player deletes their data |
 | SHA-256 player-token hash | Ranking ownership, history, deletion | No | Until the player deletes their data |
-| Salted network-abuse hash | Submission rate limiting | No | At most 15 minutes |
+| Salted network-abuse hash | Submission rate limiting | No | Expires 15 minutes after the last update, then removed by scheduled cleanup |
 | Verified game session | Reject replayed or implausible submissions | No | Until expiry, then the next scheduled cleanup |
 
 The raw player token remains in SecureStore on native platforms or local storage on the web. The API stores only its SHA-256 owner hash. The rate-limit hash uses a deployment secret and is not reused as the ranking owner identifier. A personalized ranking response adds only `isCurrentPlayer: true` to the requesting player's own row; no owner hash or stable public identifier is returned.

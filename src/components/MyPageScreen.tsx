@@ -183,6 +183,7 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
         <View style={styles.section}>
           <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>プレイヤー名</Text>
           <TextInput
+            testID="profile-player-name"
             value={name}
             onChangeText={setName}
             accessibilityLabel="プレイヤー名"

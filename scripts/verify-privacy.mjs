@@ -26,6 +26,11 @@ requireValue(
   declarations.data.every((entry) => entry.field && entry.purpose && entry.retention),
   'Every collected data field needs a purpose and retention rule.',
 );
+requireValue(
+  declarations.data.find((entry) => entry.field === 'salted_network_abuse_hash')?.retention
+    === 'expires_15_minutes_after_last_update_then_scheduled_deletion',
+  'Network-abuse retention must distinguish the 15-minute expiry from scheduled physical deletion.',
+);
 
 const dependencyNames = Object.keys({
   ...packageJson.dependencies,

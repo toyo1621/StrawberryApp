@@ -168,17 +168,31 @@ appId: com.strawberrygame.app
       id: player-name
     direction: UP
     waitToSettleTimeoutMs: 500
-- assertVisible: NativeQA
+- copyTextFrom:
+    id: player-name
+- assertTrue: '${maestro.copiedText === ''NativeQA''}'
 - stopApp
 - launchApp
-- assertVisible: NativeQA
+- scrollUntilVisible:
+    element:
+      id: player-name
+    waitToSettleTimeoutMs: 500
+- copyTextFrom:
+    id: player-name
+- assertTrue: '${maestro.copiedText === ''NativeQA''}'
 - scrollUntilVisible:
     element: マイページを開く
     waitToSettleTimeoutMs: 500
 - tapOn:
     text: マイページを開く
     waitToSettleTimeoutMs: 500
-- assertVisible: NativeQA
+- scrollUntilVisible:
+    element:
+      id: profile-player-name
+    waitToSettleTimeoutMs: 500
+- copyTextFrom:
+    id: profile-player-name
+- assertTrue: '${maestro.copiedText === ''NativeQA''}'
 - scrollUntilVisible:
     element: 設定を開く
     waitToSettleTimeoutMs: 500
@@ -187,3 +201,23 @@ appId: com.strawberrygame.app
     waitToSettleTimeoutMs: 500
 - assertVisible: オンラインランキングへ参加
 - takeScreenshot: settings
+- scrollUntilVisible:
+    element: 前の画面に戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 前の画面に戻る
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: プライバシーポリシーを開く
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: プライバシーポリシーを開く
+    waitToSettleTimeoutMs: 500
+- assertVisible: プライバシーポリシー
+- scrollUntilVisible:
+    element: '.*最終更新から15分を経過した後、定期処理で削除します。.*'
+    visibilityPercentage: 10
+    timeout: 60000
+    waitToSettleTimeoutMs: 500
+- assertVisible: '.*最終更新から15分を経過した後、定期処理で削除します。.*'
+- takeScreenshot: privacy

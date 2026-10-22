@@ -37,6 +37,8 @@ test('home and policy screens have no detectable accessibility violations', asyn
   await page.getByRole('button', { name: 'マイページを開く' }).click();
   await page.getByRole('button', { name: 'プライバシーポリシーを開く' }).click();
   await expect(page.getByRole('heading', { name: 'プライバシーポリシー' })).toBeVisible();
+  await expect(page.getByText('最終更新から15分を経過した後、定期処理で削除します', { exact: false })).toBeVisible();
+  await expect(page.getByText('最大15分', { exact: false })).toHaveCount(0);
 
   await expectNoAccessibilityViolations(page);
 
@@ -55,6 +57,8 @@ test('store privacy and support pages are public, readable, and need no applicat
   await page.goto('/privacy.html');
   await expect(page.getByRole('heading', { name: 'プライバシーポリシー', exact: true })).toBeVisible();
   await expect(page.getByText('所有者ハッシュや公開用の固定識別子は返しません', { exact: false })).toBeVisible();
+  await expect(page.getByText('最終更新から15分を経過した後、定期処理で削除します', { exact: false })).toBeVisible();
+  await expect(page.getByText('最大15分', { exact: false })).toHaveCount(0);
   await expectNoAccessibilityViolations(page);
   await page.getByRole('link', { name: 'サポート', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'サポート', exact: true })).toBeVisible();

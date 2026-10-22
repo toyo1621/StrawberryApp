@@ -62,8 +62,9 @@ test('native screenshot names remain inside the Maestro artifact directory', asy
     }
   };
   collect(commands);
-  assert.equal(screenshotNames.length, 8);
+  assert.equal(screenshotNames.length, 9);
   assert.ok(screenshotNames.includes('home-landscape'));
+  assert.ok(screenshotNames.includes('privacy'));
   assert.ok(!screenshotNames.includes('game-landscape'));
   for (const name of screenshotNames) {
     assert.match(name, /^[a-z][a-z0-9-]*$/);
@@ -78,7 +79,22 @@ test('native timed rounds finish naturally and both strawberry memory prompts ar
     const flow = commands.find((step) => step.runFlow?.when?.visible === title)?.runFlow;
     assert.ok(flow?.commands.some((step) => step.tapOn?.text === '選択肢1、.*'));
   }
-  assert.ok(!commands.some((step) => step.evalScript || step.copyTextFrom));
+  const timedSteps = commands.slice(
+    commands.findIndex((step) => step.pressKey === 'Enter'),
+    commands.findLastIndex((step) => step.extendedWaitUntil?.visible === 'ゲーム終了'),
+  );
+  assert.ok(!timedSteps.some((step) => step.evalScript || step.copyTextFrom));
+});
+
+test('native saved names are verified from the intended input values rather than unrelated text', async () => {
+  const { loadAll } = createRequire(import.meta.url)('js-yaml');
+  const [, commands] = loadAll(await readFile(new URL('../.maestro/ios-smoke.yaml', import.meta.url), 'utf8'));
+  assert.deepEqual(
+    commands.filter((step) => step.copyTextFrom).map((step) => step.copyTextFrom.id),
+    ['player-name', 'player-name', 'profile-player-name'],
+  );
+  assert.equal(commands.filter((step) => step.assertTrue === "${maestro.copiedText === 'NativeQA'}").length, 3);
+  assert.ok(!commands.some((step) => step.assertVisible === 'NativeQA'));
 });
 
 test('native CI preserves each test attempt and allows slow simulator driver startup', async () => {
