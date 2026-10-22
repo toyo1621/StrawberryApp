@@ -340,6 +340,8 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flex: 1,
     minHeight: 44,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     borderWidth: 1,
     borderRadius: 8,
     alignItems: 'center',
@@ -348,7 +350,9 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontFamily: MARU_GOTHIC_FONT,
     fontSize: 14,
+    lineHeight: 20,
     fontWeight: FONT_WEIGHT_BOLD,
+    textAlign: 'center',
   },
   rankingSection: { minWidth: 0, gap: 12 },
   sectionHeader: {
@@ -388,8 +392,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 14,
+    paddingVertical: 12,
     fontFamily: MARU_GOTHIC_FONT,
     fontSize: 16,
+    lineHeight: 22,
   },
   inputError: {
     marginTop: 6,
@@ -407,6 +413,8 @@ const styles = StyleSheet.create({
   startButton: {
     width: '100%',
     minHeight: 52,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     marginTop: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -416,7 +424,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontFamily: MARU_GOTHIC_FONT,
     fontSize: 18,
+    lineHeight: 24,
     fontWeight: FONT_WEIGHT_BOLD,
+    textAlign: 'center',
   },
 });
 
