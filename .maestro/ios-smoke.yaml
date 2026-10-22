@@ -1,0 +1,112 @@
+appId: com.strawberrygame.app
+---
+- launchApp:
+    clearState: true
+- assertVisible: 'つめチャレ！'
+- tapOn:
+    id: player-name
+- inputText: NativeQA
+- hideKeyboard
+- takeScreenshot: ${ARTIFACT_DIR}/home-portrait
+- scrollUntilVisible:
+    element: 'いちごモードでゲームを開始'
+- tapOn: 'いちごモードでゲームを開始'
+- scrollUntilVisible:
+    element:
+      id: game-choice-1
+- assertVisible:
+    id: game-choice-1
+- assertVisible:
+    id: game-choice-2
+- tapOn: '選択肢[12]、いちご'
+- scrollUntilVisible:
+    element:
+      id: game-score
+    direction: UP
+- copyTextFrom:
+    id: game-score
+- evalScript: ${output.score = maestro.copiedText}
+- runFlow:
+    when:
+      true: ${DEVICE_FAMILY === 'iPad'}
+    commands:
+      - setOrientation: LANDSCAPE_LEFT
+      - scrollUntilVisible:
+          element:
+            id: game-score
+          direction: UP
+      - assertVisible: ${output.score}
+      - takeScreenshot: ${ARTIFACT_DIR}/game-landscape
+      - setOrientation: PORTRAIT
+      - assertVisible: ${output.score}
+- takeScreenshot: ${ARTIFACT_DIR}/strawberry
+- scrollUntilVisible:
+    element: 'ゲームをやめてホームに戻る'
+    direction: UP
+- tapOn: 'ゲームをやめてホームに戻る'
+- tapOn: '島モードを選択'
+- scrollUntilVisible:
+    element: '島モードでゲームを開始'
+- tapOn: '島モードでゲームを開始'
+- scrollUntilVisible:
+    element:
+      id: game-choice-1
+- assertVisible:
+    id: game-choice-1
+- assertVisible:
+    id: game-choice-2
+- takeScreenshot: ${ARTIFACT_DIR}/islands
+- tapOn:
+    id: game-choice-1
+- scrollUntilVisible:
+    element: 'ゲームをやめてホームに戻る'
+    direction: UP
+- tapOn: 'ゲームをやめてホームに戻る'
+- tapOn: '国旗モードを選択'
+- scrollUntilVisible:
+    element: '国旗モードでゲームを開始'
+- tapOn: '国旗モードでゲームを開始'
+- scrollUntilVisible:
+    element:
+      id: game-choice-1
+- assertVisible:
+    id: game-choice-1
+- assertVisible:
+    id: game-choice-2
+- takeScreenshot: ${ARTIFACT_DIR}/flags
+- tapOn:
+    id: game-choice-1
+- scrollUntilVisible:
+    element: 'ゲームをやめてホームに戻る'
+    direction: UP
+- tapOn: 'ゲームをやめてホームに戻る'
+- tapOn: '色モードを選択'
+- scrollUntilVisible:
+    element: '色モードでゲームを開始'
+- tapOn: '色モードでゲームを開始'
+- scrollUntilVisible:
+    element:
+      id: game-choice-1
+- assertVisible:
+    id: game-choice-1
+- assertVisible:
+    id: game-choice-2
+- takeScreenshot: ${ARTIFACT_DIR}/colors
+- tapOn:
+    id: game-choice-1
+- extendedWaitUntil:
+    visible: 'ゲーム終了'
+    timeout: 40000
+- takeScreenshot: ${ARTIFACT_DIR}/result
+- scrollUntilVisible:
+    element: 'ホームに戻る'
+- tapOn: 'ホームに戻る'
+- scrollUntilVisible:
+    element: 'マイページを開く'
+- tapOn: 'マイページを開く'
+- assertVisible: 'NativeQA'
+- scrollUntilVisible:
+    element: '設定を開く'
+- tapOn: '設定を開く'
+- assertVisible: 'オンラインランキングへ参加'
+- takeScreenshot: ${ARTIFACT_DIR}/settings

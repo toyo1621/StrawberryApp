@@ -250,7 +250,7 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary darkMode={settings.darkMode}>
-      <SafeAreaView role="main" style={[styles.container, settings.darkMode && styles.containerDark]} edges={['top', 'bottom']}>
+      <SafeAreaView role="main" style={[styles.container, settings.darkMode && styles.containerDark]} edges={['top', 'right', 'bottom', 'left']}>
         <StatusBar style={settings.darkMode ? "light" : "dark"} />
         <Suspense fallback={<AppLoadingFallback darkMode={settings.darkMode} />}>
           <AppScreenRouter

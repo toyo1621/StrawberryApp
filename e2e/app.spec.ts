@@ -47,6 +47,22 @@ test('home and policy screens have no detectable accessibility violations', asyn
   await expectNoAccessibilityViolations(page);
 });
 
+test('store privacy and support pages are public, readable, and need no application JavaScript', async ({ page }) => {
+  const scripts: string[] = [];
+  page.on('request', (request) => {
+    if (request.resourceType() === 'script') {scripts.push(request.url());}
+  });
+  await page.goto('/privacy.html');
+  await expect(page.getByRole('heading', { name: 'プライバシーポリシー', exact: true })).toBeVisible();
+  await expect(page.getByText('所有者ハッシュや公開用の固定識別子は返しません', { exact: false })).toBeVisible();
+  await expectNoAccessibilityViolations(page);
+  await page.getByRole('link', { name: 'サポート', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'サポート', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'お問い合わせフォーム' })).toHaveAttribute('href', 'https://forms.gle/yqPN2tyeFfXdH4nR9');
+  await expectNoAccessibilityViolations(page);
+  expect(scripts).toEqual([]);
+});
+
 test('the primary game action appears before secondary actions and the leaderboard without initial scrolling', async ({ page }) => {
   await page.goto('/');
   const startButton = page.getByRole('button', { name: 'いちごモードでゲームを開始' });
@@ -68,13 +84,15 @@ test('the primary game action appears before secondary actions and the leaderboa
       startBottom: startBox?.bottom ?? Number.POSITIVE_INFINITY,
       startTop: startBox?.top ?? Number.POSITIVE_INFINITY,
       rankingTop: rankingBox?.top ?? Number.NEGATIVE_INFINITY,
+      rankingLeft: rankingBox?.left ?? 0,
+      startRight: startBox?.right ?? Number.POSITIVE_INFINITY,
       rulesTop: rulesBox?.top ?? Number.NEGATIVE_INFINITY,
       viewportHeight: window.innerHeight,
     };
   });
 
   expect(layout.scrollY).toBe(0);
-  expect(layout.startTop).toBeLessThan(layout.rankingTop);
+  expect(layout.startTop < layout.rankingTop || layout.startRight < layout.rankingLeft).toBe(true);
   expect(layout.startTop).toBeLessThan(layout.rulesTop);
   expect(layout.startBottom).toBeLessThanOrEqual(layout.viewportHeight);
   await expect(rulesButton).toBeVisible();

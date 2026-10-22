@@ -94,6 +94,8 @@ scripts/            検証、スモーク、移行補助
 - [OPERATIONS.md](./OPERATIONS.md): 監視、障害対応、バックアップ、復旧
 - [DEPLOYMENT.md](./DEPLOYMENT.md): Worker、D1、Pages、EASの公開手順
 - [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md): Web・iOS・Androidのリリース証跡
+- [store/IOS_RELEASE.md](./store/IOS_RELEASE.md): iPhone・iPadの実装、検証、公開判定
+- [store/IOS_OWNER_ACTIONS.md](./store/IOS_OWNER_ACTIONS.md): Apple・Expoの登録と所有者側の作業
 - [CONTRIBUTING.md](./CONTRIBUTING.md): 開発・テスト・リリース手順
 - [CHANGELOG.md](./CHANGELOG.md): リリースごとの利用者・運用変更
 - [DATA_SOURCES.md](./DATA_SOURCES.md): 島データの出典、制作、変換、完全性検証

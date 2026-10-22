@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { FONT_WEIGHT_BOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
+import privacyPolicy from '../content/privacyPolicy.json';
 import { getIslandRegionLabel } from '../domain/islands';
 import {
   getPlayerNameValidationError,
@@ -115,7 +116,7 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
   };
 
   const handleOpenContactForm = async () => {
-    const url = 'https://forms.gle/yqPN2tyeFfXdH4nR9';
+    const url = privacyPolicy.contactUrl;
     try {
       if (!(await Linking.canOpenURL(url))) {
         throw new Error('Unsupported URL');

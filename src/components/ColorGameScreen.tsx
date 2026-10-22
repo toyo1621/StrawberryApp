@@ -9,6 +9,7 @@ import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES } from '../gameRules';
 import { useGameTimer } from '../hooks/useGameTimer';
 import AnswerFeedback from './game/AnswerFeedback';
 import GameFrame from './game/GameFrame';
+import { gameLayout } from './game/gameLayout';
 
 const RULES = GAMEPLAY_RULES[GameMode.COLOR];
 
@@ -127,10 +128,11 @@ const ColorGameScreen: React.FC<ColorGameScreenProps> = ({ onGameOver, hapticsEn
           <Text style={[styles.colorNameText, darkMode && styles.colorNameTextDark]}>{targetColorName}</Text>
           <Text style={[styles.descriptionText, darkMode && styles.descriptionTextDark]}>{targetColorDescription}</Text>
         </View>
-        <View style={styles.choicesContainer}>
+        <View style={gameLayout.choices}>
           {colors.map((color, index) => (
             <TouchableOpacity
               key={index}
+              testID={`game-choice-${index + 1}`}
               accessibilityRole="button"
               accessibilityLabel={`選択肢${index + 1}、マンセル値${color.munsell}、カラーコード${color.hex}`}
               accessibilityState={{ disabled: Boolean(feedback) || gameEnded }}
@@ -179,20 +181,14 @@ const styles = StyleSheet.create({
     fontFamily: MARU_GOTHIC_FONT,
     marginBottom: 16,
   },
-  choicesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    maxWidth: 384,
-    gap: 16,
-  },
   choiceButton: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: '#faf5ff',
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 12,
     borderWidth: 2,
     borderColor: '#e5e7eb',
     minHeight: 200,

@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { completedBuilds, validateMobileRelease } from './mobile-release-contract.mjs';
+
+const id = '12345678-1234-1234-1234-123456789abc';
+const prerequisites = () => ({
+  expo: { extra: { eas: { projectId: id } } },
+  eas: {
+    build: { production: { distribution: 'store' } },
+    submit: { production: { ios: { ascAppId: '1234567890' } } },
+  },
+  env: { EXPO_TOKEN: 'test-token', GITHUB_REF: 'refs/heads/main' },
+  platform: 'ios',
+  submit: true,
+});
+
+test('a store release requires the real project, a token, and reviewed main', () => {
+  assert.deepEqual(validateMobileRelease(prerequisites()), ['ios']);
+  for (const field of ['EXPO_TOKEN', 'GITHUB_REF']) {
+    const input = prerequisites();
+    delete input.env[field];
+    assert.throws(() => validateMobileRelease(input));
+  }
+  const input = prerequisites();
+  input.expo.extra.eas.projectId = 'your-project-id';
+  assert.throws(() => validateMobileRelease(input));
+});
+
+test('an iOS submission cannot proceed without an App Store Connect app ID', () => {
+  const input = prerequisites();
+  delete input.eas.submit.production.ios.ascAppId;
+  assert.throws(() => validateMobileRelease(input), /ascAppId/);
+  input.submit = false;
+  assert.deepEqual(validateMobileRelease(input), ['ios']);
+});
+
+test('only the finished artifact of each requested platform is selected for submission', () => {
+  const ios = { id, platform: 'IOS', status: 'FINISHED' };
+  const android = { ...ios, id: 'abcdef12-1234-1234-1234-123456789abc', platform: 'ANDROID' };
+  assert.deepEqual(completedBuilds([ios], 'ios'), [{ id, platform: 'ios' }]);
+  assert.equal(completedBuilds([ios, android], 'all').length, 2);
+  for (const builds of [[], [ios, ios], [{ ...ios, status: 'ERRORED' }], [{ ...ios, id: '--latest' }], [android]]) {
+    assert.throws(() => completedBuilds(builds, 'ios'));
+  }
+  assert.throws(() => completedBuilds({}, 'ios'));
+  assert.throws(() => completedBuilds([ios], 'all'));
+  assert.throws(() => completedBuilds([ios], 'invalid'));
+});

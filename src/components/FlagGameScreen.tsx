@@ -9,6 +9,7 @@ import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES } from '../gameRules';
 import { useGameTimer } from '../hooks/useGameTimer';
 import AnswerFeedback from './game/AnswerFeedback';
 import GameFrame from './game/GameFrame';
+import { gameLayout } from './game/gameLayout';
 
 const RULES = GAMEPLAY_RULES[GameMode.FLAG];
 
@@ -132,23 +133,25 @@ const FlagGameScreen: React.FC<FlagGameScreenProps> = ({ onGameOver, hapticsEnab
           <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>{targetCountryName}</Text>
           <Text style={[styles.questionText, darkMode && styles.questionTextDark]}>の国旗はどっち？</Text>
         </View>
-        <View style={styles.choicesContainer}>
+        <View style={gameLayout.choices}>
           {countries.map((country, index) => (
             <TouchableOpacity
               key={index}
+              testID={`game-choice-${index + 1}`}
               accessibilityRole="button"
               accessibilityLabel={`選択肢${index + 1}、${country.name}の国旗`}
               accessibilityState={{ disabled: Boolean(feedback) || gameEnded }}
               onPress={() => handleChoice(index)}
               disabled={!!feedback || gameEnded}
               style={[
+                gameLayout.squareChoice,
                 styles.choiceButton,
                 darkMode && styles.choiceButtonDark,
                 feedback && feedback.index !== index && styles.choiceButtonInactive,
                 gameEnded && styles.choiceButtonInactive,
               ]}
             >
-              <Text accessible={false} style={styles.flagEmoji}>{countryCodeToFlagEmoji(country.code)}</Text>
+              <Text accessible={false} maxFontSizeMultiplier={1} style={styles.flagEmoji}>{countryCodeToFlagEmoji(country.code)}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -181,20 +184,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: MARU_GOTHIC_FONT,
   },
-  choicesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    maxWidth: 384,
-  },
   choiceButton: {
-    width: 144,
-    height: 144,
     backgroundColor: '#f0fdf4',
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 8,
     borderWidth: 2,
     borderColor: '#e5e7eb',
   },

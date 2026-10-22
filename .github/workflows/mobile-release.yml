@@ -26,12 +26,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  native-validation:
+    if: inputs.platform != 'android'
+    uses: ./.github/workflows/ios-native-validation.yml
+
   release:
+    needs: native-validation
+    if: ${{ always() && (needs.native-validation.result == 'success' || needs.native-validation.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     environment: mobile-production
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
       EXPO_PUBLIC_RANKINGS_API_URL: https://strawberry-rankings-api.toyo1621.workers.dev
     steps:
       - name: Checkout
@@ -46,6 +53,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate owner setup and reviewed release branch
+        run: node scripts/validate-mobile-release.mjs "${{ inputs.platform }}" "${{ inputs.submit }}"
+
       - name: Validate project and native bundles
         run: npm run check && npm run doctor && npm run build:native-bundles && npm run check:native-build
 
@@ -53,11 +63,21 @@ jobs:
         run: |
           test -n "$EXPO_TOKEN"
           npx --yes eas-cli@19.1.0 account:view --non-interactive
-          node --input-type=module -e "const config=(await import('./app.config.js')).default.expo; if(!config.extra?.eas?.projectId) throw new Error('Run eas init once and commit extra.eas.projectId before a store build.');"
 
       - name: Build signed store artifact
-        run: npx --yes eas-cli@19.1.0 build --platform "${{ inputs.platform }}" --profile production --non-interactive --wait
+        run: |
+          mkdir -p .tmp
+          npx --yes eas-cli@19.1.0 build --platform "${{ inputs.platform }}" --profile production --non-interactive --wait --json > .tmp/mobile-builds.json
 
-      - name: Submit latest store artifact
+      - name: Submit only artifacts from this build
         if: inputs.submit
-        run: npx --yes eas-cli@19.1.0 submit --platform "${{ inputs.platform }}" --profile production --latest --non-interactive --wait
+        run: node scripts/submit-mobile-builds.mjs .tmp/mobile-builds.json "${{ inputs.platform }}"
+
+      - name: Preserve exact store build identities
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: mobile-build-identities
+          path: .tmp/mobile-builds.json
+          if-no-files-found: ignore
+          retention-days: 7

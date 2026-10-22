@@ -4,7 +4,7 @@ const root = new URL('../', import.meta.url);
 const [declarations, packageJson, privacyScreen, appConfigModule, workerSource] = await Promise.all([
   readFile(new URL('store/privacy-declarations.json', root), 'utf8').then(JSON.parse),
   readFile(new URL('package.json', root), 'utf8').then(JSON.parse),
-  readFile(new URL('src/components/PrivacyPolicyScreen.tsx', root), 'utf8'),
+  readFile(new URL('src/content/privacyPolicy.json', root), 'utf8'),
   import(`../app.config.js?privacy=${Date.now()}`),
   readFile(new URL('worker/src/index.ts', root), 'utf8'),
 ]);
