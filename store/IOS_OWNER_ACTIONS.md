@@ -28,7 +28,7 @@ npx --yes eas-cli@19.1.0 build --platform ios --profile production
 - [ ] 同Environmentに必要なレビュー承認とmainブランチ制限を設定する。
 - [ ] EASの署名・App Store Connect APIキーを初期設定する。GitHubのコードやログに秘密鍵を置かない。
 
-現在のMacではXcode本体が未導入、EASも未ログインです。ローカルシミュレータを使う場合はXcode 26以降とiOS 26ランタイムを導入し、利用規約への同意とCommand Line Toolsの選択を行ってください。CIの署名なし検証にはApple／Expoのログインは不要です。
+現在のMacではXcode本体・CocoaPodsが未導入、EASも未ログインです。ローカルシミュレータを使う場合はXcode 26以降とiOS 26ランタイムを導入し、利用規約への同意、Command Line Toolsの選択、CocoaPods 1.15.2以降の設定を行ってください。CIの署名なし検証にはApple／Expoのログインは不要です。
 
 ## 3. ストア情報と運営判断
 

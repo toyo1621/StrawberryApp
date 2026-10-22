@@ -41,6 +41,7 @@ export default defineConfig({
     },
   ],
   webServer: {
+    env: { EXPO_PUBLIC_RANKINGS_API_URL: '' },
     command: `npm run build:web:e2e && PORT=${port} npm run preview`,
     url: `http://127.0.0.1:${port}/__strawberry_preview_health`,
     reuseExistingServer: false,

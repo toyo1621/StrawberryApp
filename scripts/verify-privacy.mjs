@@ -45,6 +45,26 @@ requireValue(workerSource.includes("case 'DELETE /players/me/scores'"), 'The ser
 
 const manifests = appConfigModule.default?.expo?.ios?.privacyManifests?.NSPrivacyAccessedAPITypes;
 requireValue(Array.isArray(manifests) && manifests.length > 0, 'The iOS Privacy Manifest is missing.');
+const privacyManifest = appConfigModule.default?.expo?.ios?.privacyManifests;
+const expectedDataTypes = new Set(declarations.data.map((entry) => entry.appleDataType));
+const collectedDataTypes = privacyManifest?.NSPrivacyCollectedDataTypes ?? [];
+requireValue(privacyManifest?.NSPrivacyTracking === false, 'The iOS manifest must explicitly disable tracking.');
+requireValue(privacyManifest?.NSPrivacyTrackingDomains?.length === 0, 'Tracking domains must remain empty.');
+requireValue(
+  collectedDataTypes.length === expectedDataTypes.size
+    && new Set(collectedDataTypes.map((entry) => entry.NSPrivacyCollectedDataType)).size === expectedDataTypes.size,
+  'The manifest must declare every collected data type exactly once.',
+);
+for (const dataType of expectedDataTypes) {
+  const actual = collectedDataTypes.find((entry) => entry.NSPrivacyCollectedDataType === dataType);
+  requireValue(
+    actual && actual.NSPrivacyCollectedDataTypeLinked === declarations.data
+      .some((entry) => entry.appleDataType === dataType && entry.linkedToPseudonymousUser)
+      && actual.NSPrivacyCollectedDataTypeTracking === false
+      && JSON.stringify(actual.NSPrivacyCollectedDataTypePurposes) === '["NSPrivacyCollectedDataTypePurposeAppFunctionality"]',
+    `The iOS data collection declaration is missing or inconsistent for ${dataType}.`,
+  );
+}
 
 if (failures.length > 0) {
   throw new Error(`Privacy verification failed:\n- ${failures.join('\n- ')}`);

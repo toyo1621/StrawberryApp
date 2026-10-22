@@ -7,6 +7,7 @@
   "data": [
     {
       "field": "display_name",
+      "appleDataType": "NSPrivacyCollectedDataTypeUserID",
       "category": "user_content",
       "purpose": "app_functionality",
       "public": true,
@@ -15,6 +16,7 @@
     },
     {
       "field": "score_and_game_scope",
+      "appleDataType": "NSPrivacyCollectedDataTypeGameplayContent",
       "category": "gameplay_content",
       "purpose": "app_functionality",
       "public": true,
@@ -23,6 +25,7 @@
     },
     {
       "field": "hashed_player_token",
+      "appleDataType": "NSPrivacyCollectedDataTypeUserID",
       "category": "user_identifier",
       "purpose": "account_and_ranking_integrity",
       "public": false,
@@ -31,6 +34,7 @@
     },
     {
       "field": "salted_network_abuse_hash",
+      "appleDataType": "NSPrivacyCollectedDataTypeOtherDataTypes",
       "category": "diagnostics",
       "purpose": "fraud_prevention_security",
       "public": false,
@@ -39,6 +43,7 @@
     },
     {
       "field": "verified_game_session",
+      "appleDataType": "NSPrivacyCollectedDataTypeGameplayContent",
       "category": "gameplay_content",
       "purpose": "fraud_prevention_security",
       "public": false,

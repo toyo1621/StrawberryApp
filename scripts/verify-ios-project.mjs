@@ -35,6 +35,12 @@ assert.equal(info.ITSAppUsesNonExemptEncryption, false);
 assert.equal(info.NSAppTransportSecurity?.NSAllowsArbitraryLoads, false);
 assert.equal(info.NSFaceIDUsageDescription, undefined, 'Identity storage does not use biometric authentication.');
 assert.deepEqual(info.CFBundleLocalizations, ['ja']);
+const privacy = plist.parse(await readFile(new URL(`${projectName}/PrivacyInfo.xcprivacy`, iosDirectory), 'utf8'));
+assert.equal(privacy.NSPrivacyTracking, false);
+assert.deepEqual(
+  privacy.NSPrivacyCollectedDataTypes.map((entry) => ({ ...entry })),
+  expo.ios.privacyManifests.NSPrivacyCollectedDataTypes,
+);
 
 const project = xcode.project(new URL(`${projects[0]}/project.pbxproj`, iosDirectory).pathname);
 project.parseSync();

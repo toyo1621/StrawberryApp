@@ -27,7 +27,7 @@ export const writeStorePages = async (directory) => {
     nav{display:flex;align-items:center;gap:12px;flex-wrap:wrap}nav img{width:40px;height:40px}
     h1{font-size:26px;line-height:1.5;margin:24px 0 12px}h2{font-size:20px;line-height:1.5;margin:32px 0 12px}
     p,ul{margin:12px 0}ul{padding-left:24px}a{color:#9d174d;text-underline-offset:3px}
-    a:focus-visible{outline:3px solid #9d174d;outline-offset:4px}nav a,footer a{display:inline-block;padding:8px 0}
+    a:focus-visible{outline:3px solid currentColor;outline-offset:4px}nav a,footer a{display:inline-block;padding:8px 0}
     footer{border-top:1px solid #cbd5e1;margin-top:32px;padding-top:16px}
     @media(prefers-color-scheme:dark){:root{color:#f3f4f6;background:#111827}a{color:#f9a8d4}}
   </style>

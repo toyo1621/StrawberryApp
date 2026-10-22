@@ -61,6 +61,7 @@ jobs:
         run: pod install --project-directory=ios
 
       - name: Compile unsigned standalone iOS simulator app
+        id: compile
         run: |
           mkdir -p .tmp/ios-native
           set -o pipefail
@@ -70,6 +71,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .tmp/ios-native/xcodebuild.log
 
       - name: Install checksum-verified Maestro CLI
+        id: maestro
         run: |
           curl --fail --location --retry 3 \
             https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.11.0/maestro.zip \
@@ -82,9 +84,11 @@ jobs:
         run: node scripts/test-ios-simulator.mjs iPhone
 
       - name: Exercise all modes and rotation on iPad
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' && steps.maestro.outcome == 'success' }}
         run: node scripts/test-ios-simulator.mjs iPad
 
       - name: Exercise iPad with largest accessibility text
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' && steps.maestro.outcome == 'success' }}
         run: node scripts/test-ios-simulator.mjs iPad --large-text
 
       - name: Preserve native build and UI evidence
@@ -94,4 +98,5 @@ jobs:
           name: ios-native-evidence
           path: .tmp/ios-native
           if-no-files-found: warn
+          include-hidden-files: true
           retention-days: 7

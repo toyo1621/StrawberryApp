@@ -6,7 +6,8 @@ appId: com.strawberrygame.app
 - tapOn:
     id: player-name
 - inputText: NativeQA
-- hideKeyboard
+- scrollUntilVisible:
+    element: 'いちごモードでゲームを開始'
 - takeScreenshot: ${ARTIFACT_DIR}/home-portrait
 - scrollUntilVisible:
     element: 'いちごモードでゲームを開始'
@@ -18,7 +19,7 @@ appId: com.strawberrygame.app
     id: game-choice-1
 - assertVisible:
     id: game-choice-2
-- tapOn: '選択肢[12]、いちご'
+- tapOn: '選択肢[12]、(いちご|ショートケーキ|ホールケーキ)'
 - scrollUntilVisible:
     element:
       id: game-score
@@ -101,6 +102,9 @@ appId: com.strawberrygame.app
 - scrollUntilVisible:
     element: 'ホームに戻る'
 - tapOn: 'ホームに戻る'
+- stopApp
+- launchApp
+- assertVisible: 'NativeQA'
 - scrollUntilVisible:
     element: 'マイページを開く'
 - tapOn: 'マイページを開く'

@@ -56,6 +56,9 @@ try {
   assert.deepEqual(info.UIDeviceFamily, [1, 2]);
   assert.ok(Number(info.DTSDKName?.match(/\d+/)?.[0]) >= 26, 'The native app must use iOS SDK 26 or later.');
   assert.equal(info.ITSAppUsesNonExemptEncryption, false);
+  const privacy = JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', resolve(appPath, 'PrivacyInfo.xcprivacy')], { encoding: 'utf8' }));
+  assert.equal(privacy.NSPrivacyTracking, false);
+  assert.equal(privacy.NSPrivacyCollectedDataTypes.length, 3, 'The compiled app must declare the ranking data collection.');
   simctl('install', udid, appPath);
   await writeFile(
     resolve(artifactDirectory, 'device.json'),
@@ -95,6 +98,11 @@ try {
     { stdio: 'inherit', timeout: 600_000 },
   );
 } finally {
+  try {
+    simctl('io', udid, 'screenshot', resolve(artifactDirectory, 'final-screen.png'));
+  } catch (error) {
+    console.warn('Could not capture the final simulator screen:', error.message);
+  }
   try {
     simctl('shutdown', udid);
   } finally {

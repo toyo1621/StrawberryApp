@@ -164,6 +164,8 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
       style={[styles.scrollView, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode="on-drag"
       showsVerticalScrollIndicator={false}
     >
       <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
