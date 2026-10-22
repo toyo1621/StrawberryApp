@@ -23,6 +23,7 @@ env:
   DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
   EXPO_PUBLIC_RANKINGS_API_URL: ''
   MAESTRO_CLI_NO_ANALYTICS: 'true'
+  MAESTRO_DRIVER_STARTUP_TIMEOUT: '240000'
 
 concurrency:
   group: ios-native-${{ github.ref }}
@@ -73,13 +74,14 @@ jobs:
           name: ios-simulator-app
           path: .tmp/ios-simulator-app.zip
           include-hidden-files: true
+          overwrite: true
           retention-days: 7
 
       - name: Preserve native build log
         if: ${{ always() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: ios-native-build
+          name: ios-native-build-${{ github.run_attempt }}
           path: .tmp/ios-native
           if-no-files-found: warn
           retention-days: 7
@@ -87,7 +89,7 @@ jobs:
   test-ios:
     needs: build-ios
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -142,7 +144,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: ios-native-evidence-${{ matrix.name }}
+          name: ios-native-evidence-${{ matrix.name }}-${{ github.run_attempt }}
           path: .tmp/ios-native
           if-no-files-found: warn
           include-hidden-files: true

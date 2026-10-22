@@ -95,7 +95,7 @@ try {
       '-e',
       `DEVICE_FAMILY=${family}`,
     ],
-    { stdio: 'inherit', timeout: 600_000 },
+    { stdio: 'inherit', timeout: 900_000 },
   );
 } finally {
   try {

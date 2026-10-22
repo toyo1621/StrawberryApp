@@ -80,3 +80,18 @@ test('native timed rounds finish naturally and both strawberry memory prompts ar
   }
   assert.ok(!commands.some((step) => step.evalScript || step.copyTextFrom));
 });
+
+test('native CI preserves each test attempt and allows slow simulator driver startup', async () => {
+  const { load } = createRequire(import.meta.url)('js-yaml');
+  const workflow = load(await readFile(new URL('../.github/workflows/ios-native-validation.yml', import.meta.url), 'utf8'));
+  assert.equal(workflow.env.MAESTRO_DRIVER_STARTUP_TIMEOUT, '240000');
+  for (const job of Object.values(workflow.jobs)) {
+    for (const step of job.steps.filter((entry) => entry.uses?.startsWith('actions/upload-artifact@'))) {
+      if (step.with.name === 'ios-simulator-app') {
+        assert.equal(step.with.overwrite, true);
+      } else {
+        assert.ok(step.with.name.includes('github.run_attempt'));
+      }
+    }
+  }
+});

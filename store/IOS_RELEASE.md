@@ -34,7 +34,7 @@ WebKitのiPad試験は834×1194、1194×834、1366×1024、375×768、320×568�
 
 ### ネイティブ検証CI
 
-`.github/workflows/ios-native-validation.yml` は、Xcode 26.3でCocoaPodsを導入し、署名不要のReleaseシミュレータアプリを1回コンパイルします。同じ実行のアプリを3つの端末別ジョブへ渡し、固定版・SHA-256検証済みのMaestroで以下を操作します。ログ・JUnit・スクリーンショットは `ios-native-evidence-*`、ビルドログは `ios-native-build` に残します。端末ごとの失敗が他の端末の検証を中止することはありません。
+`.github/workflows/ios-native-validation.yml` は、Xcode 26.3でCocoaPodsを導入し、署名不要のReleaseシミュレータアプリを1回コンパイルします。同じ実行のアプリを3つの端末別ジョブへ渡し、固定版・SHA-256検証済みのMaestroで以下を操作します。ログ・JUnit・スクリーンショットは `ios-native-evidence-*`、ビルドログは `ios-native-build-*` に実行回数付きで残します。再実行で元の失敗証跡を上書きしません。ドライバーの初期起動だけは低速なCI環境に備えて最大4分待ち、ゲームの時間は変更しません。端末ごとの失敗が他の端末の検証を中止することはありません。
 
 - iPhoneで4モードの開始・回答・時間切れから結果画面、マイページ、設定。
 - iPadで同じ操作を横表示で実行し、ホームの縦横切り替えと名前の保持。
