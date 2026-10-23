@@ -26,6 +26,7 @@ import { useHardwareBackNavigation } from './hooks/useHardwareBackNavigation';
 import { useAppNavigation } from './hooks/useAppNavigation';
 import { useStrawberryJuiceEffect } from './hooks/useStrawberryJuiceEffect';
 import { saveGameResult } from './services/gameResultService';
+import { isRankingModerationError } from './services/rankingsApiClient';
 import { appStyles as styles } from './App.styles';
 
 const App: React.FC = () => {
@@ -77,10 +78,11 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const prepareGameSession = useCallback(async (mode: GameMode, selectedIslandRegion: IslandRegion) => {
+  const prepareGameSession = useCallback(async (mode: GameMode, selectedIslandRegion: IslandRegion, name: string) => {
     try {
-      return await createRankingGameSession(mode, selectedIslandRegion);
+      return await createRankingGameSession(mode, selectedIslandRegion, name);
     } catch (sessionError) {
+      if (isRankingModerationError(sessionError)) {throw sessionError;}
       console.warn('Starting an offline-only game after session creation failed.', sessionError);
       return null;
     }
@@ -101,12 +103,12 @@ const App: React.FC = () => {
     const rankingRegion = mode === GameMode.ISLAND ? selectedIslandRegion : IslandRegion.ALL;
     try {
       gameSessionRef.current = settings.onlineRankingsEnabled
-        ? await prepareGameSession(mode, rankingRegion)
+        ? await prepareGameSession(mode, rankingRegion, name)
         : null;
       if (!settings.onlineRankingsEnabled) {
         setNotice('オンラインランキングはオフです。このゲームのスコアは端末だけに保存されます。');
       } else if (!gameSessionRef.current) {
-        setNotice('オフラインで開始しました。このゲームのスコアは端末だけに保存されます。');
+        setNotice('公開ランキングに参加せず開始しました。このゲームのスコアは端末だけに保存されます。');
       }
       enterGame(mode);
     } finally {
@@ -167,7 +169,8 @@ const App: React.FC = () => {
         setError(result.warning);
       } catch (saveError) {
         console.error('Failed to save score:', saveError);
-        setError('スコアを保存できませんでした。端末の空き容量と通信状態を確認してください。');
+        setError(isRankingModerationError(saveError)
+          ? saveError.message : 'スコアを保存できませんでした。端末の空き容量と通信状態を確認してください。');
       } finally {
         gameSessionRef.current = null;
         gameStartedAtRef.current = null;
@@ -199,27 +202,28 @@ const App: React.FC = () => {
   const handlePlayAgain = useCallback(async () => {
     if (isPreparingGame) {return;}
     setIsPreparingGame(true);
-    setCurrentScore(0);
-    currentResultIdRef.current = null;
-    setMemoryAnswer('');
-    setFirstDistractor('');
     setError(null);
     setNotice(null);
     const rankingRegion = gameMode === GameMode.ISLAND ? islandRegion : IslandRegion.ALL;
     try {
       gameSessionRef.current = settings.onlineRankingsEnabled
-        ? await prepareGameSession(gameMode, rankingRegion)
+        ? await prepareGameSession(gameMode, rankingRegion, playerName)
         : null;
+      setCurrentScore(0);
+      currentResultIdRef.current = null;
+      setMemoryAnswer('');
+      setFirstDistractor('');
       if (!settings.onlineRankingsEnabled) {
         setNotice('オンラインランキングはオフです。このゲームのスコアは端末だけに保存されます。');
       } else if (!gameSessionRef.current) {
-        setNotice('オフラインで開始しました。このゲームのスコアは端末だけに保存されます。');
+        setNotice('公開ランキングに参加せず開始しました。このゲームのスコアは端末だけに保存されます。');
       }
       enterGame(gameMode);
+    } catch (startError) {setError(isRankingModerationError(startError) ? startError.message : 'ゲームを開始できませんでした。');
     } finally {
       setIsPreparingGame(false);
     }
-  }, [enterGame, gameMode, islandRegion, isPreparingGame, prepareGameSession, setError, setNotice, settings.onlineRankingsEnabled]);
+  }, [enterGame, gameMode, islandRegion, isPreparingGame, playerName, prepareGameSession, setError, setNotice, settings.onlineRankingsEnabled]);
 
   const handleSettingsChanged = useCallback(async (newSettings: AppSettings) => {
     setSettings(newSettings);

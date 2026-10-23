@@ -39,6 +39,12 @@ export default {
             NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
           },
           {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeOtherUserContent",
+            NSPrivacyCollectedDataTypeLinked: true,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          },
+          {
             NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeOtherDataTypes",
             NSPrivacyCollectedDataTypeLinked: false,
             NSPrivacyCollectedDataTypeTracking: false,

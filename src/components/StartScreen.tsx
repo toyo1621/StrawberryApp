@@ -13,6 +13,8 @@ import ModeSelector from './game/ModeSelector';
 import PeriodTabs from './ranking/PeriodTabs';
 import RankingList from './ranking/RankingList';
 import StatusBanner from './ui/StatusBanner';
+import { useModerationRevision } from '../hooks/useModerationRevision';
+import { isRankingModerationError } from '../services/rankingsApiClient';
 
 type StartScreenProps = {
   onStart: (name: string, mode: GameMode, islandRegion: IslandRegion) => void | Promise<void>;
@@ -76,6 +78,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
   const actionAccent = config.accent;
   const islandRegionLabel = getIslandRegionLabel(selectedIslandRegion);
   const usesFetchedRanking = selectedMode === GameMode.ISLAND || selectedPeriod !== RankingPeriod.ALL;
+  const moderationRevision = useModerationRevision();
 
   useEffect(() => {
     if (savedPlayerName) {
@@ -120,7 +123,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
     return () => {
       active = false;
     };
-  }, [selectedIslandRegion, selectedMode, selectedPeriod, usesFetchedRanking]);
+  }, [selectedIslandRegion, selectedMode, selectedPeriod, usesFetchedRanking, moderationRevision]);
 
   const currentRanking = useMemo(
     () => (usesFetchedRanking ? periodRanking : rankings[selectedMode]),
@@ -139,8 +142,9 @@ const StartScreen: React.FC<StartScreenProps> = ({
     try {
       await savePlayerName(normalizedName);
       await onStart(normalizedName, selectedMode, selectedIslandRegion);
-    } catch {
-      setInputError('プレイヤー名を端末に保存できませんでした。端末の空き容量と保存設定を確認してください。');
+    } catch (startError) {
+      setInputError(isRankingModerationError(startError) ? startError.message
+        : 'プレイヤー名を端末に保存できませんでした。端末の空き容量と保存設定を確認してください。');
     }
   };
 

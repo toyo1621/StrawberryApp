@@ -6,6 +6,33 @@
   "saleOfData": false,
   "data": [
     {
+      "field": "ranking_report_and_review",
+      "appleDataType": "NSPrivacyCollectedDataTypeOtherUserContent",
+      "category": "user_content",
+      "purpose": "fraud_prevention_security",
+      "public": false,
+      "linkedToPseudonymousUser": true,
+      "retention": "reports_until_90_days_or_reporter_deletion_reviews_90_days_then_scheduled_deletion"
+    },
+    {
+      "field": "private_player_blocks",
+      "appleDataType": "NSPrivacyCollectedDataTypeUserID",
+      "category": "user_identifier",
+      "purpose": "app_functionality",
+      "public": false,
+      "linkedToPseudonymousUser": true,
+      "retention": "until_unblock_or_user_deletion"
+    },
+    {
+      "field": "moderation_enforcement_hash",
+      "appleDataType": "NSPrivacyCollectedDataTypeUserID",
+      "category": "user_identifier",
+      "purpose": "fraud_prevention_security",
+      "public": false,
+      "linkedToPseudonymousUser": true,
+      "retention": "until_operator_restores_or_service_ends"
+    },
+    {
       "field": "display_name",
       "appleDataType": "NSPrivacyCollectedDataTypeUserID",
       "category": "user_content",

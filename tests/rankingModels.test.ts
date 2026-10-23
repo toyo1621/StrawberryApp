@@ -21,3 +21,10 @@ test('ranking responses accept only a boolean current-player marker', () => {
     (error) => error instanceof RankingsApiError,
   );
 });
+
+test('public ranking positions survive parsing and reject invalid counters', () => {
+  assert.equal(parseRankingEntries([{ ...entry, publicRank: 42 }])[0].publicRank, 42);
+  for (const publicRank of [0, -1, 1.5, NaN, '2', Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => parseRankingEntries([{ ...entry, publicRank }]), RankingsApiError);
+  }
+});

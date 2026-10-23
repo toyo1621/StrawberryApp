@@ -10,6 +10,7 @@
   "include": [
     "src/index.ts",
     "src/index.test.ts",
+    "src/moderation.test.ts",
     "src/rankingValidation.ts",
     "src/rankingValidation.test.ts",
     "src/test-globals.d.ts"

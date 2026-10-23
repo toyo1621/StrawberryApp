@@ -81,17 +81,34 @@ JSTの日・月境界、月曜日開始の週境界で集計します。同じ�
 
 `kyushu_north` は福岡・佐賀・長崎の90島、`kyushu_south` は熊本・大分・宮崎・鹿児島の59島です。分割前の149島で記録したスコアは条件が異なるため新2部門へ移動・複製せず、旧クライアントと本人履歴の互換用 `kyushu` に保全します。
 
-既定 `limit=30`・`no-cache` / `no-store` 指定なしの要求は実行拠点単位で、本人情報を含まない公開スナップショットをキャッシュします。30秒以内は `hit`、初回は `miss`、再検証中またはD1障害時に5分以内の保存済み値を返す場合は `stale` です。それ以外は `bypass` です。Bearer付きの通常読込は公開スナップショットへprimaryで確認した本人記録IDだけを合成します。投稿成功直後の要求はブラウザとエッジのキャッシュを `no-store` で迂回し、`first-primary` から確定済みの順位を返します。Bearer付き応答は `private, no-store`、全順位応答は `Vary: Authorization` とし、匿名応答が本人向け要求へ再利用されないようにします。投稿後は同じ拠点の対象モード・地域4期間を失効しますが、通常のBearerなし読込は別拠点で最大30秒古い結果を返す可能性があります。
+匿名で既定 `limit=30`・`no-cache` / `no-store` 指定なしの要求は拠点単位の公開スナップショットを内部キャッシュします。30秒以内は `hit`、初回は `miss`、再検証中または順位集計の不調時に5分以内の保存値を再利用する場合は `stale` です。応答前にprimaryで削除・運営制限・NG名を再確認し、確認不能時は未検査の名前を返しません。HTTP応答は `no-store` とします。
 
-通常の公開順位はD1 read replicationを許可し、投稿直後のfresh順位、本人マーカー照合、本人履歴、自己ベストはprimaryから読みます。応答の `x-d1-primary` は公開順位本体の読込先、`x-d1-region` はD1メタデータが返した地域です。削除後も別拠点のキャッシュで通常最大30秒、D1障害中のstale fallbackで最大5分、削除済みの公開行が表示される可能性があります。
+Bearer付き順位は本人ブロックをSQLの全体順位計算後・LIMIT前に適用し、常にprimaryから読み、共有キャッシュを迂回します。`publicRank` は非表示適用前の公開順位なので、相手をブロックしても全体順位は繰り上がりません。`x-rankings-cache: bypass`、`private, no-store`、`Vary: Authorization` を返します。所有者ハッシュやブロック対象キーを返しません。`x-d1-primary` と `x-d1-region` は順位本体の読込先です。取得済み画面やオフライン端末を遠隔で消すことまでは保証しません。
 
 ### 本人用Endpoints
 
 - `GET /players/me/history?gameType=<type>&limit=<1-100>`: Bearer所有者の新しい順の履歴。島は地域付きです。
 - `GET /players/me/best?gameType=<type>`: Bearer所有者の自己最高点。
-- `DELETE /players/me/scores`: Bearer所有者の全公開スコアを削除し、`{ "deleted": 4 }` を返します。
+- `DELETE /players/me/scores`: Bearer所有者の全公開スコア・本人の通報・ブロックを同じbatchで削除し、削除スコア件数 `{ "deleted": 4 }` を返します。運営制限は解除しません。
 
 本人用応答はキャッシュ禁止です。プレイヤー名をURLや認可条件に使いません。
+
+### モデレーション（本ブランチの追加）
+
+| Endpoint | 本文・応答 |
+| --- | --- |
+| `POST /ranking-reports` | 本人Bearer、`{rankingId, reason}`。reasonは `offensive`, `personal_information`, `impersonation`, `other`。`{id, status: "received"}` |
+| `GET /players/me/blocks` | 本人専用の `{id, rankingId, playerName, createdAt}[]` |
+| `POST /players/me/blocks` | 本人Bearer、`{rankingId}`。更新後の本人ブロック一覧 |
+| `DELETE /players/me/blocks` | 本人Bearer、`{blockId}`。解除後の本人ブロック一覧 |
+| `GET /moderation/reports?status=open` | 運営専用。open/hidden/dismissed/restoredの受付日時順100件 |
+| `POST /moderation/reports` | 運営専用。`{reportId, decision: "hide"/"dismiss"/"restore"}`。保持期限後の解除は `{enforcementId, decision: "restore"}` |
+| `GET /moderation/restrictions` | 運営専用の制限受付番号・日時一覧 |
+| `GET/POST/DELETE /moderation/name-rules` | 運営専用。追加は `{term, matchType: "exact"/"contains"}`、削除は `{ruleId}`、応答はルール一覧 |
+
+運営APIは `MODERATION_ADMIN_TOKEN` のBearer必須、Origin付き要求とpreflightは拒否します。すべての追加応答はno-storeです。利用者の通報とブロックは2 KiB本文・許可Origin・本人資格情報を検証します。自分自身の通報・ブロックはできません。通報は20件/24時間、通報・ブロック書込は接続元単位8件/分、ブロック最大200、NG最大100です。詳細と保持期間は [MODERATION.md](./MODERATION.md) を参照してください。
+
+NG名の400は `code: "NAME_NOT_ALLOWED"`、運営制限の403は `code: "PLAYER_RESTRICTED"` を返します。ゲーム開始のJSONに任意 `playerName` を指定すると開始前にも照合します。未指定の旧クライアントとの互換を維持し、投稿時の照合は常に行います。端末だけのプレイは停止しません。
 
 ## Browser And Native
 

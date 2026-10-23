@@ -10,10 +10,13 @@
 | SHA-256 player-token hash | Ranking ownership, history, deletion | No | Until the player deletes their data |
 | Salted network-abuse hash | Submission rate limiting | No | Expires 15 minutes after the last update, then removed by scheduled cleanup |
 | Verified game session | Reject replayed or implausible submissions | No | Until expiry, then the next scheduled cleanup |
+| Reports and review decisions | Moderation and appeals | No | Reports: 90 days or reporter deletion; decisions: 90 days; scheduled cleanup |
+| Private blocks | Hide abusive players for the viewer | No | Until unblocked or viewer deletion |
+| Enforcement target hash and reference ID | Prevent repeated prohibited publication | No | Until operator restoration or service end, not lifted by deleting scores |
 
 The raw player token remains in SecureStore on native platforms or local storage on the web. The API stores only its SHA-256 owner hash. The rate-limit hash uses a deployment secret and is not reused as the ranking owner identifier. A personalized ranking response adds only `isCurrentPlayer: true` to the requesting player's own row; no owner hash or stable public identifier is returned.
 
-The `appleDataType` mapping in the inventory covers user IDs (including display names and pseudonymous ownership), gameplay content, and other data used for short-lived network-abuse prevention. The iOS Privacy Manifest declares those types for app functionality, with tracking disabled. CI checks their linkage and purpose against the inventory and verifies the generated manifest. The manifest is not a substitute for App Store Connect's separate privacy questionnaire.
+The `appleDataType` mapping covers user IDs (including display names and pseudonymous ownership), gameplay content, other user content (reports), and other data used for short-lived network-abuse prevention. The iOS Privacy Manifest declares those types for app functionality, with tracking disabled. CI checks their linkage and purpose against the inventory and verifies the generated manifest. The manifest is not a substitute for App Store Connect's separate privacy questionnaire. Operator NG rules are private configuration, retained until removed or service end; see `MODERATION.md` for handling and limits.
 
 The in-app Japanese policy and public `privacy.html` share `src/content/privacyPolicy.json`. `support.html` uses the same contact URL. Both public pages are generated during the web build without runtime JavaScript. Publishing the pages requires the normal approved Web release.
 

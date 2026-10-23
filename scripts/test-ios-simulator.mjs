@@ -58,7 +58,7 @@ try {
   assert.equal(info.ITSAppUsesNonExemptEncryption, false);
   const privacy = JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', resolve(appPath, 'PrivacyInfo.xcprivacy')], { encoding: 'utf8' }));
   assert.equal(privacy.NSPrivacyTracking, false);
-  assert.equal(privacy.NSPrivacyCollectedDataTypes.length, 3, 'The compiled app must declare the ranking data collection.');
+  assert.equal(privacy.NSPrivacyCollectedDataTypes.length, 4, 'The compiled app must declare ranking and moderation data collection.');
   simctl('install', udid, appPath);
   await writeFile(
     resolve(artifactDirectory, 'device.json'),

@@ -6,6 +6,7 @@ import {
   parseRankingPeriod,
 } from './rankingValidation';
 import { getBearerPlayerToken, sha256Hex } from './identity';
+import { BLOCK_VISIBILITY_SQL, PUBLIC_VISIBILITY_SQL, filterModeratedSnapshot } from './moderationStore';
 import type { Env, RankingEntry, RankingRow } from './types';
 import { mapRanking } from './types';
 
@@ -14,7 +15,7 @@ const MAX_LIMIT = 100;
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const CACHE_FRESH_MS = 30 * 1000;
 const CACHE_RETENTION_SECONDS = 5 * 60;
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v3';
 const RANKING_PERIODS = PERIODS;
 type CacheStatus = 'bypass' | 'hit' | 'miss' | 'stale';
 
@@ -107,6 +108,7 @@ const queryLeaderboard = async (
   query: LeaderboardQuery,
   env: Env,
   readFromPrimary = false,
+  viewerHash: string | null = null,
 ): Promise<LeaderboardSnapshot> => {
   const params: (string | number)[] = [query.gameType, query.islandRegion];
   let where = 'game_type = ? AND island_region = ?';
@@ -114,6 +116,7 @@ const queryLeaderboard = async (
     where += ' AND created_at >= ?';
     params.push(query.start);
   }
+  where += ` AND ${PUBLIC_VISIBILITY_SQL}`;
 
   const database = readFromPrimary
     ? getPrimaryReadSession(env.DB)
@@ -128,9 +131,10 @@ const queryLeaderboard = async (
           game_type,
           island_region,
           created_at,
+          owner_hash,
           ROW_NUMBER() OVER (
             PARTITION BY owner_hash
-            ORDER BY score DESC, created_at ASC
+            ORDER BY score DESC, created_at ASC, id ASC
           ) AS rn
         FROM rankings
         WHERE ${where} AND owner_hash IS NOT NULL
@@ -143,28 +147,33 @@ const queryLeaderboard = async (
           game_type,
           island_region,
           created_at,
+          owner_hash,
           ROW_NUMBER() OVER (
             PARTITION BY lower(trim(player_name))
-            ORDER BY score DESC, created_at ASC
+            ORDER BY score DESC, created_at ASC, id ASC
           ) AS rn
         FROM rankings
         WHERE ${where} AND owner_hash IS NULL
       ),
       best_scores AS (
-        SELECT id, player_name, score, game_type, island_region, created_at
+        SELECT id, player_name, score, game_type, island_region, created_at, owner_hash
         FROM owner_ranked
         WHERE rn = 1
         UNION ALL
-        SELECT id, player_name, score, game_type, island_region, created_at
+        SELECT id, player_name, score, game_type, island_region, created_at, owner_hash
         FROM legacy_ranked
         WHERE rn = 1
+      ), ranked_scores AS (
+        SELECT *, ROW_NUMBER() OVER (ORDER BY score DESC, created_at ASC, id ASC) AS public_rank
+        FROM best_scores
       )
-      SELECT id, player_name, score, game_type, island_region, created_at
-      FROM best_scores
-      ORDER BY score DESC, created_at ASC
+      SELECT id, player_name, score, game_type, island_region, created_at, public_rank
+      FROM ranked_scores AS rankings
+      WHERE ${viewerHash ? BLOCK_VISIBILITY_SQL : '1 = 1'}
+      ORDER BY public_rank ASC
       LIMIT ?
     `,
-  ).bind(...params, ...params, query.limit).all<RankingRow>();
+  ).bind(...params, ...params, ...(viewerHash ? [viewerHash] : []), query.limit).all<RankingRow>();
 
   return {
     cachedAt: Date.now(),
@@ -194,7 +203,7 @@ const getCurrentPlayerBestEntryId = async (
       SELECT id
       FROM rankings
       WHERE game_type = ? AND island_region = ? AND owner_hash = ? ${periodClause}
-      ORDER BY score DESC, created_at ASC
+      ORDER BY score DESC, created_at ASC, id ASC
       LIMIT 1
     `,
   ).bind(...params).first<{ id: string }>();
@@ -208,9 +217,8 @@ const personalizeSnapshot = async <T extends LeaderboardSnapshot>(
   ownerHash: string | null,
   required = false,
 ): Promise<T> => {
-  if (!ownerHash) {
-    return snapshot;
-  }
+  const visibleSnapshot = { ...snapshot, entries: await filterModeratedSnapshot(env, snapshot.entries) };
+  if (!ownerHash) {return visibleSnapshot;}
   let currentEntryId: string | null;
   try {
     currentEntryId = await getCurrentPlayerBestEntryId(query, env, ownerHash);
@@ -219,11 +227,11 @@ const personalizeSnapshot = async <T extends LeaderboardSnapshot>(
       throw error;
     }
     console.warn('Serving a public leaderboard without the current-player marker.', error);
-    return snapshot;
+    return visibleSnapshot;
   }
   return {
-    ...snapshot,
-    entries: snapshot.entries.map((entry) => (
+    ...visibleSnapshot,
+    entries: visibleSnapshot.entries.map((entry) => (
       entry.id === currentEntryId ? { ...entry, isCurrentPlayer: true } : entry
     )),
   } as T;
@@ -263,6 +271,7 @@ const isRankingEntry = (value: unknown): value is RankingEntry => {
     && typeof entry.gameType === 'string'
     && typeof entry.islandRegion === 'string'
     && typeof entry.createdAt === 'string'
+    && (entry.publicRank === undefined || (Number.isSafeInteger(entry.publicRank) && entry.publicRank > 0))
     && entry.isCurrentPlayer === undefined;
 };
 
@@ -347,13 +356,13 @@ export const fetchLeaderboard = async (
   const query = parseLeaderboardQuery(request);
   const playerToken = getBearerPlayerToken(request, false);
   const ownerHash = playerToken ? await sha256Hex(`player:${playerToken}`) : null;
-  const readFromPrimary = ownerHash !== null && !canUseCache(request, query);
+  const readFromPrimary = ownerHash !== null;
   const cache = getEdgeCache();
-  if (!cache || !canUseCache(request, query)) {
+  if (ownerHash || !cache || !canUseCache(request, query)) {
     return personalizeSnapshot({
-      ...await queryLeaderboard(query, env, readFromPrimary),
+      ...await queryLeaderboard(query, env, readFromPrimary, ownerHash),
       cacheStatus: 'bypass',
-    }, query, env, ownerHash, readFromPrimary);
+    }, query, env, ownerHash, ownerHash !== null && !canUseCache(request, query));
   }
 
   const key = buildCacheKey(request.url, query.gameType, query.islandRegion, query.period);

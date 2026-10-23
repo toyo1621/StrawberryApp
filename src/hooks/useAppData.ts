@@ -16,6 +16,7 @@ import {
   type AppSettings,
 } from '../services/settingsService';
 import { GameMode, type RankingsByMode } from '../types';
+import { subscribeModerationChanges } from '../services/moderationService';
 
 type AppData = {
   playerName: string;
@@ -50,6 +51,12 @@ export const useAppData = (): AppData => {
   const [notice, setNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>({ ...DEFAULT_SETTINGS });
   const pendingSyncInFlightRef = useRef(false);
+
+  useEffect(() => subscribeModerationChanges(() => {
+    setRankingsByMode(createEmptyRankings());
+    void fetchAllRankingsWithStatus().then((result) => setRankingsByMode(result.rankings))
+      .catch(() => setError('ブロック変更後のランキングを更新できませんでした。'));
+  }), []);
 
   useEffect(() => {
     const loadData = async (): Promise<void> => {

@@ -40,6 +40,11 @@ const ALL_STORAGE_KEYS = [
   ...API_GAME_TYPES.map(getPlayerHistoryStorageKey),
 ];
 
+export const clearPublicRankingSnapshots = async (): Promise<void> => {
+  const publicKeys = ALL_STORAGE_KEYS.filter((key) => !key.startsWith(PLAYER_HISTORY_KEY_PREFIX));
+  await Promise.all(publicKeys.map((key) => withStorageWriteLock(key, () => AsyncStorage.removeItem(key))));
+};
+
 const storageWriteTails = new Map<string, Promise<void>>();
 
 const withStorageWriteLock = <T>(key: string, operation: () => Promise<T>): Promise<T> => {

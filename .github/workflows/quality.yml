@@ -48,6 +48,9 @@ jobs:
       - name: End-to-end, responsive, accessibility, and performance tests
         run: npm run test:e2e
 
+      - name: Public ranking moderation interactions
+        run: npm run test:e2e:moderation
+
       - name: Build production web app
         run: npm run build:web
         env:
@@ -67,6 +70,8 @@ jobs:
           path: |
             .tmp/playwright-results
             .tmp/playwright-report
+            .tmp/playwright-moderation-results
+            .tmp/playwright-moderation-report
           if-no-files-found: ignore
           retention-days: 7
 
@@ -85,6 +90,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify scoped dependency mitigations
+        run: npm run test:tooling
 
       - name: Audit all dependencies
         run: npm audit --audit-level=high --json > dependency-audit.json

@@ -46,6 +46,9 @@ jobs:
       - name: End-to-end and accessibility tests
         run: npm run test:e2e
 
+      - name: Public ranking moderation interactions
+        run: npm run test:e2e:moderation
+
       - name: Validate production configuration
         run: test -n "$EXPO_PUBLIC_RANKINGS_API_URL"
         env:

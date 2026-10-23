@@ -21,6 +21,7 @@ import {
 } from '../services/settingsService';
 import { getTheme } from '../theme';
 import StatusBanner from './ui/StatusBanner';
+import BlockedPlayers from './ranking/BlockedPlayers';
 
 type SettingsScreenProps = {
   onBack: () => void;
@@ -166,6 +167,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </View>
         </View>
 
+        <BlockedPlayers darkMode={darkMode} />
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="前の画面に戻る"
