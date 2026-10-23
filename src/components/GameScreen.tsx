@@ -8,6 +8,7 @@ import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES, ticksToSeconds } from '../gameRules
 import { useGameTimer } from '../hooks/useGameTimer';
 import { GameMode } from '../types';
 import GameFrame from './game/GameFrame';
+import { gameLayout } from './game/gameLayout';
 
 const RULES = GAMEPLAY_RULES[GameMode.STRAWBERRY];
 
@@ -262,16 +263,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
         ) : (
           <Text style={[styles.questionTextNormal, darkMode && styles.questionTextNormalDark]}>いちごはどっち？</Text>
         )}
-        <View style={styles.choicesContainer}>
+        <View style={gameLayout.choices}>
           {items.map((item, index) => (
             <TouchableOpacity
               key={index}
+              testID={`game-choice-${index + 1}`}
               accessibilityRole="button"
               accessibilityLabel={`選択肢${index + 1}、${describeEmoji(item)}`}
               accessibilityState={{ disabled: Boolean(feedback) || gameEnded }}
               onPress={() => handleChoice(index)}
               disabled={!!feedback || gameEnded}
               style={[
+                gameLayout.squareChoice,
                 styles.choiceButton,
                 darkMode && styles.choiceButtonDark,
                 feedback && feedback.index === index && feedback.type === 'correct' && styles.choiceButtonCorrect,
@@ -279,7 +282,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ onGameOver, onMemoryGame, hapti
                 gameEnded && styles.choiceButtonInactive,
               ]}
             >
-              <Text style={styles.choiceEmoji}>{item}</Text>
+              <Text accessible={false} maxFontSizeMultiplier={1} style={styles.choiceEmoji}>{item}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -379,15 +382,7 @@ const styles = StyleSheet.create({
   pointsTextYellowDark: {
     color: '#fde047',
   },
-  choicesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    maxWidth: 384,
-  },
   choiceButton: {
-    width: 144,
-    height: 144,
     backgroundColor: '#fdf2f8',
     borderRadius: 8,
     alignItems: 'center',
@@ -406,7 +401,7 @@ const styles = StyleSheet.create({
   encouragementContainer: {
     alignItems: 'center',
     marginTop: 16,
-    height: 32, // 固定の高さを設定
+    minHeight: 32,
     justifyContent: 'center',
   },
   encouragementText: {

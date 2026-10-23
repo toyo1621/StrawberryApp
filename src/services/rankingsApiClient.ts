@@ -10,10 +10,15 @@ export class RankingsApiError extends Error {
     message: string,
     public status?: number,
     public retryAfterMs?: number,
+    public code?: string,
   ) {
     super(message);
   }
 }
+
+export const isRankingModerationError = (error: unknown): error is RankingsApiError => (
+  error instanceof RankingsApiError && ['NAME_NOT_ALLOWED', 'PLAYER_RESTRICTED'].includes(error.code ?? '')
+);
 
 const isRetryableStatus = (status: number | undefined): boolean => (
   status === undefined
@@ -93,6 +98,7 @@ const requestOnce = async <T>(
         message,
         response.status,
         parseRetryAfter(response.headers.get('retry-after')),
+        body && typeof body === 'object' && 'code' in body && typeof body.code === 'string' ? body.code : undefined,
       );
     }
     return parse(body);

@@ -11,9 +11,10 @@
 - JST基準の全体・日別・週別・月別集計
 - サーバー発行の使い切りゲームセッションで検証したランキング投稿
 - 端末所有者単位の公開順位と、秘密トークンで保護した全モードのスコア履歴・自己削除
+- 不適切な名前の通報、本人専用ブロックと解除、運営の非公開措置・NG名自動照合（本ブランチ。公開には追加DB移行と運営secret設定が必要）
 - 通信失敗時のローカル保存と、起動・復帰・Webオンライン復帰・表示中30秒ごとの期限内自動同期
 - オンラインランキングへの今後の送信を停止し、スコアを端末履歴だけに保存できる設定
-- 公開ランキングのD1 read replication、30秒エッジキャッシュ、5分以内の障害時表示継続
+- 匿名ランキングのD1 read replication、30秒内部キャッシュ、不調時最大5分の再利用と公開可否の再確認
 - ダークモード、振動設定、動きを減らすOS設定への対応
 - スクリーンリーダー向けラベル、見出し階層、選択状態、誤答通知、44px操作領域
 - ローカルアセットだけで表示できる国旗と、415の有人離島画像
@@ -55,6 +56,7 @@ npm run android # Androidエミュレーター
 npm run check            # lint、型、カバレッジ付き単体/Workerテスト、D1移行・統合、全依存監査
 npm run doctor           # 固定バージョンのExpo設定・依存整合性検査
 npm run test:e2e         # Chromium/Firefox/WebKit、Pixel 7、320px、axe、操作領域、性能
+npm run test:e2e:moderation # モックAPIによる通報・ブロック・解除、PC/320px/iPad
 npm run build:native-bundles # iOS/AndroidのMetro本番バンドル
 npm run check:native-build   # Hermes 2.5 MiB、各export 16 MiB、415島の予算
 npm run build:web
@@ -92,8 +94,11 @@ scripts/            検証、スモーク、移行補助
 - [SECURITY.md](./SECURITY.md): 脅威モデル、入力防御、秘密情報、報告方法
 - [PRIVACY.md](./PRIVACY.md): 収集データ、目的、保持、削除、外部処理者
 - [OPERATIONS.md](./OPERATIONS.md): 監視、障害対応、バックアップ、復旧
+- [MODERATION.md](./MODERATION.md): 通報確認、NG自動照合、制限・解除、担当と保持期間
 - [DEPLOYMENT.md](./DEPLOYMENT.md): Worker、D1、Pages、EASの公開手順
 - [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md): Web・iOS・Androidのリリース証跡
+- [store/IOS_RELEASE.md](./store/IOS_RELEASE.md): iPhone・iPadの実装、検証、公開判定
+- [store/IOS_OWNER_ACTIONS.md](./store/IOS_OWNER_ACTIONS.md): Apple・Expoの登録と所有者側の作業
 - [CONTRIBUTING.md](./CONTRIBUTING.md): 開発・テスト・リリース手順
 - [CHANGELOG.md](./CHANGELOG.md): リリースごとの利用者・運用変更
 - [DATA_SOURCES.md](./DATA_SOURCES.md): 島データの出典、制作、変換、完全性検証

@@ -23,6 +23,7 @@ export class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
   }
@@ -90,6 +91,16 @@ export const requireAllowedBrowserOrigin = (origin: string | undefined, env: Env
   if (origin && !isAllowedOrigin(origin, env)) {
     throw new HttpError(403, 'Browser write requests require an allowed origin.');
   }
+};
+
+export const runAfterResponse = async (
+  context: ExecutionContext | undefined,
+  operation: Promise<void>,
+  failureMessage: string,
+): Promise<void> => {
+  const guarded = operation.catch((error) => {console.warn(failureMessage, error);});
+  if (context) {context.waitUntil(guarded); return;}
+  await guarded;
 };
 
 export const readJsonBody = async (

@@ -24,7 +24,15 @@ requireValue(
     && packageLock.packages?.['']?.version === packageJson.version,
   'Package and lockfile versions must match.',
 );
-requireValue(expo?.plugins?.includes('expo-secure-store'), 'SecureStore config plugin is missing.');
+requireValue(
+  expo?.plugins?.some((plugin) => Array.isArray(plugin) ? plugin[0] === 'expo-secure-store' : plugin === 'expo-secure-store'),
+  'SecureStore config plugin is missing.',
+);
+requireValue(
+  expo?.ios?.supportsTablet === true && expo?.ios?.requireFullScreen === false
+    && expo?.ios?.infoPlist?.['UISupportedInterfaceOrientations~ipad']?.length === 4,
+  'iPad rotation and resizable-window support must remain enabled.',
+);
 requireValue(
   /^\d+\.\d+\.\d+$/.test(packageJson.devDependencies?.['expo-doctor'] || ''),
   'Expo Doctor must be pinned to an exact version.',
@@ -230,6 +238,7 @@ const workflowSources = await Promise.all([
   'mobile-release.yml',
   'monitor-production.yml',
   'codeql.yml',
+  'ios-native-validation.yml',
 ].map((file) => readFile(new URL(`../.github/workflows/${file}`, import.meta.url), 'utf8')));
 requireValue(
   workflowSources.every((source) => [...source.matchAll(/uses:\s+[^@\s]+@([^\s#]+)/g)]

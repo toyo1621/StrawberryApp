@@ -1,0 +1,223 @@
+appId: com.strawberrygame.app
+---
+- launchApp:
+    clearState: true
+- assertVisible: つめチャレ！
+- takeScreenshot: home-portrait
+- runFlow:
+    when:
+      'true': '${DEVICE_FAMILY === ''iPad''}'
+    commands:
+      - setOrientation: LANDSCAPE_LEFT
+      - assertVisible: つめチャレ！
+      - takeScreenshot: home-landscape
+- scrollUntilVisible:
+    element:
+      id: player-name
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    id: player-name
+    waitToSettleTimeoutMs: 500
+- inputText: NativeQA
+- pressKey: Enter
+- scrollUntilVisible:
+    element:
+      id: game-choice-1
+    waitToSettleTimeoutMs: 500
+- assertVisible:
+    id: game-choice-1
+- assertVisible:
+    id: game-choice-2
+- takeScreenshot: strawberry
+- tapOn:
+    text: '選択肢[12]、(いちご|ショートケーキ|ホールケーキ)'
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: '(ゲーム終了|記憶チャレンジ|最終記憶チャレンジ)'
+    timeout: 40000
+- runFlow:
+    when:
+      visible: 記憶チャレンジ
+    commands:
+      - scrollUntilVisible:
+          element: '選択肢1、.*'
+          waitToSettleTimeoutMs: 500
+      - tapOn:
+          text: '選択肢1、.*'
+          waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: '(ゲーム終了|最終記憶チャレンジ)'
+    timeout: 20000
+- runFlow:
+    when:
+      visible: 最終記憶チャレンジ
+    commands:
+      - scrollUntilVisible:
+          element: '選択肢1、.*'
+          waitToSettleTimeoutMs: 500
+      - tapOn:
+          text: '選択肢1、.*'
+          waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: ゲーム終了
+    timeout: 20000
+- scrollUntilVisible:
+    element: ホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: ホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 島モードを選択
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: 島モードでゲームを開始
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 島モードでゲームを開始
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element:
+      id: game-choice-1
+    waitToSettleTimeoutMs: 500
+- assertVisible:
+    id: game-choice-1
+- assertVisible:
+    id: game-choice-2
+- takeScreenshot: islands
+- tapOn:
+    id: game-choice-1
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: ゲーム終了
+    timeout: 40000
+- scrollUntilVisible:
+    element: ホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: ホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 国旗モードを選択
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: 国旗モードでゲームを開始
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 国旗モードでゲームを開始
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element:
+      id: game-choice-1
+    waitToSettleTimeoutMs: 500
+- assertVisible:
+    id: game-choice-1
+- assertVisible:
+    id: game-choice-2
+- takeScreenshot: flags
+- tapOn:
+    id: game-choice-1
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: ゲーム終了
+    timeout: 40000
+- scrollUntilVisible:
+    element: ホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: ホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 色モードを選択
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: 色モードでゲームを開始
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 色モードでゲームを開始
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element:
+      id: game-choice-1
+    waitToSettleTimeoutMs: 500
+- assertVisible:
+    id: game-choice-1
+- assertVisible:
+    id: game-choice-2
+- takeScreenshot: colors
+- tapOn:
+    id: game-choice-1
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible: ゲーム終了
+    timeout: 40000
+- takeScreenshot: result
+- scrollUntilVisible:
+    element: ホームに戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: ホームに戻る
+    waitToSettleTimeoutMs: 500
+- runFlow:
+    when:
+      'true': '${DEVICE_FAMILY === ''iPad''}'
+    commands:
+      - setOrientation: PORTRAIT
+- scrollUntilVisible:
+    element:
+      id: player-name
+    direction: UP
+    waitToSettleTimeoutMs: 500
+- copyTextFrom:
+    id: player-name
+- assertTrue: '${maestro.copiedText === ''NativeQA''}'
+- stopApp
+- launchApp
+- scrollUntilVisible:
+    element:
+      id: player-name
+    waitToSettleTimeoutMs: 500
+- copyTextFrom:
+    id: player-name
+- assertTrue: '${maestro.copiedText === ''NativeQA''}'
+- scrollUntilVisible:
+    element: マイページを開く
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: マイページを開く
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element:
+      id: profile-player-name
+    waitToSettleTimeoutMs: 500
+- copyTextFrom:
+    id: profile-player-name
+- assertTrue: '${maestro.copiedText === ''NativeQA''}'
+- scrollUntilVisible:
+    element: 設定を開く
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 設定を開く
+    waitToSettleTimeoutMs: 500
+- assertVisible: オンラインランキングへ参加
+- takeScreenshot: settings
+- scrollUntilVisible:
+    element: 前の画面に戻る
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: 前の画面に戻る
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: プライバシーポリシーを開く
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: プライバシーポリシーを開く
+    waitToSettleTimeoutMs: 500
+- assertVisible: プライバシーポリシー
+- scrollUntilVisible:
+    element: '.*最終更新から15分を経過した後、定期処理で削除します。.*'
+    visibilityPercentage: 10
+    timeout: 60000
+    waitToSettleTimeoutMs: 500
+- assertVisible: '.*最終更新から15分を経過した後、定期処理で削除します。.*'
+- takeScreenshot: privacy

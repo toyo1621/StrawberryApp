@@ -133,6 +133,9 @@ class FakeStatement {
   }
 
   async all<T>() {
+    if (this.sql.includes('SELECT id FROM rankings WHERE id IN')) {
+      return { results: this.db.rankings.filter((entry) => this.params.includes(entry.id)).map((entry) => ({ id: entry.id })) as T[], meta: {} };
+    }
     if (this.sql.includes('FROM rankings') && this.sql.includes('owner_hash = ?')) {
       const [gameType, ownerHash, limit] = this.params as [string, string, number];
       const results = this.db.rankings
@@ -772,7 +775,7 @@ test('coalesces concurrent leaderboard cache misses and reads through a replica 
   }
 });
 
-test('authenticated leaderboard reads personalize cached data and fresh primary reads', async () => {
+test('authenticated leaderboard reads bypass the shared cache and preserve fresh personalized results', async () => {
   const cache = new FakeCache();
   const restoreCache = installFakeCache(cache);
   try {
@@ -796,8 +799,8 @@ test('authenticated leaderboard reads personalize cached data and fresh primary 
     }), env);
     const cachedBody = await cachedResponse.json() as (RankingRecord & { isCurrentPlayer?: boolean })[];
 
-    assert.equal(cachedResponse.headers.get('x-rankings-cache'), 'hit');
-    assert.deepEqual(cachedBody, []);
+    assert.equal(cachedResponse.headers.get('x-rankings-cache'), 'bypass');
+    assert.equal(cachedBody[0].isCurrentPlayer, true);
 
     const response = await worker.fetch(new Request(requestUrl, {
       headers: {
@@ -821,9 +824,10 @@ test('authenticated leaderboard reads personalize cached data and fresh primary 
       ['just-created-entry', undefined],
     ]);
 
-    assert.equal(db.rankingQueryCount, 3);
+    assert.equal(db.rankingQueryCount, 4);
     assert.deepEqual(db.sessionConstraints, [
       'first-unconstrained',
+      'first-primary',
       'first-primary',
       'first-primary',
       'first-primary',
@@ -859,7 +863,7 @@ test('keeps cached rankings available when optional personalization fails', asyn
     }), env);
     const cachedBody = await cachedResponse.json() as { isCurrentPlayer?: boolean }[];
     assert.equal(cachedResponse.status, 200);
-    assert.equal(cachedResponse.headers.get('x-rankings-cache'), 'hit');
+    assert.equal(cachedResponse.headers.get('x-rankings-cache'), 'bypass');
     assert.equal(cachedBody[0].isCurrentPlayer, undefined);
 
     const freshResponse = await worker.fetch(new Request(requestUrl, {

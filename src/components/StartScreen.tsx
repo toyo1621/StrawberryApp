@@ -1,18 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { FONT_WEIGHT_BOLD, FONT_WEIGHT_SEMIBOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
-import {
-  getPlayerNameValidationError,
-  normalizePlayerName,
-} from '../domain/rankings';
+import { getPlayerNameValidationError, normalizePlayerName } from '../domain/rankings';
 import { getIslandRegionLabel } from '../domain/islands';
 import { APP_NAME, GAME_MODE_CONFIG } from '../gameConfig';
 import { savePlayerName } from '../services/playerService';
@@ -24,6 +13,8 @@ import ModeSelector from './game/ModeSelector';
 import PeriodTabs from './ranking/PeriodTabs';
 import RankingList from './ranking/RankingList';
 import StatusBanner from './ui/StatusBanner';
+import { useModerationRevision } from '../hooks/useModerationRevision';
+import { isRankingModerationError } from '../services/rankingsApiClient';
 
 type StartScreenProps = {
   onStart: (name: string, mode: GameMode, islandRegion: IslandRegion) => void | Promise<void>;
@@ -41,6 +32,18 @@ type StartScreenProps = {
   darkMode: boolean;
   isPreparingGame: boolean;
   onlineRankingsEnabled: boolean;
+};
+
+const useStartScreenLayout = () => {
+  const { height, width, fontScale } = useWindowDimensions();
+  const compact = width <= 360 && height <= 650;
+  const wide = width >= 1000 && fontScale <= 1.3;
+  return {
+    content: compact && styles.scrollContentCompact,
+    surface: [compact && styles.surfaceCompact, width >= 760 && styles.surfaceTablet, wide && styles.surfaceWide],
+    columns: wide && styles.columnsWide,
+    column: wide && styles.columnWide,
+  };
 };
 
 const StartScreen: React.FC<StartScreenProps> = ({
@@ -68,15 +71,14 @@ const StartScreen: React.FC<StartScreenProps> = ({
   const [periodRanking, setPeriodRanking] = useState<RankingEntry[]>([]);
   const [periodError, setPeriodError] = useState('');
   const [isLoadingPeriod, setIsLoadingPeriod] = useState(false);
-  const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
-  const compactViewport = viewportWidth <= 360 && viewportHeight <= 650;
+  const layout = useStartScreenLayout();
   const theme = getTheme(darkMode);
   const config = GAME_MODE_CONFIG[selectedMode];
   const accent = darkMode ? config.accentDark : config.accent;
   const actionAccent = config.accent;
   const islandRegionLabel = getIslandRegionLabel(selectedIslandRegion);
-  const usesFetchedRanking = selectedMode === GameMode.ISLAND
-    || selectedPeriod !== RankingPeriod.ALL;
+  const usesFetchedRanking = selectedMode === GameMode.ISLAND || selectedPeriod !== RankingPeriod.ALL;
+  const moderationRevision = useModerationRevision();
 
   useEffect(() => {
     if (savedPlayerName) {
@@ -121,10 +123,10 @@ const StartScreen: React.FC<StartScreenProps> = ({
     return () => {
       active = false;
     };
-  }, [selectedIslandRegion, selectedMode, selectedPeriod, usesFetchedRanking]);
+  }, [selectedIslandRegion, selectedMode, selectedPeriod, usesFetchedRanking, moderationRevision]);
 
   const currentRanking = useMemo(
-    () => usesFetchedRanking ? periodRanking : rankings[selectedMode],
+    () => (usesFetchedRanking ? periodRanking : rankings[selectedMode]),
     [periodRanking, rankings, selectedMode, usesFetchedRanking],
   );
 
@@ -140,151 +142,148 @@ const StartScreen: React.FC<StartScreenProps> = ({
     try {
       await savePlayerName(normalizedName);
       await onStart(normalizedName, selectedMode, selectedIslandRegion);
-    } catch {
-      setInputError('プレイヤー名を端末に保存できませんでした。空き容量とブラウザ設定を確認してください。');
+    } catch (startError) {
+      setInputError(isRankingModerationError(startError) ? startError.message
+        : 'プレイヤー名を端末に保存できませんでした。端末の空き容量と保存設定を確認してください。');
     }
   };
 
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentContainerStyle={[styles.scrollContent, compactViewport && styles.scrollContentCompact]}
+      contentContainerStyle={[styles.scrollContent, layout.content]}
       keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode="on-drag"
       showsVerticalScrollIndicator={false}
     >
-      <View style={[
-        styles.surface,
-        compactViewport && styles.surfaceCompact,
-        { backgroundColor: theme.surface, borderColor: theme.border },
-      ]}>
-        <View style={styles.header}>
-          <Text style={[styles.brandName, { color: theme.textMuted }]}>{APP_NAME}</Text>
-          <Text accessible={false} style={styles.heroEmoji}>{config.emoji}</Text>
-          <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: accent }]}>{config.title}</Text>
-          <Text style={[styles.description, { color: theme.textMuted }]}>{config.description}</Text>
-        </View>
+      <View style={[styles.surface, ...layout.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.columns, layout.columns]}>
+          <View style={[styles.startColumn, layout.column]}>
+            <View style={styles.header}>
+              <Text style={[styles.brandName, { color: theme.textMuted }]}>{APP_NAME}</Text>
+              <Text accessible={false} maxFontSizeMultiplier={1} style={styles.heroEmoji}>
+                {config.emoji}
+              </Text>
+              <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: accent }]}>
+                {config.title}
+              </Text>
+              <Text style={[styles.description, { color: theme.textMuted }]}>{config.description}</Text>
+            </View>
 
-        <ModeSelector value={selectedMode} onChange={setSelectedMode} darkMode={darkMode} />
+            <ModeSelector value={selectedMode} onChange={setSelectedMode} darkMode={darkMode} />
 
-        {selectedMode === GameMode.ISLAND && (
-          <IslandRegionSelector
-            value={selectedIslandRegion}
-            onChange={setSelectedIslandRegion}
-            darkMode={darkMode}
-          />
-        )}
+            {selectedMode === GameMode.ISLAND && (
+              <IslandRegionSelector
+                value={selectedIslandRegion}
+                onChange={setSelectedIslandRegion}
+                darkMode={darkMode}
+              />
+            )}
 
-        <View style={styles.startSection}>
-          {!onlineRankingsEnabled && (
-            <StatusBanner
-              message="オンラインランキングはオフです。スコアはこの端末だけに保存されます。"
-              tone="info"
+            <View style={styles.startSection}>
+              {!onlineRankingsEnabled && (
+                <StatusBanner
+                  message="オンラインランキングはオフです。スコアはこの端末だけに保存されます。"
+                  tone="info"
+                  darkMode={darkMode}
+                />
+              )}
+              <Text style={[styles.inputLabel, { color: theme.text }]}>プレイヤー名</Text>
+              <TextInput
+                testID="player-name"
+                value={name}
+                onChangeText={(value) => {
+                  setName(value);
+                  if (inputError) {
+                    setInputError('');
+                  }
+                }}
+                onSubmitEditing={handleSubmit}
+                accessibilityLabel="プレイヤー名"
+                accessibilityHint="ランキングに表示する12文字までの名前です"
+                accessibilityValue={inputError ? { text: `入力エラー: ${inputError}` } : undefined}
+                autoCapitalize="none"
+                autoCorrect={false}
+                enterKeyHint="go"
+                placeholder="名前を入力"
+                placeholderTextColor={theme.textMuted}
+                returnKeyType="go"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.input,
+                    borderColor: inputError ? theme.danger : theme.border,
+                    color: theme.text,
+                  },
+                ]}
+              />
+              {inputError ? (
+                <Text accessibilityLiveRegion="assertive" style={[styles.inputError, { color: theme.danger }]}>
+                  {inputError}
+                </Text>
+              ) : (
+                <Text style={[styles.inputHint, { color: theme.textMuted }]}>
+                  この名前が公開ランキングに表示されます。
+                </Text>
+              )}
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`${config.shortLabel}モードでゲームを開始`}
+                accessibilityState={{ disabled: isPreparingGame, busy: isPreparingGame }}
+                disabled={isPreparingGame}
+                onPress={handleSubmit}
+                style={[styles.startButton, { backgroundColor: actionAccent, opacity: isPreparingGame ? 0.65 : 1 }]}
+              >
+                <Text style={styles.startButtonText}>{isPreparingGame ? '準備中...' : 'ゲーム開始'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="ゲームルールを開く"
+                onPress={onShowRules}
+                style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
+              >
+                <Text style={[styles.secondaryButtonText, { color: theme.text }]}>ルール</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="マイページを開く"
+                onPress={onShowMyPage}
+                style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
+              >
+                <Text style={[styles.secondaryButtonText, { color: theme.text }]}>マイページ</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={[styles.rankingSection, layout.column]}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>
+                  {selectedMode === GameMode.ISLAND ? `${islandRegionLabel}ランキング` : 'ランキング'}
+                </Text>
+                <Text style={[styles.sectionCaption, { color: theme.textMuted }]}>
+                  {config.shortLabel}モード{selectedMode === GameMode.ISLAND ? `・${islandRegionLabel}` : ''}
+                </Text>
+              </View>
+              <Text style={[styles.rankingMark, { color: accent }]}>{config.rankingTitle}</Text>
+            </View>
+            <PeriodTabs value={selectedPeriod} onChange={setSelectedPeriod} accent={actionAccent} darkMode={darkMode} />
+            <RankingList
+              entries={currentRanking}
+              unit={config.unit}
+              accent={accent}
+              loading={isLoading || isLoadingPeriod}
               darkMode={darkMode}
             />
-          )}
-          <Text style={[styles.inputLabel, { color: theme.text }]}>プレイヤー名</Text>
-          <TextInput
-            value={name}
-            onChangeText={(value) => {
-              setName(value);
-              if (inputError) {setInputError('');}
-            }}
-            onSubmitEditing={handleSubmit}
-            accessibilityLabel="プレイヤー名"
-            accessibilityHint="ランキングに表示する12文字までの名前です"
-            accessibilityValue={inputError ? { text: `入力エラー: ${inputError}` } : undefined}
-            autoCapitalize="none"
-            autoCorrect={false}
-            enterKeyHint="go"
-            placeholder="名前を入力"
-            placeholderTextColor={theme.textMuted}
-            returnKeyType="go"
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.input,
-                borderColor: inputError ? theme.danger : theme.border,
-                color: theme.text,
-              },
-            ]}
-          />
-          {inputError ? (
-            <Text accessibilityLiveRegion="assertive" style={[styles.inputError, { color: theme.danger }]}>
-              {inputError}
-            </Text>
-          ) : (
-            <Text style={[styles.inputHint, { color: theme.textMuted }]}>この名前が公開ランキングに表示されます。</Text>
-          )}
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={`${config.shortLabel}モードでゲームを開始`}
-            accessibilityState={{ disabled: isPreparingGame, busy: isPreparingGame }}
-            disabled={isPreparingGame}
-            onPress={handleSubmit}
-            style={[styles.startButton, { backgroundColor: actionAccent, opacity: isPreparingGame ? 0.65 : 1 }]}
-          >
-            <Text style={styles.startButtonText}>{isPreparingGame ? '準備中...' : 'ゲーム開始'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="ゲームルールを開く"
-            onPress={onShowRules}
-            style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
-          >
-            <Text style={[styles.secondaryButtonText, { color: theme.text }]}>ルール</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="マイページを開く"
-            onPress={onShowMyPage}
-            style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
-          >
-            <Text style={[styles.secondaryButtonText, { color: theme.text }]}>マイページ</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.rankingSection}>
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>
-                {selectedMode === GameMode.ISLAND ? `${islandRegionLabel}ランキング` : 'ランキング'}
-              </Text>
-              <Text style={[styles.sectionCaption, { color: theme.textMuted }]}>
-                {config.shortLabel}モード{selectedMode === GameMode.ISLAND ? `・${islandRegionLabel}` : ''}
-              </Text>
-            </View>
-            <Text style={[styles.rankingMark, { color: accent }]}>{config.rankingTitle}</Text>
+            {periodError && <StatusBanner message={periodError} darkMode={darkMode} />}
           </View>
-          <PeriodTabs
-            value={selectedPeriod}
-            onChange={setSelectedPeriod}
-            accent={actionAccent}
-            darkMode={darkMode}
-          />
-          <RankingList
-            entries={currentRanking}
-            unit={config.unit}
-            accent={accent}
-            loading={isLoading || isLoadingPeriod}
-            darkMode={darkMode}
-          />
-          {periodError && <StatusBanner message={periodError} darkMode={darkMode} />}
         </View>
 
-        {notice && (
-          <StatusBanner
-            message={notice}
-            tone="success"
-            onDismiss={onDismissNotice}
-            darkMode={darkMode}
-          />
-        )}
-        {error && (
-          <StatusBanner message={error} onDismiss={onDismissError} darkMode={darkMode} />
-        )}
+        {notice && <StatusBanner message={notice} tone="success" onDismiss={onDismissNotice} darkMode={darkMode} />}
+        {error && <StatusBanner message={error} onDismiss={onDismissError} darkMode={darkMode} />}
       </View>
     </ScrollView>
   );
@@ -313,6 +312,12 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 14,
   },
+  surfaceTablet: { maxWidth: 760 },
+  surfaceWide: { maxWidth: 1040 },
+  columns: { gap: 20 },
+  columnsWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 32 },
+  startColumn: { minWidth: 0, gap: 20 },
+  columnWide: { flex: 1 },
   header: { alignItems: 'center' },
   brandName: {
     fontFamily: MARU_GOTHIC_FONT,
@@ -339,6 +344,8 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flex: 1,
     minHeight: 44,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     borderWidth: 1,
     borderRadius: 8,
     alignItems: 'center',
@@ -347,11 +354,15 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontFamily: MARU_GOTHIC_FONT,
     fontSize: 14,
+    lineHeight: 20,
     fontWeight: FONT_WEIGHT_BOLD,
+    textAlign: 'center',
   },
-  rankingSection: { width: '100%', gap: 12 },
+  rankingSection: { minWidth: 0, gap: 12 },
   sectionHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
@@ -385,8 +396,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 14,
+    paddingVertical: 12,
     fontFamily: MARU_GOTHIC_FONT,
     fontSize: 16,
+    lineHeight: 22,
   },
   inputError: {
     marginTop: 6,
@@ -404,6 +417,8 @@ const styles = StyleSheet.create({
   startButton: {
     width: '100%',
     minHeight: 52,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     marginTop: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -413,7 +428,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontFamily: MARU_GOTHIC_FONT,
     fontSize: 18,
+    lineHeight: 24,
     fontWeight: FONT_WEIGHT_BOLD,
+    textAlign: 'center',
   },
 });
 

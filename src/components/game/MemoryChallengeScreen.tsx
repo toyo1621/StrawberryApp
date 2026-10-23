@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { DISTRACTOR_EMOJIS } from '../../constants';
 import { FONT_WEIGHT_BOLD, MARU_GOTHIC_FONT } from '../../constants/fonts';
 import { describeEmoji, shuffle } from '../../domain/game';
@@ -46,7 +46,7 @@ const MemoryChallengeScreen: React.FC<MemoryChallengeScreenProps> = ({
   };
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={styles.screen}>
       <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text accessibilityRole="header" aria-level={1} style={[styles.title, { color: theme.text }]}>{title}</Text>
         <Text style={[styles.prompt, { color: theme.textMuted }]}>{prompt}</Text>
@@ -62,7 +62,7 @@ const MemoryChallengeScreen: React.FC<MemoryChallengeScreenProps> = ({
                 onPress={() => handleAnswer(option)}
                 style={[styles.option, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
               >
-                <Text accessible={false} style={styles.optionEmoji}>{option}</Text>
+                <Text accessible={false} maxFontSizeMultiplier={1} style={styles.optionEmoji}>{option}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -79,15 +79,15 @@ const MemoryChallengeScreen: React.FC<MemoryChallengeScreenProps> = ({
           </View>
         )}
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
+  screen: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
   surface: {
     width: '100%',
-    maxWidth: 480,
+    maxWidth: 680,
     minHeight: 420,
     borderWidth: 1,
     borderRadius: 8,
@@ -124,8 +124,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   option: {
-    width: 112,
-    height: 96,
+    width: '46%',
+    maxWidth: 224,
+    minHeight: 112,
     borderWidth: 1,
     borderRadius: 8,
     alignItems: 'center',

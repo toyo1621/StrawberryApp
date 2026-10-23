@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database;
   ALLOWED_ORIGINS?: string;
   RATE_LIMIT_SALT?: string;
+  MODERATION_ADMIN_TOKEN?: string;
   WEB_APP_URL?: string;
   MONITOR_ALERT_WEBHOOK_URL?: string;
   CF_VERSION_METADATA?: {
@@ -19,6 +20,7 @@ export type RankingRow = {
   island_region: string;
   created_at: string;
   owner_hash: string | null;
+  public_rank?: number;
 };
 
 export type RankingEntry = {
@@ -29,6 +31,7 @@ export type RankingEntry = {
   islandRegion: string;
   createdAt: string;
   isCurrentPlayer?: boolean;
+  publicRank?: number;
 };
 
 export type GameSessionRow = {
@@ -49,4 +52,5 @@ export const mapRanking = (row: RankingRow): RankingEntry => ({
   gameType: row.game_type,
   islandRegion: row.island_region,
   createdAt: row.created_at,
+  ...(row.public_rank !== undefined ? { publicRank: row.public_rank } : {}),
 });

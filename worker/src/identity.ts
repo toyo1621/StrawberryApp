@@ -47,8 +47,10 @@ const getClientIdentityHash = async (request: Request, env: Env): Promise<string
 export const enforceScoreSubmissionRateLimit = async (
   request: Request,
   env: Env,
+  scope?: 'moderation',
 ): Promise<void> => {
-  const identityHash = await getClientIdentityHash(request, env);
+  const clientHash = await getClientIdentityHash(request, env);
+  const identityHash = scope ? await sha256Hex(`${scope}:${clientHash}`) : clientHash;
   const now = Date.now();
   const windowStart = Math.floor(now / SCORE_SUBMISSION_WINDOW_MS) * SCORE_SUBMISSION_WINDOW_MS;
   const expiresAt = new Date(now + SCORE_SUBMISSION_RETENTION_MS).toISOString();
