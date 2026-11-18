@@ -3,6 +3,7 @@ import {
   ISLAND_REGIONS,
   RANKING_PERIODS,
 } from './generated/rankingContract';
+import { isClearlyInappropriateName } from './namePolicy';
 
 export const GAME_TYPES = API_GAME_TYPES;
 
@@ -57,6 +58,7 @@ export class ValidationError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
   }
@@ -148,7 +150,7 @@ const validateGameSessionId = (value: unknown): string => {
   return value;
 };
 
-const validateScorePlayerName = (value: unknown): string => {
+export const validateScorePlayerName = (value: unknown): string => {
   const playerName = normalizePlayerName(value);
   if (!playerName) {
     throw new ValidationError(400, 'Player name is required.');
@@ -158,6 +160,9 @@ const validateScorePlayerName = (value: unknown): string => {
   }
   if (CONTROL_OR_MARKUP_PATTERN.test(playerName)) {
     throw new ValidationError(400, 'Player name contains unsupported characters.');
+  }
+  if (isClearlyInappropriateName(playerName)) {
+    throw new ValidationError(400, '公開ランキングに使用できない名前です。別の名前に変更してください。', 'NAME_NOT_ALLOWED');
   }
   return playerName;
 };

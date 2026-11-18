@@ -8,8 +8,49 @@ export default {
     ios: {
       buildNumber: "7",
       supportsTablet: true,
+      requireFullScreen: false,
       bundleIdentifier: "com.strawberrygame.app",
+      config: {
+        usesNonExemptEncryption: false
+      },
+      infoPlist: {
+        CFBundleLocalizations: ["ja"],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
+      },
       privacyManifests: {
+        NSPrivacyTracking: false,
+        NSPrivacyTrackingDomains: [],
+        NSPrivacyCollectedDataTypes: [
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeUserID",
+            NSPrivacyCollectedDataTypeLinked: true,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          },
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeGameplayContent",
+            NSPrivacyCollectedDataTypeLinked: true,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          },
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeOtherUserContent",
+            NSPrivacyCollectedDataTypeLinked: true,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          },
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeOtherDataTypes",
+            NSPrivacyCollectedDataTypeLinked: false,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          }
+        ],
         NSPrivacyAccessedAPITypes: [
           {
             NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
@@ -49,11 +90,14 @@ export default {
       baseUrl: process.env.EXPO_PUBLIC_BASE_URL || "/StrawberryApp"
     },
     plugins: [
-      "expo-secure-store"
+      ["expo-secure-store", { faceIDPermission: false }]
     ],
     scheme: "ichigo-tsume-game-2024",
     extra: {
-      rankingsApiUrl: process.env.EXPO_PUBLIC_RANKINGS_API_URL
+      rankingsApiUrl: process.env.EXPO_PUBLIC_RANKINGS_API_URL,
+      ...((process.env.EAS_PROJECT_ID || process.env.EAS_BUILD_PROJECT_ID) ? {
+        eas: { projectId: process.env.EAS_PROJECT_ID || process.env.EAS_BUILD_PROJECT_ID }
+      } : {})
     },
     updates: {
       fallbackToCacheTimeout: 0

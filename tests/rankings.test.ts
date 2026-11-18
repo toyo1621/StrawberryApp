@@ -77,3 +77,8 @@ test('the current rank uses submission id when names and scores are identical', 
   assert.equal(getRankingPositionByEntryId(rankings, 'missing'), null);
   assert.equal(getRankingPositionByEntryId(rankings, null), null);
 });
+
+test('hidden players do not promote the displayed public position', () => {
+  const rankings = [{ ...entry('visible', '選手', 8, '2026-01-01T00:00:00.000Z'), publicRank: 12 }];
+  assert.equal(getRankingPositionByEntryId(rankings, 'visible'), 12);
+});

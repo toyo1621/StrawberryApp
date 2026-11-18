@@ -10,6 +10,7 @@ import { ANSWER_FEEDBACK_MS, GAMEPLAY_RULES } from '../gameRules';
 import { useGameTimer } from '../hooks/useGameTimer';
 import AnswerFeedback from './game/AnswerFeedback';
 import GameFrame from './game/GameFrame';
+import { gameLayout } from './game/gameLayout';
 
 const RULES = GAMEPLAY_RULES[GameMode.ISLAND];
 
@@ -181,7 +182,7 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({
             </Text>
           </View>
         )}
-        <View style={styles.choicesContainer}>
+        <View style={gameLayout.choices}>
           {islands.map((island, index) => {
             // ゴールデン島の時、正解の島の画像をゴールデン色に変更
             const isGoldenIslandImage = isGoldenIsland && index === correctIslandIndex;
@@ -189,12 +190,14 @@ const IslandGameScreen: React.FC<IslandGameScreenProps> = ({
             return (
               <TouchableOpacity
                 key={island.id}
+                testID={`game-choice-${index + 1}`}
                 accessibilityRole="button"
                 accessibilityLabel={`選択肢${index + 1}、${island.name}の島影`}
                 accessibilityState={{ disabled: Boolean(feedback) || gameEnded }}
                 onPress={() => handleChoice(index)}
                 disabled={!!feedback || gameEnded}
                 style={[
+                  gameLayout.squareChoice,
                   styles.choiceButton,
                   darkMode && styles.choiceButtonDark,
                   feedback && feedback.index !== index && styles.choiceButtonInactive,
@@ -272,17 +275,7 @@ const styles = StyleSheet.create({
   pointsTextDark: {
     color: '#fde047',
   },
-  choicesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    width: '100%',
-    maxWidth: 384,
-  },
   choiceButton: {
-    width: '48%',
-    maxWidth: 144,
-    aspectRatio: 1,
     backgroundColor: '#eff6ff',
     borderRadius: 8,
     alignItems: 'center',

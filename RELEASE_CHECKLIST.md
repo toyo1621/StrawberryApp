@@ -36,11 +36,15 @@ Browser / OS / result: `<details>`
 
 ## iOS physical device
 
+- [ ] `iOS Native Validation` の同一コミットのコンパイル・シミュレータUI試験とスクリーンショットを確認
+- [ ] iPhone／iPadの実機情報とOS、TestFlightのビルドIDを記録
+- [ ] iPad縦横、Split View／狭いウィンドウ、ソフトウェア／外付けキーボードで状態と操作が保たれる
 - [ ] VoiceOverの読み順、見出し、選択状態、進捗、誤答通知が理解できる
 - [ ] Dynamic Type最大付近で主操作、得点、ランキング、ポリシーが欠けない
 - [ ] 振動ON/OFF、ダークモード、動きを減らす、バックグラウンド復帰が正しい
 - [ ] 低速・切断・再接続、アプリ再起動、本人履歴・全削除を確認
 - [ ] EAS production build、署名、App Store privacy回答、審査用メタデータを確認
+- [ ] Privacy Policy／Supportの公開URL、問い合わせ受信、公開名前のフィルタ・通報・ブロック運用を確認
 
 Device / iOS / tester / result: `<details>`
 

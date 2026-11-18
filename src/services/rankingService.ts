@@ -37,6 +37,7 @@ import {
   parseDeleteResult,
   parseGameSession,
   parseRankingEntries,
+  pendingScoreToEntry,
   type AllRankingsFetchResult,
   type PendingScore,
   type RankingFetchResult,
@@ -60,6 +61,7 @@ import {
   persistRemoteEntryBestEffort,
   postPendingScore,
 } from './rankingSubmissionService';
+import { clearLocalModerationData, getModerationRevision, loadPlayerBlocks } from './moderationService';
 
 export { RankingPeriod } from '../types';
 export { hasRankingsApi } from './rankingsApiClient';
@@ -74,16 +76,6 @@ export type {
 } from './rankingModels';
 
 const RANKING_LIMIT = 30;
-
-const pendingScoreToEntry = (pending: PendingScore): RankingEntry => ({
-  id: pending.submissionId,
-  playerName: pending.playerName,
-  score: pending.score,
-  gameType: pending.gameType,
-  islandRegion: pending.islandRegion,
-  createdAt: pending.createdAt,
-  isCurrentPlayer: true,
-});
 
 const loadPendingEntriesForRanking = async (
   gameType: ApiGameType,
@@ -113,6 +105,7 @@ export const fetchRankingsForModeWithStatus = async (
   const rankingRegion = normalizeIslandRegion(gameType, islandRegion);
   if (hasRankingsApi()) {
     try {
+      const moderationRevision = getModerationRevision();
       const requestInit: RequestInit = {
         ...(options.requireFresh ? { cache: 'no-store' as const } : {}),
         headers: { authorization: `Bearer ${await getPlayerToken()}` },
@@ -127,6 +120,9 @@ export const fetchRankingsForModeWithStatus = async (
         parseRankingEntries,
         requestInit,
       );
+      if (moderationRevision !== getModerationRevision()) {
+        return { entries: [], source: 'cache', stale: true };
+      }
       const pending = await loadPendingEntriesForRanking(gameType, rankingRegion);
       if (period === RankingPeriod.ALL) {
         try {
@@ -154,9 +150,13 @@ export const fetchRankingsForModeWithStatus = async (
   }
 
   const localRankings = await loadLocalRankingsForGame(gameType, rankingRegion);
+  const blocks = await loadPlayerBlocks().catch(() => null);
+  const safeLocalRankings = blocks === null || blocks.length > 0
+    ? localRankings.filter((entry) => entry.isCurrentPlayer)
+    : localRankings;
   return {
     entries: getLeaderboardEntries(
-      filterRankingsByPeriod(localRankings, period),
+      filterRankingsByPeriod(safeLocalRankings, period),
       RANKING_LIMIT,
     ),
     source: hasRankingsApi() ? 'cache' : 'local',
@@ -298,6 +298,7 @@ export const saveScoreForMode = async (
 export const createRankingGameSession = async (
   mode: GameMode,
   islandRegion: IslandRegion = IslandRegion.ALL,
+  playerName?: string,
 ): Promise<RankingGameSession | null> => {
   if (!hasRankingsApi()) {
     return null;
@@ -308,7 +309,7 @@ export const createRankingGameSession = async (
   return apiRequest('/game-sessions', parseGameSession, {
     method: 'POST',
     headers: { authorization: `Bearer ${playerToken}` },
-    body: JSON.stringify({ gameType, islandRegion: rankingRegion }),
+    body: JSON.stringify({ gameType, islandRegion: rankingRegion, ...(playerName === undefined ? {} : { playerName }) }),
   }, { attempts: 1, timeoutMs: 3_000 });
 };
 
@@ -377,6 +378,7 @@ export const deletePlayerRankingData = async (): Promise<number> => {
   }
   await clearRankingData();
   await clearPlayerIdentity();
+  await clearLocalModerationData();
   return deleted;
 };
 

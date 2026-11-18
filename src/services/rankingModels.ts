@@ -62,6 +62,16 @@ export type PendingScore = {
   gameSessionExpiresAt?: string;
 };
 
+export const pendingScoreToEntry = (pending: PendingScore): RankingEntry => ({
+  id: pending.submissionId,
+  playerName: pending.playerName,
+  score: pending.score,
+  gameType: pending.gameType,
+  islandRegion: pending.islandRegion,
+  createdAt: pending.createdAt,
+  isCurrentPlayer: true,
+});
+
 const ISLAND_REGION_SET = new Set<string>(Object.values(IslandRegion));
 
 export const isApiGameType = (value: unknown): value is ApiGameType => (
@@ -92,6 +102,7 @@ export const toRankingEntry = (value: unknown): RankingEntry | null => {
     && isApiGameType(entry.gameType)
     && typeof entry.createdAt === 'string'
     && Number.isFinite(Date.parse(entry.createdAt))
+    && (entry.publicRank === undefined || (Number.isSafeInteger(entry.publicRank) && entry.publicRank > 0))
     && (entry.isCurrentPlayer === undefined || typeof entry.isCurrentPlayer === 'boolean'))) {
     return null;
   }
@@ -104,6 +115,7 @@ export const toRankingEntry = (value: unknown): RankingEntry | null => {
     islandRegion: normalizeIslandRegion(entry.gameType, entry.islandRegion),
     createdAt: entry.createdAt,
     ...(entry.isCurrentPlayer === true ? { isCurrentPlayer: true } : {}),
+    ...(entry.publicRank !== undefined ? { publicRank: entry.publicRank } : {}),
   };
 };
 

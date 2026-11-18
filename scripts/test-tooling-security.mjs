@@ -6,6 +6,8 @@ import test from 'node:test';
 import sharp from 'sharp';
 import shellQuote from 'shell-quote';
 import sourceMap from 'source-map-js';
+import braces from 'braces';
+import forge from 'node-forge';
 
 const { SourceMapConsumer, SourceNode } = sourceMap;
 const require = createRequire(import.meta.url);
@@ -15,6 +17,47 @@ const flatMap = () => ({ version: 3, sources: ['fixture.js'], names: [], mapping
 const indexedMap = (line, column = 0, map = flatMap()) => ({
   version: 3,
   sections: [{ offset: { line, column }, map }],
+});
+
+test('deep brace and parenthesis patterns fail with a bounded syntax error, not stack exhaustion', () => {
+  for (const [open, close] of [['{', '}'], ['(', ')']]) {
+    const pattern = open.repeat(4000) + 'a,b' + close.repeat(4000);
+    for (const operation of [braces, braces.compile, braces.expand, braces.stringify]) {
+      assert.throws(() => operation(pattern), { name: 'SyntaxError', message: /safe depth limit/ });
+    }
+  }
+  assert.deepEqual(braces.expand('src/{app,worker}/{a,b}.ts'), [
+    'src/app/a.ts', 'src/app/b.ts', 'src/worker/a.ts', 'src/worker/b.ts',
+  ]);
+  assert.equal(braces.compile('a/{b,c}/d'), 'a/(b|c)/d');
+});
+
+test('RSA rejects nested DigestAlgorithm garbage while accepting normal signatures and optional NULL', () => {
+  const { asn1, md, pki, util } = forge;
+  const keys = pki.rsa.generateKeyPair({ bits: 1024, e: 3 });
+  const digest = md.sha256.create().update('tooling security fixture').digest().getBytes();
+  const node = (type, value, constructed = false) => asn1.create(asn1.Class.UNIVERSAL, type, constructed, value);
+  const oid = node(asn1.Type.OID, asn1.oidToDer(pki.oids.sha256).getBytes());
+  const nullNode = node(asn1.Type.NULL, '');
+  const signatureFor = (algorithm) => keys.privateKey.sign(asn1.toDer(
+    node(asn1.Type.SEQUENCE, [node(asn1.Type.SEQUENCE, algorithm, true), node(asn1.Type.OCTETSTRING, digest)], true),
+  ).getBytes(), 'NONE');
+  for (const algorithm of [[oid], [oid, nullNode]]) {
+    assert.equal(keys.publicKey.verify(digest, signatureFor(algorithm)), true);
+  }
+  for (const algorithm of [[oid, nullNode, node(asn1.Type.OCTETSTRING, 'padding')], [oid, node(asn1.Type.SEQUENCE, [], true)]]) {
+    assert.throws(() => keys.publicKey.verify(digest, signatureFor(algorithm)), /valid RSASSA/);
+  }
+  const cert = pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = '01';
+  cert.validity.notBefore = new Date();
+  cert.validity.notAfter = new Date(Date.now() + 60_000);
+  cert.setSubject([{ name: 'commonName', value: 'local-fixture' }]);
+  cert.setIssuer(cert.subject.attributes);
+  cert.sign(keys.privateKey, md.sha256.create());
+  assert.equal(cert.verify(pki.certificateFromPem(pki.certificateToPem(cert))), true);
+  assert.ok(util.encode64(cert.signature).length > 0);
 });
 
 test('shell quoting rejects every line terminator after a comment and preserves ordinary arguments', () => {

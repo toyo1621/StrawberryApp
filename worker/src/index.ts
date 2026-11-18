@@ -1,4 +1,6 @@
 import { cleanupRateLimitBuckets } from './identity';
+import { MODERATION_METHODS, routeModeration } from './moderationRoutes';
+import { cleanupModerationData } from './moderationStore';
 import { RANKINGS_API_VERSION } from './generated/rankingContract';
 import {
   getReleaseId,
@@ -9,6 +11,7 @@ import {
   requireAllowedBrowserOrigin,
   setCorsHeaders,
   setSecurityHeaders,
+  runAfterResponse,
 } from './http';
 import {
   fetchLeaderboard,
@@ -33,6 +36,7 @@ import {
 import type { Env } from './types';
 
 const ALLOWED_METHODS_BY_PATH = new Map<string, string[]>([
+  ...MODERATION_METHODS,
   ['/health', ['GET']],
   ['/game-sessions', ['POST']],
   ['/rankings', ['GET']],
@@ -49,21 +53,6 @@ const noStoreHeaders = (requestId: string): HeadersInit => ({
   'x-request-id': requestId,
 });
 
-const runAfterResponse = async (
-  context: ExecutionContext | undefined,
-  operation: Promise<void>,
-  failureMessage: string,
-): Promise<void> => {
-  const guarded = operation.catch((error) => {
-    console.warn(failureMessage, error);
-  });
-  if (context) {
-    context.waitUntil(guarded);
-    return;
-  }
-  await guarded;
-};
-
 const handleOptions = (
   request: Request,
   origin: string | undefined,
@@ -71,6 +60,9 @@ const handleOptions = (
   requestId: string,
 ): Response => {
   const path = new URL(request.url).pathname;
+  if (path.startsWith('/moderation/')) {
+    return json({ error: 'Browser administration is not allowed.' }, { status: 403 }, undefined, env);
+  }
   const allowedMethods = ALLOWED_METHODS_BY_PATH.get(path);
   if (!allowedMethods) {
     return json(
@@ -154,9 +146,7 @@ const routeRequest = async (
       const result = await fetchLeaderboard(request, env, context);
       const cacheControl = request.headers.has('authorization')
         ? 'private, no-store'
-        : result.cacheStatus === 'stale'
-          ? 'public, max-age=5, stale-if-error=300'
-          : 'public, max-age=30, stale-while-revalidate=120, stale-if-error=300';
+        : 'no-store';
       return json(result.entries, {
         headers: {
           'cache-control': cacheControl,
@@ -255,7 +245,8 @@ export default {
 
     const url = new URL(request.url);
     try {
-      return await routeRequest(request, env, context, origin, requestId);
+      return await routeModeration(request, env, origin, requestId)
+        ?? await routeRequest(request, env, context, origin, requestId);
     } catch (error) {
       const status = error instanceof HttpError || error instanceof ValidationError
         ? error.status
@@ -279,7 +270,7 @@ export default {
         headers.set('retry-after', '5');
       }
       return json(
-        { error: message, requestId },
+        { error: message, requestId, ...(status < 500 && (error instanceof HttpError || error instanceof ValidationError) && error.code ? { code: error.code } : {}) },
         { status, headers },
         origin,
         env,
@@ -291,6 +282,7 @@ export default {
     await Promise.all([
       cleanupRateLimitBuckets(env),
       cleanupExpiredGameSessions(env),
+      cleanupModerationData(env),
       runProductionMonitor(env),
     ]);
   },

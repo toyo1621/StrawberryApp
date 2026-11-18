@@ -13,6 +13,7 @@ import { GAME_SESSION_TTL_MS } from './generated/rankingContract';
 import {
   validateGameSessionRequest,
   validateScoreSubmission,
+  validateScorePlayerName,
 } from './rankingValidation';
 import type {
   Env,
@@ -21,6 +22,8 @@ import type {
   RankingRow,
 } from './types';
 import { mapRanking } from './types';
+import { requirePublishablePlayer } from './moderationStore';
+import { requireAllowedRankingName } from './nameModeration';
 
 const GAME_SESSION_CLOCK_TOLERANCE_MS = 5_000;
 
@@ -89,6 +92,8 @@ export const createGameSession = async (
   const body = await readJsonBody(request);
   const { gameType, islandRegion } = validateGameSessionRequest(body);
   const ownerHash = await getPlayerOwnerHash(request);
+  await requirePublishablePlayer(env, ownerHash);
+  if (body?.playerName !== undefined) {await requireAllowedRankingName(env, validateScorePlayerName(body.playerName));}
   await enforceScoreSubmissionRateLimit(request, env);
 
   const id = crypto.randomUUID();
@@ -180,6 +185,7 @@ const commitScore = async (
           WHERE EXISTS (
             SELECT 1 FROM game_sessions WHERE id = ? AND submission_id = ?
           )
+          AND NOT EXISTS (SELECT 1 FROM moderated_subjects WHERE subject_key = 'owner:' || ?)
         `,
       ).bind(
         entry.id,
@@ -191,6 +197,7 @@ const commitScore = async (
         ownerHash,
         gameSessionId,
         entry.id,
+        ownerHash,
       ),
     ]);
   } catch (error) {
@@ -234,6 +241,8 @@ export const saveScore = async (
     throw new HttpError(400, 'Player token credentials do not match.');
   }
   const ownerHash = await sha256Hex(`player:${bearerToken}`);
+  await requirePublishablePlayer(env, ownerHash);
+  await requireAllowedRankingName(env, playerName);
   const expected = { playerName, score, gameType, islandRegion, ownerHash };
 
   const existing = await findIdempotentResult(env, submissionId, expected);

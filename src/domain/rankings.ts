@@ -39,7 +39,7 @@ export const getRankingPositionByEntryId = (
     return null;
   }
   const index = rankings.findIndex((entry) => entry.id === entryId);
-  return index >= 0 ? index + 1 : null;
+  return index >= 0 ? rankings[index].publicRank ?? index + 1 : null;
 };
 
 export const getPeriodStartDate = (

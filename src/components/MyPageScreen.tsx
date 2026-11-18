@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { FONT_WEIGHT_BOLD, MARU_GOTHIC_FONT } from '../constants/fonts';
+import privacyPolicy from '../content/privacyPolicy.json';
 import { getIslandRegionLabel } from '../domain/islands';
 import {
   getPlayerNameValidationError,
@@ -115,7 +116,7 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
   };
 
   const handleOpenContactForm = async () => {
-    const url = 'https://forms.gle/yqPN2tyeFfXdH4nR9';
+    const url = privacyPolicy.contactUrl;
     try {
       if (!(await Linking.canOpenURL(url))) {
         throw new Error('Unsupported URL');
@@ -163,6 +164,8 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
       style={[styles.scrollView, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode="on-drag"
       showsVerticalScrollIndicator={false}
     >
       <View style={[styles.surface, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -180,6 +183,7 @@ const MyPageScreen: React.FC<MyPageScreenProps> = ({
         <View style={styles.section}>
           <Text accessibilityRole="header" aria-level={2} style={[styles.sectionTitle, { color: theme.text }]}>プレイヤー名</Text>
           <TextInput
+            testID="profile-player-name"
             value={name}
             onChangeText={setName}
             accessibilityLabel="プレイヤー名"

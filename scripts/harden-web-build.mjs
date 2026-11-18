@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { RANKINGS_API_VERSION } from './generated/rankingContract.mjs';
+import { writeStorePages } from './build-store-pages.mjs';
 
 const indexPath = path.resolve('web-build/index.html');
 const apiUrl = process.env.EXPO_PUBLIC_RANKINGS_API_URL?.trim();
@@ -57,4 +58,5 @@ await writeFile(
   'utf8',
 );
 
-console.log(`Web security metadata and release ${releaseId} added (${connectSources.join(', ')}).`);
+await writeStorePages(path.resolve('web-build'));
+console.log(`Web security metadata, store pages, and release ${releaseId} added (${connectSources.join(', ')}).`);

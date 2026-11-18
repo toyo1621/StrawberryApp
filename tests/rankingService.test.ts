@@ -78,6 +78,22 @@ test('game session startup fails fast without retrying', async () => {
   assert.equal(attempts, 1);
 });
 
+test('name moderation is checked before a game and exposes its specific rejection code', async () => {
+  const rankingService = await rankingServicePromise;
+  const client = await import('../src/services/rankingsApiClient');
+  let body: Record<string, unknown> = {};
+  globalThis.fetch = async (_input, init) => {
+    body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return Response.json({ error: '別の名前に変更してください。', code: 'NAME_NOT_ALLOWED' }, { status: 400 });
+  };
+  await assert.rejects(rankingService.createRankingGameSession(GameMode.FLAG, IslandRegion.ALL, '確認対象'),
+    (error: unknown) => client.isRankingModerationError(error) && error.code === 'NAME_NOT_ALLOWED');
+  assert.equal(body.playerName, '確認対象');
+  assert.equal(client.isRankingModerationError(new client.RankingsApiError('restricted', 403, undefined, 'PLAYER_RESTRICTED')), true);
+  assert.equal(client.isRankingModerationError(new client.RankingsApiError('network')), false);
+  assert.equal(client.isRankingModerationError(new Error('NAME_NOT_ALLOWED')), false);
+});
+
 test('leaderboard reads retry a throttled response using Retry-After', async () => {
   const rankingService = await rankingServicePromise;
   let attempts = 0;

@@ -73,8 +73,10 @@ export const deletePlayerScores = async (
   env: Env,
 ): Promise<{ deleted: number }> => {
   const ownerHash = await getPlayerOwnerHash(request);
-  const result = await env.DB.prepare(
-    'DELETE FROM rankings WHERE owner_hash = ?',
-  ).bind(ownerHash).run();
+  const [result] = await env.DB.batch([
+    env.DB.prepare('DELETE FROM rankings WHERE owner_hash = ?').bind(ownerHash),
+    env.DB.prepare('DELETE FROM player_blocks WHERE blocker_hash = ?').bind(ownerHash),
+    env.DB.prepare('DELETE FROM ranking_reports WHERE reporter_hash = ?').bind(ownerHash),
+  ]);
   return { deleted: result.meta.changes ?? 0 };
 };

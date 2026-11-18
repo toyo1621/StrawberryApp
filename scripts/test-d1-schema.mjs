@@ -30,7 +30,7 @@ const output = run([
   'execute',
   ...commonArgs,
   '--command',
-  "SELECT name, type FROM sqlite_master WHERE name IN ('game_sessions', 'idx_game_sessions_expires', 'idx_rankings_game_region_score_created', 'idx_rankings_game_region_owner_score_created', 'idx_rankings_game_region_legacy_name_score_created', 'idx_rankings_owner_game_created', 'idx_rankings_owner_game_region_score_created', 'score_submission_buckets', 'service_heartbeats') ORDER BY name",
+  "SELECT name, type FROM sqlite_master WHERE name IN ('game_sessions', 'idx_game_sessions_expires', 'idx_rankings_game_region_score_created', 'idx_rankings_game_region_owner_score_created', 'idx_rankings_game_region_legacy_name_score_created', 'idx_rankings_owner_game_created', 'idx_rankings_owner_game_region_score_created', 'score_submission_buckets', 'service_heartbeats', 'ranking_reports', 'player_blocks', 'moderated_subjects', 'moderation_events', 'moderation_name_rules') ORDER BY name",
   '--json',
 ]);
 const response = JSON.parse(output);
@@ -44,6 +44,11 @@ assert.deepEqual(rows, [
   { name: 'idx_rankings_game_region_score_created', type: 'index' },
   { name: 'idx_rankings_owner_game_created', type: 'index' },
   { name: 'idx_rankings_owner_game_region_score_created', type: 'index' },
+  { name: 'moderated_subjects', type: 'table' },
+  { name: 'moderation_events', type: 'table' },
+  { name: 'moderation_name_rules', type: 'table' },
+  { name: 'player_blocks', type: 'table' },
+  { name: 'ranking_reports', type: 'table' },
   { name: 'score_submission_buckets', type: 'table' },
   { name: 'service_heartbeats', type: 'table' },
 ]);
@@ -168,6 +173,10 @@ runUpgrade([
   ...upgradeArgs,
   '--file',
   resolve(root, 'worker/migrations/0013_optimize_personalized_leaderboards.sql'),
+]);
+runUpgrade([
+  'd1', 'execute', ...upgradeArgs, '--file',
+  resolve(root, 'worker/migrations/0014_ranking_moderation.sql'),
 ]);
 
 const heartbeatOutput = runUpgrade([

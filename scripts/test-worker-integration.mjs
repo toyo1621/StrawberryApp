@@ -13,6 +13,8 @@ const secondSubmissionId = crypto.randomUUID();
 const renamedSubmissionId = crypto.randomUUID();
 const authorization = `Bearer ${playerToken}`;
 const secondAuthorization = `Bearer ${secondPlayerToken}`;
+const moderatorToken = crypto.randomUUID();
+const moderatorHeaders = { authorization: `Bearer ${moderatorToken}`, 'content-type': 'application/json' };
 let processOutput = '';
 
 const worker = spawn(wrangler, [
@@ -23,6 +25,7 @@ const worker = spawn(wrangler, [
   '--port', String(port),
   '--persist-to', resolve(root, '.tmp/d1-schema-test'),
   '--var', 'RATE_LIMIT_SALT:integration-test-rate-limit-salt',
+  '--var', `MODERATION_ADMIN_TOKEN:${moderatorToken}`,
   '--log-level', 'error',
   '--show-interactive-dev-session=false',
 ], {
@@ -153,6 +156,50 @@ try {
   assert.equal(concurrentReads.every(({ response }) => response.status === 200), true);
   assert.equal(concurrentReads.every(({ body }) => Array.isArray(body)), true);
 
+  const blocked = await request('/players/me/blocks', {
+    method: 'POST', headers: { authorization, 'content-type': 'application/json' },
+    body: JSON.stringify({ rankingId: secondSubmissionId }),
+  });
+  assert.equal(blocked.response.status, 200);
+  assert.equal(blocked.body.length, 1);
+  const personalized = await request('/rankings?gameType=island_rush&islandRegion=shikoku', { headers: { authorization } });
+  assert.equal(personalized.body.some((entry) => entry.id === secondSubmissionId), false);
+  const publicAfterBlock = await request('/rankings?gameType=island_rush&islandRegion=shikoku');
+  assert.equal(publicAfterBlock.body.some((entry) => entry.id === secondSubmissionId), true);
+  const report = await request('/ranking-reports', {
+    method: 'POST', headers: { authorization, 'content-type': 'application/json' },
+    body: JSON.stringify({ rankingId: secondSubmissionId, reason: 'offensive' }),
+  });
+  assert.equal(report.body.status, 'received');
+  assert.equal((await request('/moderation/reports', { headers: { authorization } })).response.status, 403);
+  const hidden = await request('/moderation/reports', {
+    method: 'POST', headers: moderatorHeaders,
+    body: JSON.stringify({ reportId: report.body.id, decision: 'hide' }),
+  });
+  assert.equal(hidden.response.status, 200);
+  const publicAfterHide = await request('/rankings?gameType=island_rush&islandRegion=shikoku');
+  assert.equal(publicAfterHide.body.some((entry) => entry.id === secondSubmissionId), false);
+  assert.equal((await request('/game-sessions', {
+    method: 'POST', headers: { authorization: secondAuthorization, 'content-type': 'application/json' },
+    body: JSON.stringify({ gameType: 'color_rush' }),
+  })).response.status, 403);
+  assert.equal((await request('/moderation/reports', {
+    method: 'POST', headers: moderatorHeaders,
+    body: JSON.stringify({ reportId: report.body.id, decision: 'restore' }),
+  })).response.status, 200);
+  const ngRules = await request('/moderation/name-rules', {
+    method: 'POST', headers: moderatorHeaders, body: JSON.stringify({ term: '統合テスト', matchType: 'exact' }),
+  });
+  assert.equal(ngRules.response.status, 200);
+  const masked = await request('/rankings?gameType=island_rush&islandRegion=shikoku');
+  assert.equal(masked.body.find((entry) => entry.id === secondSubmissionId).playerName, '非公開の名前');
+  await request('/moderation/name-rules', {
+    method: 'DELETE', headers: moderatorHeaders, body: JSON.stringify({ ruleId: ngRules.body[0].id }),
+  });
+  assert.equal((await request('/players/me/blocks', {
+    method: 'DELETE', headers: { authorization, 'content-type': 'application/json' }, body: JSON.stringify({ blockId: blocked.body[0].id }),
+  })).response.status, 200);
+
   const historyResult = await request('/players/me/history?gameType=island_rush', {
     headers: { authorization },
   });
@@ -182,7 +229,7 @@ try {
   assert.equal(rankingAfterDelete.body.some((entry) => entry.id === renamedSubmissionId), false);
   assert.equal(rankingAfterDelete.body.some((entry) => entry.id === secondSubmissionId), true);
 
-  console.log('Local Worker/D1 integration passed: owner ranking, 32 concurrent reads, atomic retry, private history, verified deletion.');
+  console.log('Local Worker/D1 integration passed: owner ranking, 32 concurrent reads, atomic retry, private history/deletion, report, private block, moderation/restore, automatic NG masking.');
 } finally {
   if (worker.exitCode === null) {
     for (const cleanupAuthorization of [authorization, secondAuthorization]) {

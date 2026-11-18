@@ -44,6 +44,28 @@
 
 通常の変更では `npm ci` を使い、lockfileを必ずレビューします。CIの `npm run audit:high` は本番・開発依存のhigh/criticalを公開前に拒否します。脆弱な推移依存をoverrideする場合は修正版を固定し、単体、実D1統合、E2E、本番相当ビルド、Wrangler dry-runを全て実行します。
 
+### Expo 54を維持した局所緩和（2026-10-23）
+
+この節は当時の記録です。2026-10-23の取得結果はHigh 23、Moderate 0、Critical 0でした。原因はbracesとnode-forgeの2勧告で、23は依存元への伝播を含むパッケージ数です。PR #60の記録から中程度の指摘が減ったのは、[sprintf-jsの勧告が2026-10-22に取り下げられた](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)ためです。監査除外によるものではありません。
+
+- `braces@3.0.3`: 文字数制限では再帰の深さを抑えられないため、文字列パーサで括弧・波括弧のネストを100未満に制限する局所パッチを追加。通常のglob展開を維持し、4000段の入力が制御されたSyntaxErrorで停止することをcompile/expand/stringifyで検証。利用者が任意ASTを直接渡す用途や一般的な正規表現DoSすべてを解決するものではありません。[勧告](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)、[上流議論](https://github.com/micromatch/braces/issues/70)。
+- `node-forge@1.4.0`: RSA PKCS#1 v1.5のDigestAlgorithm内部要素数をOID＋任意NULLだけに制限。[上流PR #1152](https://github.com/digitalbazaar/forge/pull/1152)と同じ検査条件を限定バックポート。余分なASN.1要素を含む署名を拒否し、通常の署名、NULL省略、自己署名証明書の往復を検証。
+- 既存のpatch-package方式を使い、`postinstall`は`--error-on-fail`でパッチ適用失敗を拒否します。パッケージの版を修正版に偽装せず、Expo SDK/React Nativeの強制更新・ダウングレード・監査除外はしません。
+- 主な経路はMetro/Jest/patch-packageのglob処理と、Expo CLIの証明書/RSA処理です。アプリとWorkerの実行時ソースには直接importがありません。開発ツールは起動・ビルド時に実行するため「本番で使わないから安全」とは扱いません。任意入力に対する完全な到達不能の証明ではありません。
+- npm auditはパッケージの公開バージョンを監査するため、当時はローカルパッチ後もHigh 23で失敗しました。最新の状態は次節を参照してください。
+
+### PR #62の再監査と正式修正版への更新（2026-11-18）
+
+- Expo 54.0.37、React Native 0.81.5、Wrangler 4.147.0を維持。ロックファイル上の変更は、Expo CLI系の `node-forge` 1.4.0 → 1.4.3、`undici` 6.28.1 → 6.29.1、Miniflare系の `undici` 7.29.1 → 7.30.1の3レコードのみです。`undici` はそれぞれのメジャー内で固定します。[forge変更履歴](https://github.com/digitalbazaar/forge/blob/main/CHANGELOG.md)、[undiciの修正版](https://github.com/advisories/GHSA-xjj6-f33q-929c)。
+- node-forgeの暫定パッチは削除し、既存テストは維持しました。`braces` の勧告は発行元が10月23日に取り下げ、現行監査には現れません。今回の依存更新とは別のため、既存の深さ制限とテストは変更していません。
+- `npm audit --audit-level=high` の再実行では、High 33・Moderate 13からHigh 31・Moderate 11に減少し、`node-forge` と `undici` の勧告は結果から消えました。件数は依存元への伝播を含みます。**残るHighの根本は [picomatchの1勧告](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) で、監査は終了コード1です。** Moderateの根本は `glob` と `minimatch` です。
+- picomatchはExpo CLI・Metro・ESLint系に4.0.7、Jest・patch-package系に2.3.2が解決されています。公式npmの最新4.0.7を含む両系列が対象で、修正版は確認できません。アプリ・Workerのソースに直接の利用は見つかっていませんが、ビルド・開発ツールでの影響や監査失敗を免除する根拠にはしません。
+- 監査除外、許可リスト、バージョンの偽装、強制ダウングレードは行いません。対象外となる正式修正版、または互換性と来歴を確認できる代替が揃った段階で、影響する両系列を再検証します。監査と集約品質ゲートが通るまで公開は保留します。
+
+### 公開名の保護
+
+通報、本人専用ブロック、限定NG照合、運営認証付きの全体制限・解除を追加します。通報の水増しだけでは自動BANしません。設定、権限、保存期間、既存匿名記録の限界は [MODERATION.md](./MODERATION.md) を参照してください。運営APIのsecretは `MODERATION_ADMIN_TOKEN` で、32〜256文字・非公開・ブラウザから利用不可です。
+
 ### PR #60の限定更新（2026-10-14確認）
 
 - `shell-quote` 1.12.0は[GHSA-pqg4-j6r4-53mv](https://github.com/advisories/GHSA-pqg4-j6r4-53mv)の修正を含みます。コメント後の改行入りトークンを拒否することを回帰テストします。現在のReact DevToolsの確認できた使用箇所は`REACT_EDITOR`のparseであり、対象のquote処理へのプレイヤー入力経路は確認していません。DevTools組み込みコードはlockfile更新で置換されるものではありません。
@@ -68,7 +90,7 @@
 - WebのBearerトークンはブラウザのローカルストレージにあり、同一Originで任意JavaScriptが実行された場合は保護できません。外部実行時依存を持たず、入力をReact textとして描画してXSS面を縮小しています。
 - 公開名は個人情報を書かない前提の自由入力です。メールアドレス等を入力しないようアプリ内で案内します。
 - 端末トークンを失うと旧端末の所有記録を自己削除できません。所有者ハッシュ導入前の移行記録は問い合わせ対応です。
-- 公開ランキングはCloudflareのエッジとD1 read replicaで処理されます。別拠点のキャッシュにより、削除反映は通常最大30秒、D1障害時は最大5分遅れる可能性があります。
+- 公開ランキングの匿名参照はCloudflareのエッジとD1 read replicaで処理しますが、応答前にprimaryで削除・運営制限・NGを再確認します。本人向けは共有キャッシュを使いません。既に取得した画面とオフラインキャッシュの遠隔消去はできません。確認できない名前をD1全面障害時に表示し続けない設計です。
 - GitHub PagesではHTTPレスポンスヘッダーを細かく制御できないため、生成HTMLへCSPと`no-referrer`を注入し、スクリプトを同一オリジン、API通信を本番Workerへ限定します。`frame-ancestors`などヘッダーでのみ完全に強制できる防御はPagesの制約として残ります。
 - 島SVGは国土地理院「地理院地図」を参照し、toyo1621が独自に編集・制作したデータです。出典、加工主体、利用条件へのリンク、データ指紋を `DATA_SOURCES.md` に記録します。
 

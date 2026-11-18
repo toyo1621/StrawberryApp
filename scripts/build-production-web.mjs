@@ -12,6 +12,7 @@ const env = {
 
 execFileSync(expo, [
   'export',
+  '--clear',
   '--platform',
   'web',
   '--output-dir',

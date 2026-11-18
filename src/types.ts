@@ -48,6 +48,7 @@ export interface RankingEntry {
   islandRegion: IslandRegion;
   createdAt: string;
   isCurrentPlayer?: boolean;
+  publicRank?: number;
 }
 
 export type RankingsByMode = Record<GameMode, RankingEntry[]>;

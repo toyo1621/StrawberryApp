@@ -40,6 +40,7 @@ npm run d1:enable-read-replication
 - `0010` は所有者ありの公開順位を所有者ハッシュ単位へ変更する部分インデックスを追加します。所有者なしの移行前行は正規化名単位を維持し、ランキング行は変更しません。
 - `0011` は九州を北部・南部へ分割し、旧九州スコアは互換スコープに保全します。
 - `0012` はCloudflare scheduled monitorの最新心拍を保持する1行テーブルを追加します。
+- `0014` は通報・本人ブロック・運営制限・判断履歴・NG設定を追加します。新Workerより先に適用し、専用の `MODERATION_ADMIN_TOKEN` を設定します。公開・実受信確認は [MODERATION.md](./MODERATION.md) に従います。
 - `0013` は本人マーカー照合をprimaryで高速化する所有者・スコープ別部分インデックスを追加します。
 
 ## Cloudflare Worker
@@ -124,16 +125,16 @@ npm run d1:import
 
 ## Expo / App Store / Play Store
 
-`app.config.js` にiOS bundle identifier、Android package、ビルド番号、1024px不透明アイコン、iOS Privacy Manifestを定義し、`eas.json`の本番環境へランキングAPI URLを固定しています。最初に所有者アカウントで `eas init` と各OSの対話的な初回buildを行い、`extra.eas.projectId`と署名資格情報を設定します。
+`app.config.js` にiOS bundle identifier、Android package、ビルド番号、1024px不透明アイコン、iOS Privacy Manifestを定義し、`eas.json`の本番環境へランキングAPI URLを固定しています。最初に所有者がExpoプロジェクトを作成／関連付けし、実際のUUIDを `EAS_PROJECT_ID` に設定します。EAS CLIは `.env.local` を自動読込しないため、ローカルのEAS実行時にはシェルで明示的にexportします。GitHub ActionsではEnvironmentのVariableを使い、クラウドビルド内では自動設定される `EAS_BUILD_PROJECT_ID` も参照します。iOSの詳細と所有者操作は [store/IOS_RELEASE.md](./store/IOS_RELEASE.md)、[store/IOS_OWNER_ACTIONS.md](./store/IOS_OWNER_ACTIONS.md) を参照してください。
 
 ```bash
-npx eas-cli build --platform ios --profile production
-npx eas-cli submit --platform ios --profile production
-npx eas-cli build --platform android --profile production
-npx eas-cli submit --platform android --profile production
+npx --yes eas-cli@19.1.0 build --platform ios --profile production
+npx --yes eas-cli@19.1.0 submit --platform ios --profile production --id <verified-ios-build-id>
+npx --yes eas-cli@19.1.0 build --platform android --profile production
+npx --yes eas-cli@19.1.0 submit --platform android --profile production --id <verified-android-build-id>
 ```
 
-以降はGitHub Actionsの `Mobile Store Release` を手動実行できます。`mobile-production` Environmentへ `EXPO_TOKEN`を登録し、platformと提出有無を選びます。workflowはEAS CLI 19.1.0、品質検査、Hermes容量検査、署名build、任意のsubmitを直列実行し、project IDや資格情報がなければ提出前に停止します。
+以降はGitHub Actionsの `Mobile Store Release` をmainから手動実行できます。`mobile-production` Environmentへ `EXPO_TOKEN`をSecret、`EAS_PROJECT_ID`をVariableとして登録し、platformと提出有無を選びます。iOS提出前には `eas.json` の `submit.production.ios.ascAppId` に実際のApp Store Connect IDを設定します。workflowはEAS CLI 19.1.0、品質検査・依存監査、Hermes容量検査、署名build、任意のsubmitを直列実行し、当該実行の成功ビルドIDだけを提出します。project IDや資格情報がなければ提出前に停止します。TestFlightへのアップロードと、App Storeの審査・一般公開は別の操作です。
 
 公開前には [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) に沿って実機で全4モード、振動、ダークモード、VoiceOver/TalkBack、文字拡大、オフライン復帰を確認し、各ストアのプライバシー回答と `store/privacy-declarations.json`、アプリ内ポリシーを一致させます。`extra.eas.projectId`、署名資格情報、審査結果は所有者アカウントで確認する外部証拠であり、設定前にストア公開済みとは扱いません。
 

@@ -10,6 +10,7 @@ import { GameMode, IslandRegion, RankingEntry, RankingPeriod } from '../types';
 import PeriodTabs from './ranking/PeriodTabs';
 import RankingList from './ranking/RankingList';
 import StatusBanner from './ui/StatusBanner';
+import { useModerationRevision } from '../hooks/useModerationRevision';
 
 type GameOverScreenProps = {
   ranking: RankingEntry[];
@@ -52,6 +53,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
   const actionAccent = config.accent;
   const rankingRegion = gameMode === GameMode.ISLAND ? islandRegion : IslandRegion.ALL;
   const islandRegionLabel = getIslandRegionLabel(rankingRegion);
+  const moderationRevision = useModerationRevision();
 
   useEffect(() => {
     let active = true;
@@ -88,7 +90,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
     return () => {
       active = false;
     };
-  }, [gameMode, rankingRegion, selectedPeriod]);
+  }, [gameMode, rankingRegion, selectedPeriod, moderationRevision]);
 
   const currentRanking = selectedPeriod === RankingPeriod.ALL ? ranking : periodRanking;
   const rank = useMemo(
