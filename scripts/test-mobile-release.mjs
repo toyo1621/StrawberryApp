@@ -100,7 +100,13 @@ test('native saved names are verified from the intended input values rather than
 test('native CI preserves each test attempt and allows slow simulator driver startup', async () => {
   const { load } = createRequire(import.meta.url)('js-yaml');
   const workflow = load(await readFile(new URL('../.github/workflows/ios-native-validation.yml', import.meta.url), 'utf8'));
-  assert.equal(workflow.env.MAESTRO_DRIVER_STARTUP_TIMEOUT, '240000');
+  const native = workflow.jobs['test-ios'];
+  const exercise = native.steps.find((step) => step.run?.startsWith('node scripts/test-ios-simulator.mjs'));
+  assert.equal(exercise?.env.MAESTRO_DRIVER_STARTUP_TIMEOUT, '${{ matrix.driver_startup_timeout_ms }}');
+  assert.deepEqual(
+    native.strategy.matrix.include.map(({ name, driver_startup_timeout_ms }) => [name, driver_startup_timeout_ms]),
+    [['iPhone', '240000'], ['iPad', '480000'], ['iPad-large-text', '480000']],
+  );
   for (const job of Object.values(workflow.jobs)) {
     for (const step of job.steps.filter((entry) => entry.uses?.startsWith('actions/upload-artifact@'))) {
       if (step.with.name === 'ios-simulator-app') {

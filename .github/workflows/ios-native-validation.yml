@@ -23,7 +23,6 @@ env:
   DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
   EXPO_PUBLIC_RANKINGS_API_URL: ''
   MAESTRO_CLI_NO_ANALYTICS: 'true'
-  MAESTRO_DRIVER_STARTUP_TIMEOUT: '240000'
 
 concurrency:
   group: ios-native-${{ github.ref }}
@@ -97,12 +96,15 @@ jobs:
           - name: iPhone
             device: iPhone
             option: ''
+            driver_startup_timeout_ms: '240000'
           - name: iPad
             device: iPad
             option: ''
+            driver_startup_timeout_ms: '480000'
           - name: iPad-large-text
             device: iPad
             option: --large-text
+            driver_startup_timeout_ms: '480000'
     name: Native UI (${{ matrix.name }})
     steps:
       - name: Checkout
@@ -138,6 +140,8 @@ jobs:
           echo "$RUNNER_TEMP/maestro-cli/maestro/bin" >> "$GITHUB_PATH"
 
       - name: Exercise modes and native accessibility layout
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: ${{ matrix.driver_startup_timeout_ms }}
         run: node scripts/test-ios-simulator.mjs "${{ matrix.device }}" "${{ matrix.option }}"
 
       - name: Preserve native build and UI evidence
