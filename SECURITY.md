@@ -46,13 +46,21 @@
 
 ### Expo 54を維持した局所緩和（2026-10-23）
 
-今回の取得結果はHigh 23、Moderate 0、Critical 0です。原因となる独立した勧告はbracesとnode-forgeの2件で、23は依存元への伝播を含むパッケージ数です。下記の過去記録と件数が異なるのは、[sprintf-jsの勧告が2026-10-22に取り下げられた](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)ためです。除外設定を追加した結果ではありません。
+この節は当時の記録です。2026-10-23の取得結果はHigh 23、Moderate 0、Critical 0でした。原因はbracesとnode-forgeの2勧告で、23は依存元への伝播を含むパッケージ数です。PR #60の記録から中程度の指摘が減ったのは、[sprintf-jsの勧告が2026-10-22に取り下げられた](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)ためです。監査除外によるものではありません。
 
 - `braces@3.0.3`: 文字数制限では再帰の深さを抑えられないため、文字列パーサで括弧・波括弧のネストを100未満に制限する局所パッチを追加。通常のglob展開を維持し、4000段の入力が制御されたSyntaxErrorで停止することをcompile/expand/stringifyで検証。利用者が任意ASTを直接渡す用途や一般的な正規表現DoSすべてを解決するものではありません。[勧告](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)、[上流議論](https://github.com/micromatch/braces/issues/70)。
 - `node-forge@1.4.0`: RSA PKCS#1 v1.5のDigestAlgorithm内部要素数をOID＋任意NULLだけに制限。[上流PR #1152](https://github.com/digitalbazaar/forge/pull/1152)と同じ検査条件を限定バックポート。余分なASN.1要素を含む署名を拒否し、通常の署名、NULL省略、自己署名証明書の往復を検証。
 - 既存のpatch-package方式を使い、`postinstall`は`--error-on-fail`でパッチ適用失敗を拒否します。パッケージの版を修正版に偽装せず、Expo SDK/React Nativeの強制更新・ダウングレード・監査除外はしません。
 - 主な経路はMetro/Jest/patch-packageのglob処理と、Expo CLIの証明書/RSA処理です。アプリとWorkerの実行時ソースには直接importがありません。開発ツールは起動・ビルド時に実行するため「本番で使わないから安全」とは扱いません。任意入力に対する完全な到達不能の証明ではありません。
-- **npm auditはパッケージの公開バージョンを監査するので、ローカルパッチ後もHigh 23で失敗します。監査ジョブと集約品質ゲートは失敗を維持します。** 公式の修正版が公開されたら、その2依存だけを更新してパッチを外し、再現テスト・ビルド・監査を再実行します。現状を「監査解消済み」とは表現しません。
+- npm auditはパッケージの公開バージョンを監査するため、当時はローカルパッチ後もHigh 23で失敗しました。最新の状態は次節を参照してください。
+
+### PR #62の再監査と正式修正版への更新（2026-11-18）
+
+- Expo 54.0.37、React Native 0.81.5、Wrangler 4.147.0を維持。ロックファイル上の変更は、Expo CLI系の `node-forge` 1.4.0 → 1.4.3、`undici` 6.28.1 → 6.29.1、Miniflare系の `undici` 7.29.1 → 7.30.1の3レコードのみです。`undici` はそれぞれのメジャー内で固定します。[forge変更履歴](https://github.com/digitalbazaar/forge/blob/main/CHANGELOG.md)、[undiciの修正版](https://github.com/advisories/GHSA-xjj6-f33q-929c)。
+- node-forgeの暫定パッチは削除し、既存テストは維持しました。`braces` の勧告は発行元が10月23日に取り下げ、現行監査には現れません。今回の依存更新とは別のため、既存の深さ制限とテストは変更していません。
+- `npm audit --audit-level=high` の再実行では、High 33・Moderate 13からHigh 31・Moderate 11に減少し、`node-forge` と `undici` の勧告は結果から消えました。件数は依存元への伝播を含みます。**残るHighの根本は [picomatchの1勧告](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) で、監査は終了コード1です。** Moderateの根本は `glob` と `minimatch` です。
+- picomatchはExpo CLI・Metro・ESLint系に4.0.7、Jest・patch-package系に2.3.2が解決されています。公式npmの最新4.0.7を含む両系列が対象で、修正版は確認できません。アプリ・Workerのソースに直接の利用は見つかっていませんが、ビルド・開発ツールでの影響や監査失敗を免除する根拠にはしません。
+- 監査除外、許可リスト、バージョンの偽装、強制ダウングレードは行いません。対象外となる正式修正版、または互換性と来歴を確認できる代替が揃った段階で、影響する両系列を再検証します。監査と集約品質ゲートが通るまで公開は保留します。
 
 ### 公開名の保護
 
